@@ -22,6 +22,15 @@ def build_intake_questions() -> list[dict]:
             "allow_freeform": True,
         },
         {
+            "id": "creative_source_preference",
+            "question": "主視覺要怎麼決定？",
+            "choices": [
+                "由 GPT 生成與自動判斷（背景模式/色彩/幾何/圖源）",
+                "我想自訂設計參數（背景模式、色系、幾何等）",
+            ],
+            "allow_freeform": False,
+        },
+        {
             "id": "style_preference",
             "question": "你偏好的海報風格是什麼？",
             "choices": ["簡約清新", "活潑可愛", "專業穩重", "潮流強烈", "請 AI 發想"],

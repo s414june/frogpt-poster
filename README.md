@@ -27,6 +27,9 @@ Key arguments:
 - `subject_mask_mode`: `rounded` | `feather`
 - `subject_border_px`: `0` or `8..20` (僅使用者明確要求時加粗邊框)
 - `background_color_hint`: 使用者想要的背景色提示詞（例如 `blue light`, `暖橘`, `深綠`）。也支援只有明度語意（如 `light`、`dark`）來調整背景亮暗。
+- `creative_source_preference`: `auto` | `real_image_priority` | `gpt_generate`
+  - `gpt_generate`：在未自訂設計參數時，交由 GPT 以**非隨機**規則自動判斷背景策略（Pexels / 單色 / 漸層 / 需先生成無字背景）。
+- `intake_answers`: 可選；以 `{question_id: answer}` 回傳首輪問卷答案（例如 `creative_source_preference`、`image_ready`）。
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
 - `subject_image_paths`, `subject_image_urls`, `subject_image_base64` (可疊加為前景主體，建議透明背景 PNG)
 - `reference_image_urls`: style reference images (URL)
@@ -80,8 +83,9 @@ MCP intake behavior (強制一次)：
 - 你仍可顯式傳 `intake_confirmed=true`，但不是必填。
 - 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
 - 首輪問卷也會詢問圖片角色：`auto / subject / background / both`。
-- MCP 在 intake 完成後，若未顯式提供 `variation_token`，會自動啟用變體模式（等同 `regenerate_variant=true`）以避免每次重跑完全相同。
-- MCP 在 intake 完成後，若未顯式設定 `regenerate_variant`，預設會啟用變體模式並忽略傳入的舊 `variation_token`（避免重跑仍同圖）。
+- MCP 在 intake 完成後，**預設不自動啟用變體**（避免隨機跳版）。
+- 只有明確傳入 `regenerate_variant=true` 才會產生新變體，且會忽略傳入舊 `variation_token`。
+- 若首輪問卷選擇「由 GPT 生成與自動判斷」，且未自訂設計參數，系統會啟用 GPT 自動設計模式（`design_autopilot.active=true`）。
 
 When first interaction enters intake mode, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)
@@ -98,7 +102,7 @@ Typography/layout policy:
 - title/subtitle are center-aligned and kept near visual center (not tied to subject edges), with larger default sizes.
 - body/campaign copy is center-aligned in lower area.
 - typography uses two sizes by default: headline + primary campaign line use major size; remaining detail line(s) use minor size.
-- sans-serif (黑體) is prioritized; heading prefers heavier weight, body keeps one consistent font/weight.
+- sans-serif (黑體) is prioritized; heading default weight is reduced one step (prefers medium/semibold over black/bold), body keeps one consistent font/weight.
 - when no explicit palette is provided, colors are automatically extracted from user/GPT-provided images (subject/reference/background draft).
 - when `background_color_hint` is provided, palette selection first tries to match that hue from image colors; if no close same hue exists, it still uses image colors and adjusts saturation/lightness toward the hint.
 - text color is auto-switched between dark/light to keep luminance contrast against background.
