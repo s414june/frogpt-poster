@@ -1,0 +1,14 @@
+{
+  "title": "社群市集活動",
+  "body": "本週六 14:00-20:00，歡迎來現場體驗手作與音樂。",
+  "assets": {
+    "user_image_paths": [],
+    "open_source_font_paths": []
+  },
+  "layout": {
+    "width": 1080,
+    "height": 1350
+  },
+  "allow_ai_fallback": true
+}
+

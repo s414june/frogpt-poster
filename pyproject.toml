@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gpt-package"
+version = "0.1.0"
+description = "OpenAI Tools plugin scaffold for real-image-first poster generation."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "frogpt-poster contributors" }
+]
+dependencies = []
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

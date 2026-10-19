@@ -1,0 +1,7 @@
+{
+  "arguments": {
+    "poster_text_file": "examples\\uat\\poster-input.json",
+    "allow_ai_fallback": false
+  }
+}
+
