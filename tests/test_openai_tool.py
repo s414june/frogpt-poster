@@ -477,7 +477,7 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
-    def test_background_mode_solid_renders_without_reference(self) -> None:
+    def test_background_mode_solid_still_requires_background_generation_when_no_assets(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
             try:
@@ -490,8 +490,8 @@ class OpenAIToolTests(unittest.TestCase):
                     }
                 )
                 self.assertTrue(result["ok"])
-                self.assertEqual(result["status"]["code"], "completed")
-                self.assertEqual(result["decision"]["image_source"], "ai_fallback")
+                self.assertFalse(result["rendered"])
+                self.assertEqual(result["status"]["code"], "needs_background_generation")
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 

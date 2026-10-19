@@ -910,9 +910,8 @@ def _needs_background_generation(arguments: dict, request: PosterRequest, refere
     has_pexels_query = bool(str(arguments.get("pexels_query", "")).strip())
     if has_user_image or has_subject_image or has_reference or has_pexels_query:
         return False
-    mode = (request.style.background_mode or "auto").strip().lower()
-    if mode in ("solid", "gradient") and not _wants_explicit_visual_subject(request):
-        return False
+    # Hard lock: when no visual input is available, force GPT to generate a text-free
+    # background first, then call back with generated_background_base64.
     return True
 
 
