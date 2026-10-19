@@ -22,11 +22,20 @@ class PosterLayout:
 
 
 @dataclass(slots=True)
+class PosterStyle:
+    primary_color: str = "#F6F1E8"
+    secondary_color: str = "#A8BFA8"
+    accent_color: str = "#6D8A72"
+    subject: str = ""
+
+
+@dataclass(slots=True)
 class PosterRequest:
     title: str
     body: str
     assets: PosterAssetSet = field(default_factory=PosterAssetSet)
     layout: PosterLayout = field(default_factory=PosterLayout)
+    style: PosterStyle = field(default_factory=PosterStyle)
     allow_ai_fallback: bool = True
 
     def to_dict(self) -> dict:

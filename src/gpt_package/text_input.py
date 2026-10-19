@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .errors import ValidationError
 from .font_discovery import discover_open_source_fonts
-from .types import PosterAssetSet, PosterLayout, PosterRequest
+from .types import PosterAssetSet, PosterLayout, PosterRequest, PosterStyle
 
 
 def load_request_from_text_file(path: str) -> PosterRequest:
@@ -25,6 +25,7 @@ def load_request_from_text_file(path: str) -> PosterRequest:
 
     assets = payload.get("assets", {})
     layout = payload.get("layout", {})
+    style = payload.get("style", {})
     request = PosterRequest(
         title=str(payload.get("title", "")),
         body=str(payload.get("body", "")),
@@ -35,6 +36,12 @@ def load_request_from_text_file(path: str) -> PosterRequest:
         layout=PosterLayout(
             width=int(layout.get("width", 1080)),
             height=int(layout.get("height", 1350)),
+        ),
+        style=PosterStyle(
+            primary_color=str(style.get("primary_color", "#F6F1E8")),
+            secondary_color=str(style.get("secondary_color", "#A8BFA8")),
+            accent_color=str(style.get("accent_color", "#6D8A72")),
+            subject=str(style.get("subject", "")),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )

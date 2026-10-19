@@ -1,4 +1,4 @@
-"""Stateless Streamable HTTP MCP adapter for the existing poster scaffold."""
+"""Stateless Streamable HTTP MCP adapter for poster rendering."""
 import json
 import sys
 from pathlib import Path
@@ -11,19 +11,26 @@ NAME = "prepare_poster"
 SCHEMA = {
     "type": "object",
     "properties": {
+        "poster_request": {"type": "object"},
         "title": {"type": "string", "minLength": 1, "maxLength": 120},
         "body": {"type": "string", "minLength": 1, "maxLength": 4000},
         "width": {"type": "integer", "minimum": 256, "maximum": 4096},
         "height": {"type": "integer", "minimum": 256, "maximum": 4096},
+        "primary_color": {"type": "string"},
+        "secondary_color": {"type": "string"},
+        "accent_color": {"type": "string"},
+        "subject": {"type": "string"},
+        "user_image_base64": {"type": "array", "items": {"type": "string"}},
+        "show_design_guide": {"type": "boolean"},
     },
-    "required": ["title", "body"],
+    "required": [],
     "additionalProperties": False,
 }
 TOOL = {
     "name": NAME,
-    "description": "Prepare and validate a poster brief. Returns dimensions and image-source policy only. Rendering is not implemented: this tool does not generate an image or download URL. User attachments are not uploaded by this tool.",
+    "description": "Render a poster and return structured status plus preview image data.",
     "inputSchema": SCHEMA,
-    "annotations": {"readOnlyHint": True, "destructiveHint": False, "idempotentHint": True, "openWorldHint": False},
+    "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
 
 def dispatch(message):
@@ -40,7 +47,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.1.0"}, "instructions": "Poster scaffold: prepare_poster validates a brief but does not render an image. Never claim an image was created."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.0"}, "instructions": "prepare_poster renders a poster image when enough input is provided; otherwise it returns intake questions."}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -49,15 +56,20 @@ def dispatch(message):
         args = params.get("arguments", {})
         if params.get("name") != NAME:
             result["error"] = {"code": -32602, "message": "Unknown tool"}
-        elif (not isinstance(args, dict) or set(args) - set(SCHEMA["properties"])
-              or any(not isinstance(args.get(k), str) for k in ("title", "body"))
-              or any(type(args[k]) is not int for k in ("width", "height") if k in args)):
-            result["error"] = {"code": -32602, "message": "Expected title/body strings and optional integer width/height; no file paths accepted."}
+        elif not isinstance(args, dict) or set(args) - set(SCHEMA["properties"]):
+            result["error"] = {"code": -32602, "message": "Arguments shape not allowed by schema."}
         else:
             output = handle_tool_call(args)
-            output["rendered"] = False
-            output["status"] = "brief_validated" if output["ok"] else "validation_failed"
-            result["result"] = {"content": [{"type": "text", "text": json.dumps(output, ensure_ascii=False)}], "isError": not output["ok"]}
+            content = [{"type": "text", "text": json.dumps(output, ensure_ascii=False)}]
+            if output.get("ok") and output.get("rendered") and output.get("output_image_base64"):
+                content.append(
+                    {
+                        "type": "image",
+                        "data": output["output_image_base64"],
+                        "mimeType": output.get("output_mime_type", "image/png"),
+                    }
+                )
+            result["result"] = {"content": content, "isError": not output.get("ok", False)}
     else:
         result["error"] = {"code": -32601, "message": "Method not found"}
     return result

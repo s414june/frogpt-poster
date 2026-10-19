@@ -20,6 +20,7 @@ Key arguments:
 - `poster_text_file`: UTF-8 JSON input path
 - `poster_request`: inline request object (recommended for web/mobile)
 - `title`, `body`: optional overrides
+- `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
 - `open_source_font_paths`
 - `width`, `height`, `allow_ai_fallback`
@@ -50,6 +51,12 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 When first interaction lacks complete fields, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)
 - optional `design_guide` (when `show_design_guide=true` or `request_intake_only=true`)
+
+For cleaner copy control, prefer:
+- `poster_request.copy.headline`
+- `poster_request.copy.subtitle`
+- `poster_request.copy.organization`
+- `poster_request.copy.cta`
 
 ## UAT with text interface (chat-like)
 

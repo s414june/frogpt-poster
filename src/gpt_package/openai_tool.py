@@ -14,7 +14,7 @@ from .errors import ValidationError
 from .font_discovery import discover_open_source_fonts
 from .guidance import build_design_guide, build_intake_questions
 from .text_input import load_request_from_text_file
-from .types import PosterAssetSet, PosterLayout, PosterRequest
+from .types import PosterAssetSet, PosterLayout, PosterRequest, PosterStyle
 
 TOOL_NAME = "generate_poster_with_real_image_priority"
 
@@ -54,6 +54,10 @@ def build_tool_definition() -> dict:
                 "width": {"type": "integer", "minimum": 256, "maximum": 4096},
                 "height": {"type": "integer", "minimum": 256, "maximum": 4096},
                 "allow_ai_fallback": {"type": "boolean"},
+                "subject": {"type": "string"},
+                "primary_color": {"type": "string"},
+                "secondary_color": {"type": "string"},
+                "accent_color": {"type": "string"},
                 "request_intake_only": {
                     "type": "boolean",
                     "description": "Return intake questions only, without rendering.",
@@ -109,6 +113,14 @@ def _build_request(arguments: dict) -> PosterRequest:
         if not isinstance(arguments["allow_ai_fallback"], bool):
             raise ValidationError("allow_ai_fallback must be a boolean")
         request.allow_ai_fallback = arguments["allow_ai_fallback"]
+    if "subject" in arguments:
+        request.style.subject = str(arguments["subject"])
+    if "primary_color" in arguments:
+        request.style.primary_color = str(arguments["primary_color"])
+    if "secondary_color" in arguments:
+        request.style.secondary_color = str(arguments["secondary_color"])
+    if "accent_color" in arguments:
+        request.style.accent_color = str(arguments["accent_color"])
 
     return request
 
@@ -118,9 +130,24 @@ def _from_inline_request(payload: dict) -> PosterRequest:
         raise ValidationError("poster_request must be an object")
     assets = payload.get("assets", {})
     layout = payload.get("layout", {})
+    style = payload.get("style", {})
+    copy = payload.get("copy", {})
+    if copy and not isinstance(copy, dict):
+        raise ValidationError("copy must be an object when provided")
+
+    title = str(copy.get("headline", payload.get("title", ""))).strip()
+    subtitle = str(copy.get("subtitle", "")).strip()
+    organization = str(copy.get("organization", "")).strip()
+    cta = str(copy.get("cta", "")).strip()
+    if subtitle or organization or cta:
+        body_lines = [line for line in [subtitle, organization, cta] if line]
+        body = "\n".join(body_lines)
+    else:
+        body = str(payload.get("body", ""))
+
     return PosterRequest(
-        title=str(payload.get("title", "")),
-        body=str(payload.get("body", "")),
+        title=title,
+        body=body,
         assets=PosterAssetSet(
             user_image_paths=[str(item) for item in assets.get("user_image_paths", [])],
             open_source_font_paths=[
@@ -130,6 +157,12 @@ def _from_inline_request(payload: dict) -> PosterRequest:
         layout=PosterLayout(
             width=int(layout.get("width", 1080)),
             height=int(layout.get("height", 1350)),
+        ),
+        style=PosterStyle(
+            primary_color=str(style.get("primary_color", payload.get("primary_color", "#F6F1E8"))),
+            secondary_color=str(style.get("secondary_color", payload.get("secondary_color", "#A8BFA8"))),
+            accent_color=str(style.get("accent_color", payload.get("accent_color", "#6D8A72"))),
+            subject=str(style.get("subject", payload.get("subject", ""))),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )
