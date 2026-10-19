@@ -31,6 +31,9 @@ SCHEMA = {
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
+        "text_align": {"type": "string", "enum": ["left", "center", "right"], "description": "Alignment for every copy block."},
+        "headline_source": {"type": "string", "enum": ["title", "body_first"], "description": "Use title to preserve the supplied headline and its explicit newlines as the large heading."},
+        "body_y_ratio": {"type": "number", "minimum": 0, "maximum": 1, "description": "Top of subtitle/body block as canvas height ratio; clamped to keep text inside canvas. E.g. 0.64 moves copy closer to vertical center."},
         "title": {"type": "string", "minLength": 1, "maxLength": 120},
         "body": {"type": "string", "minLength": 1, "maxLength": 4000},
         "width": {"type": "integer", "minimum": 256, "maximum": 4096},
@@ -425,7 +428,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.0"}, "instructions": ASSISTANT_INSTRUCTIONS}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.1"}, "instructions": ASSISTANT_INSTRUCTIONS}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":

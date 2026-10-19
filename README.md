@@ -278,3 +278,7 @@ Generated posters are written to:
 
 You can override with environment variable:
 - `POSTER_OUTPUT_DIR`
+
+## Explicit copy controls (v0.3.1)
+
+MCP top-level arguments or `poster_request.style` accept `text_align` (`left` / `center` / `right`), `headline_source` (`title` / legacy `body_first`), and `body_y_ratio` (0–1, top of body block). Use `headline_source="title"` to keep explicit title newlines as the large heading. In `both` mode, `body_y_ratio=0.64` places subtitle/body nearer the vertical center; placement is clamped inside the canvas. All blocks retain one shared color.

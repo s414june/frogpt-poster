@@ -125,7 +125,7 @@ class TypographyEngine:
         for line in title_lines[:title_max_lines]:
             box = draw.textbbox((0, 0), line, font=title_font)
             line_w = box[2] - box[0]
-            x = max(margin, (width - line_w) // 2)
+            x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, y), line, fill=title_color, font=title_font)
             y += title_step
 
@@ -165,7 +165,7 @@ class TypographyEngine:
             )
             box = draw.textbbox((0, 0), subtitle_line, font=title_font)
             line_w = box[2] - box[0]
-            x = max(margin, (width - line_w) // 2)
+            x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, y), subtitle_line, fill=body_color, font=title_font)
             y += title_step
         if subtitle_line and rest_lines:
@@ -173,7 +173,7 @@ class TypographyEngine:
         for line in rest_lines[: max(1, body_max_lines - 1)]:
             box = draw.textbbox((0, 0), line, font=minor_font)
             line_w = box[2] - box[0]
-            x = max(margin, (width - line_w) // 2)
+            x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, y), line, fill=body_color, font=minor_font)
             y += minor_step
 
@@ -237,7 +237,7 @@ class TypographyEngine:
         text_width = width - margin * 2
         raw_title_lines = self._wrap_text(draw, title.strip(), minor_font, text_width)
         raw_body_lines = self._wrap_text(draw, body.strip(), minor_font, text_width)
-        if raw_body_lines and raw_body_lines[0].strip():
+        if getattr(style, "headline_source", "body_first") != "title" and raw_body_lines and raw_body_lines[0].strip():
             hero_text = raw_body_lines[0].strip()
             hero_lines = self._wrap_text(draw, hero_text, hero_font, text_width)
             minor_lines = [
@@ -271,12 +271,16 @@ class TypographyEngine:
             minor_shift=minor_shift,
         )
 
+        body_y_ratio = getattr(style, "body_y_ratio", None)
+        if body_y_ratio is not None:
+            body_y = max(margin, min(int(height * body_y_ratio), height - margin - minor_height))
+            minor_region = (margin, body_y, width - margin, body_y + minor_height)
         hero_color = minor_color = self._pick_shared_text_color(image, [hero_region, minor_region])
         hero_start_y = hero_region[1]
         for line in hero_lines:
             box = draw.textbbox((0, 0), line, font=hero_font)
             line_w = box[2] - box[0]
-            x = max(margin, (width - line_w) // 2)
+            x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, hero_start_y), line, fill=hero_color, font=hero_font)
             hero_start_y += self._snap8(max(8, int(hero_font.size * 1.20)))
 
@@ -284,7 +288,7 @@ class TypographyEngine:
         for line in minor_lines:
             box = draw.textbbox((0, 0), line, font=minor_font)
             line_w = box[2] - box[0]
-            x = max(margin, (width - line_w) // 2)
+            x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
             minor_start_y += self._snap8(max(8, int(minor_font.size * 1.30)))
 
@@ -305,6 +309,9 @@ class TypographyEngine:
             "minor_font_size": minor_font.size,
             "focus_box": focus_box,
             "hero_region": hero_region,
+            "hero_lines": hero_lines,
+            "minor_lines": minor_lines,
+            "text_align": getattr(style, "text_align", "center"),
             "minor_region": minor_region,
         }
 
@@ -665,6 +672,14 @@ class TypographyEngine:
         ):
             base = base.replace(token, "")
         return base
+
+    def _aligned_text_x(self, style, width, margin, box):
+        align = getattr(style, "text_align", "center")
+        if align == "left":
+            return margin - box[0]
+        if align == "right":
+            return width - margin - box[2]
+        return max(margin, (width - (box[2] - box[0])) // 2 - box[0])
 
     def _pick_shared_text_color(self, image: Image.Image, regions: list) -> tuple[int, int, int, int]:
         """Choose one color maximizing the worst contrast across all text blocks."""

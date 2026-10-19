@@ -35,6 +35,9 @@ class PosterStyle:
     accent_color: str = "#6D8A72"
     subject: str = ""
     panel_ratio: float = 0.24
+    text_align: str = "center"
+    headline_source: str = "body_first"
+    body_y_ratio: float | None = None
     title_max_lines: int = 2
     body_max_lines: int = 4
     background_shape_count: int = 0

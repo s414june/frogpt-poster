@@ -85,6 +85,9 @@ def build_tool_definition() -> dict:
                     "type": "string",
                     "description": "Compatibility field for MCP intake flow.",
                 },
+                "text_align": {"type": "string", "enum": ["left", "center", "right"]},
+                "headline_source": {"type": "string", "enum": ["title", "body_first"]},
+                "body_y_ratio": {"type": "number", "minimum": 0, "maximum": 1},
                 "title": {"type": "string"},
                 "body": {"type": "string"},
                 "user_image_paths": {"type": "array", "items": {"type": "string"}},
@@ -208,6 +211,17 @@ def _build_request(arguments: dict) -> PosterRequest:
         if not isinstance(arguments["allow_ai_fallback"], bool):
             raise ValidationError("allow_ai_fallback must be a boolean")
         request.allow_ai_fallback = arguments["allow_ai_fallback"]
+    for key in ("text_align", "headline_source", "body_y_ratio"):
+        if key in arguments:
+            setattr(request.style, key, arguments[key])
+    if request.style.text_align not in ("left", "center", "right"):
+        raise ValidationError("text_align must be left, center or right")
+    if request.style.headline_source not in ("title", "body_first"):
+        raise ValidationError("headline_source must be title or body_first")
+    if request.style.body_y_ratio is not None:
+        ratio = request.style.body_y_ratio
+        if isinstance(ratio, bool) or not isinstance(ratio, (int, float)) or not 0 <= ratio <= 1:
+            raise ValidationError("body_y_ratio must be a number from 0 to 1")
     if "subject" in arguments:
         request.style.subject = str(arguments["subject"])
     if "background_mode" in arguments:
@@ -292,6 +306,9 @@ def _from_inline_request(payload: dict) -> PosterRequest:
             accent_color=str(style.get("accent_color", payload.get("accent_color", _DEFAULT_ACCENT_COLOR))),
             subject=str(style.get("subject", payload.get("subject", ""))),
             panel_ratio=float(style.get("panel_ratio", payload.get("panel_ratio", 0.24))),
+            text_align=style.get("text_align", payload.get("text_align", "center")),
+            headline_source=style.get("headline_source", payload.get("headline_source", "body_first")),
+            body_y_ratio=style.get("body_y_ratio", payload.get("body_y_ratio")),
             title_max_lines=int(style.get("title_max_lines", payload.get("title_max_lines", 2))),
             body_max_lines=int(style.get("body_max_lines", payload.get("body_max_lines", 4))),
             background_shape_count=int(
