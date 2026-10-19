@@ -38,10 +38,17 @@ def load_request_from_text_file(path: str) -> PosterRequest:
             height=int(layout.get("height", 1350)),
         ),
         style=PosterStyle(
+            preset=str(style.get("preset", "")),
             primary_color=str(style.get("primary_color", "#F6F1E8")),
             secondary_color=str(style.get("secondary_color", "#A8BFA8")),
             accent_color=str(style.get("accent_color", "#6D8A72")),
             subject=str(style.get("subject", "")),
+            panel_ratio=float(style.get("panel_ratio", 0.24)),
+            title_max_lines=int(style.get("title_max_lines", 2)),
+            body_max_lines=int(style.get("body_max_lines", 4)),
+            background_shape_count=int(style.get("background_shape_count", 3)),
+            background_shape_alpha_min=int(style.get("background_shape_alpha_min", 10)),
+            background_shape_alpha_max=int(style.get("background_shape_alpha_max", 28)),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )

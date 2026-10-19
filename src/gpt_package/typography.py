@@ -14,10 +14,12 @@ class TypographyEngine:
         ranked = sorted(font_paths, key=lambda path: self._font_priority(path, sample_text))
         return ranked[0]
 
-    def apply(self, image: Image.Image, title: str, body: str, font_paths: list[str]) -> dict:
+    def apply(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
         width, height = image.size
         margin = max(36, int(width * 0.06))
-        panel_height = int(height * 0.34)
+        panel_ratio = float(getattr(style, "panel_ratio", 0.24)) if style else 0.24
+        panel_ratio = max(0.18, min(0.35, panel_ratio))
+        panel_height = int(height * panel_ratio)
 
         draw = ImageDraw.Draw(image, "RGBA")
         draw.rectangle(
@@ -34,11 +36,16 @@ class TypographyEngine:
         body_lines = self._wrap_text(draw, body.strip(), body_font, text_width)
 
         y = height - panel_height + max(24, int(width * 0.03))
-        for line in title_lines[:3]:
+        title_max_lines = int(getattr(style, "title_max_lines", 2)) if style else 2
+        body_max_lines = int(getattr(style, "body_max_lines", 4)) if style else 4
+        title_max_lines = max(1, min(4, title_max_lines))
+        body_max_lines = max(2, min(8, body_max_lines))
+
+        for line in title_lines[:title_max_lines]:
             draw.text((margin, y), line, fill=(255, 255, 255, 255), font=title_font)
             y += int(title_font.size * 1.22)
         y += max(6, int(width * 0.01))
-        for line in body_lines[:7]:
+        for line in body_lines[:body_max_lines]:
             draw.text((margin, y), line, fill=(237, 237, 237, 255), font=body_font)
             y += int(body_font.size * 1.35)
 
