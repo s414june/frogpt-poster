@@ -18,6 +18,7 @@ from .client import PosterGenerator
 from .errors import PosterError
 from .errors import ValidationError
 from .font_discovery import discover_open_source_fonts
+from .font_registry import resolve_font_family
 from .guidance import build_design_guide, build_intake_questions
 from .reference_images import apply_style_from_reference, build_credit_label, fetch_pexels_references, resolve_reference_url
 from .text_input import load_request_from_text_file
@@ -85,6 +86,7 @@ def build_tool_definition() -> dict:
                     "type": "string",
                     "description": "Compatibility field for MCP intake flow.",
                 },
+                "font_family": {"type": "string", "description": "Default sans/黑體. Explicit serif/明體, kai/楷體, rounded/圓體; unsupported names fail instead of silently using sans."},
                 "text_align": {"type": "string", "enum": ["left", "center", "right"]},
                 "headline_source": {"type": "string", "enum": ["title", "body_first"]},
                 "body_y_ratio": {"type": "number", "minimum": 0, "maximum": 1},
@@ -197,8 +199,14 @@ def _build_request(arguments: dict) -> PosterRequest:
         if not isinstance(arguments["subject_image_paths"], list):
             raise ValidationError("subject_image_paths must be an array of strings")
         request.assets.subject_image_paths = [str(item) for item in arguments["subject_image_paths"]]
-    if not request.assets.open_source_font_paths:
-        request.assets.open_source_font_paths = discover_open_source_fonts()
+    payload = arguments.get("poster_request") or {}
+    font_family = arguments.get("font_family", (payload.get("style") or {}).get("font_family", payload.get("font_family")))
+    if font_family is not None or not request.assets.open_source_font_paths:
+        request.style.font_family, request.assets.open_source_font_paths = resolve_font_family(
+            font_family if font_family is not None else "sans"
+        )
+    else:
+        request.style.font_family = "custom"
     if "width" in arguments:
         if not isinstance(arguments["width"], int):
             raise ValidationError("width must be an integer")

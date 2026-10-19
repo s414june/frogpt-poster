@@ -31,6 +31,7 @@ SCHEMA = {
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
+        "font_family": {"type": "string", "description": "Default sans (黑體). Request serif (明體/宋體), kai (楷體), rounded (圓體). Also accepted in poster_request.style.font_family. Unsupported names fail explicitly."},
         "text_align": {"type": "string", "enum": ["left", "center", "right"], "description": "Alignment for every copy block."},
         "headline_source": {"type": "string", "enum": ["title", "body_first"], "description": "Use title to preserve the supplied headline and its explicit newlines as the large heading."},
         "body_y_ratio": {"type": "number", "minimum": 0, "maximum": 1, "description": "Top of subtitle/body block as canvas height ratio; clamped to keep text inside canvas. E.g. 0.64 moves copy closer to vertical center."},

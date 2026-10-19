@@ -290,3 +290,7 @@ All multiline title and body blocks use a 1.5-em line advance: one font em plus 
 ## Attachment preflight and error reporting
 
 Before rendering, the assistant must obtain and successfully decode the current attachment bytes. A missing local path is a pre-tool attachment failure: stop reusing it, reacquire the same attachment through an available platform mechanism, or stop with「附件讀取失敗，尚未傳入套件」and request reattachment. The remote MCP server cannot read or repair the chat host filesystem. Never encode a filename/path, invent base64, or regenerate the user photo as a replacement. Only known image ValidationErrors receive base64 recovery advice; runtime/renderer failures preserve their error status and diagnostics. Generic transport errors do not establish a server-side cause.
+
+## Font selection
+
+Default `font_family=sans` uses Noto Sans TC (黑體). Set `font_family` at MCP/API top-level or in `poster_request.style` to `serif` (明體／宋體, Noto Serif TC), `kai` (楷體, LXGW WenKai TC), or `rounded` (圓體, Chiron GoRound TC). Chinese aliases are accepted. Explicit family choice filters font files before typography ranking, so sans preference cannot override it. Unknown or undeployed families return a validation error, never a silent substitution. Direct API callers may still supply validated server-local `assets.open_source_font_paths` for other deployed fonts when no family is selected. All listed runtime fonts retain their OFL license files.
