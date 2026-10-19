@@ -185,6 +185,10 @@ Endpoints:
 - `GET /api/health`
 - `GET /api/tool`
 - `POST /api/poster`
+- `POST /mcp` (MCP JSON-RPC endpoint; also accepts `/api/mcp`)
+
+MCP endpoint recommendation for GPT connector:
+- Use `https://<your-domain>/mcp` as the tool URL (avoid using `.py` suffix path).
 
 Example request:
 

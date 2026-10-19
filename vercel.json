@@ -10,11 +10,19 @@
   "rewrites": [
     {
       "source": "/mcp",
-      "destination": "/api/mcp.py"
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/mcp/",
+      "destination": "/api/mcp"
     },
     {
       "source": "/api/mcp",
-      "destination": "/api/mcp.py"
+      "destination": "/api/mcp"
+    },
+    {
+      "source": "/api/mcp/",
+      "destination": "/api/mcp"
     },
     {
       "source": "/api/(.*)",

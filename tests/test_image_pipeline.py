@@ -2,6 +2,7 @@ import random
 import sys
 import unittest
 import colorsys
+import tempfile
 from pathlib import Path
 
 from PIL import Image
@@ -154,6 +155,33 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         top = image.getpixel((image.width // 2, int(image.height * 0.15)))
         bottom = image.getpixel((image.width // 2, int(image.height * 0.85)))
         self.assertEqual(top, bottom)
+
+    def test_solid_mode_with_color_hint_keeps_non_gradient_tint(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="色調測試", body="solid + blue light")
+        req.style.primary_color = "#D4E0D4"
+        req.style.secondary_color = "#A8C0A8"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = "blue light"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        top = image.getpixel((image.width // 2, int(image.height * 0.15)))
+        bottom = image.getpixel((image.width // 2, int(image.height * 0.85)))
+        self.assertEqual(top, bottom)
+
+    def test_auto_mode_still_allows_geometry_with_single_subject(self) -> None:
+        pipe = ImagePipeline()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            subject_path = Path(tmp_dir) / "subject.png"
+            Image.new("RGBA", (260, 260), (230, 150, 170, 255)).save(subject_path)
+            req = PosterRequest(title="主體海報", body="自動背景也要有向量裝飾")
+            req.style.background_mode = "auto"
+            req.style.geometry_enabled = True
+            req.assets.subject_image_paths = [str(subject_path)]
+            image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+            self.assertEqual(image.mode, "RGB")
+            effects = pipe.get_last_effects()
+            self.assertTrue(effects.get("decorative_geometry_applied"))
+            self.assertGreater(int(effects.get("decorative_geometry_shapes", 0)), 0)
 
 
 if __name__ == "__main__":
