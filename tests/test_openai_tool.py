@@ -155,6 +155,76 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
+    def test_pexels_query_requires_api_key(self) -> None:
+        old = os.environ.pop("PEXELS_API_KEY", None)
+        try:
+            result = handle_tool_call(
+                {
+                    "title": "Event",
+                    "body": "Join us",
+                    "pexels_query": "hamster charity poster",
+                }
+            )
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["error_type"], "ValidationError")
+        finally:
+            if old is not None:
+                os.environ["PEXELS_API_KEY"] = old
+
+    def test_auto_pexels_disabled_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            old = os.environ.get("PEXELS_API_KEY")
+            os.environ["PEXELS_API_KEY"] = "dummy-key-for-test"
+            try:
+                result = handle_tool_call(
+                    {
+                        "title": "No external image",
+                        "body": "Manual library phase",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertIsNone(result.get("auto_pexels_query_used"))
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+                if old is None:
+                    os.environ.pop("PEXELS_API_KEY", None)
+                else:
+                    os.environ["PEXELS_API_KEY"] = old
+
+    def test_generated_background_base64_is_used_as_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                image_path = Path(tmp_dir) / "bg.png"
+                img = Image.new("RGB", (540, 720), (233, 241, 228))
+                for x in range(180):
+                    for y in range(720):
+                        img.putpixel((x, y), (227, 236, 224))
+                for x in range(180, 360):
+                    for y in range(720):
+                        img.putpixel((x, y), (168, 191, 168))
+                for x in range(360, 540):
+                    for y in range(720):
+                        img.putpixel((x, y), (109, 138, 114))
+                img.save(image_path)
+                bg_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+                result = handle_tool_call(
+                    {
+                        "title": "Ref test",
+                        "body": "Using generated background as reference",
+                        "generated_background_base64": bg_b64,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertTrue(result["reference_images_used"])
+                self.assertTrue(result["style_from_reference_applied"])
+                self.assertEqual(result["decision"]["image_source"], "user_image")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
 
 if __name__ == "__main__":
     unittest.main()

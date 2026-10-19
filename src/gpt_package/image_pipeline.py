@@ -49,30 +49,32 @@ class ImagePipeline:
             )
             draw.line([(0, y), (width, y)], fill=color)
 
-        shape_count = int(getattr(getattr(self, "_style", None), "background_shape_count", 3))
-        shape_count = max(1, min(6, shape_count))
+        shape_count = int(getattr(getattr(self, "_style", None), "background_shape_count", 0))
+        shape_count = max(0, min(6, shape_count))
         alpha_min = int(getattr(getattr(self, "_style", None), "background_shape_alpha_min", 10))
         alpha_max = int(getattr(getattr(self, "_style", None), "background_shape_alpha_max", 28))
         alpha_min = max(0, min(120, alpha_min))
         alpha_max = max(alpha_min, min(140, alpha_max))
 
-        overlay = Image.new("RGBA", size, (0, 0, 0, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-        for _ in range(shape_count):
-            radius = rng.randint(int(min(size) * 0.10), int(min(size) * 0.28))
-            cx = rng.randint(0, width)
-            cy = rng.randint(0, height)
-            color = (
-                self._clamp_color(accent[0] + rng.randint(-28, 32)),
-                self._clamp_color(accent[1] + rng.randint(-28, 32)),
-                self._clamp_color(accent[2] + rng.randint(-28, 32)),
-                rng.randint(alpha_min, alpha_max),
-            )
-            overlay_draw.ellipse(
-                [(cx - radius, cy - radius), (cx + radius, cy + radius)],
-                fill=color,
-            )
-        composited = Image.alpha_composite(background.convert("RGBA"), overlay)
+        composited = background.convert("RGBA")
+        if shape_count > 0:
+            overlay = Image.new("RGBA", size, (0, 0, 0, 0))
+            overlay_draw = ImageDraw.Draw(overlay)
+            for _ in range(shape_count):
+                radius = rng.randint(int(min(size) * 0.10), int(min(size) * 0.28))
+                cx = rng.randint(0, width)
+                cy = rng.randint(0, height)
+                color = (
+                    self._clamp_color(accent[0] + rng.randint(-28, 32)),
+                    self._clamp_color(accent[1] + rng.randint(-28, 32)),
+                    self._clamp_color(accent[2] + rng.randint(-28, 32)),
+                    rng.randint(alpha_min, alpha_max),
+                )
+                overlay_draw.ellipse(
+                    [(cx - radius, cy - radius), (cx + radius, cy + radius)],
+                    fill=color,
+                )
+            composited = Image.alpha_composite(composited, overlay)
         composited = composited.filter(ImageFilter.GaussianBlur(radius=0.6))
 
         subject_text = getattr(getattr(self, "_style", None), "subject", "")

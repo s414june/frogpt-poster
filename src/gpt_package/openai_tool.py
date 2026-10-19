@@ -2,6 +2,7 @@
 
 import base64
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -13,6 +14,7 @@ from .errors import PosterError
 from .errors import ValidationError
 from .font_discovery import discover_open_source_fonts
 from .guidance import build_design_guide, build_intake_questions
+from .reference_images import apply_style_from_reference, fetch_pexels_references
 from .text_input import load_request_from_text_file
 from .types import PosterAssetSet, PosterLayout, PosterRequest, PosterStyle
 
@@ -47,6 +49,17 @@ def build_tool_definition() -> dict:
                 "user_image_paths": {"type": "array", "items": {"type": "string"}},
                 "user_image_urls": {"type": "array", "items": {"type": "string"}},
                 "user_image_base64": {"type": "array", "items": {"type": "string"}},
+                "reference_image_urls": {"type": "array", "items": {"type": "string"}},
+                "reference_image_base64": {"type": "array", "items": {"type": "string"}},
+                "generated_background_base64": {"type": "string"},
+                "pexels_query": {"type": "string"},
+                "pexels_orientation": {"type": "string"},
+                "pexels_per_page": {"type": "integer", "minimum": 1, "maximum": 10},
+                "auto_pexels_fallback": {
+                    "type": "boolean",
+                    "description": "Opt-in auto Pexels query when no image/reference is provided.",
+                },
+                "use_reference_as_fallback": {"type": "boolean"},
                 "open_source_font_paths": {
                     "type": "array",
                     "items": {"type": "string"},
@@ -194,8 +207,11 @@ def _download_image(url: str, output_path: Path) -> None:
     parsed = urlparse(url)
     if parsed.scheme not in ("http", "https"):
         raise ValidationError(f"user image url must be http/https: {url}")
-    with urlopen(url, timeout=20) as response:
-        content = response.read()
+    try:
+        with urlopen(url, timeout=20) as response:
+            content = response.read()
+    except Exception as exc:
+        raise ValidationError(f"failed downloading image url: {url}") from exc
     if not content:
         raise ValidationError(f"empty image content from url: {url}")
     output_path.write_bytes(content)
@@ -239,6 +255,103 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
     return str(temp_dir)
 
 
+def _materialize_reference_images(arguments: dict, request: PosterRequest) -> dict:
+    references = arguments.get("reference_image_urls", [])
+    reference_b64 = arguments.get("reference_image_base64", [])
+    generated_background_b64 = arguments.get("generated_background_base64", "")
+    if references and not isinstance(references, list):
+        raise ValidationError("reference_image_urls must be an array of strings")
+    if reference_b64 and not isinstance(reference_b64, list):
+        raise ValidationError("reference_image_base64 must be an array of strings")
+    if generated_background_b64 and not isinstance(generated_background_b64, str):
+        raise ValidationError("generated_background_base64 must be a string")
+    refs = [{"source": "url", "url": str(item)} for item in references]
+    ref_b64_items = [str(item) for item in reference_b64]
+    if generated_background_b64.strip():
+        ref_b64_items.insert(0, generated_background_b64.strip())
+
+    pexels_query = str(arguments.get("pexels_query", "")).strip()
+    if pexels_query:
+        refs.extend(
+            fetch_pexels_references(
+                query=pexels_query,
+                api_key=os.getenv("PEXELS_API_KEY", ""),
+                per_page=int(arguments.get("pexels_per_page", 3)),
+                orientation=str(arguments.get("pexels_orientation", "portrait")),
+            )
+        )
+
+    if not refs and not ref_b64_items:
+        return {
+            "temp_dir": None,
+            "downloaded_paths": [],
+            "source_credits": [],
+            "used_as_fallback": False,
+            "style_from_reference_applied": False,
+        }
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="poster-refs-"))
+    downloaded_paths: list[str] = []
+    source_credits: list[dict] = []
+
+    for idx, item in enumerate(ref_b64_items):
+        path = temp_dir / f"ref-b64-{idx}.img"
+        _decode_base64_image(item, path)
+        downloaded_paths.append(str(path))
+        source_credits.append({"source": "generated_or_uploaded_base64", "url": None})
+
+    for idx, ref in enumerate(refs):
+        path = temp_dir / f"ref-{idx}.img"
+        _download_image(ref["url"], path)
+        downloaded_paths.append(str(path))
+        source_credits.append(ref)
+
+    style_applied = False
+    if downloaded_paths:
+        style_applied = apply_style_from_reference(request, downloaded_paths[0])
+
+    used_as_fallback = False
+    use_reference_as_fallback = bool(arguments.get("use_reference_as_fallback", True))
+    if use_reference_as_fallback and not request.assets.user_image_paths and downloaded_paths:
+        request.assets.user_image_paths = downloaded_paths + request.assets.user_image_paths
+        used_as_fallback = True
+
+    return {
+        "temp_dir": str(temp_dir),
+        "downloaded_paths": downloaded_paths,
+        "source_credits": source_credits,
+        "used_as_fallback": used_as_fallback,
+        "style_from_reference_applied": style_applied,
+    }
+
+
+def _auto_pexels_query(arguments: dict, request: PosterRequest) -> str:
+    if not bool(arguments.get("auto_pexels_fallback", False)):
+        return ""
+    explicit = str(arguments.get("pexels_query", "")).strip()
+    if explicit:
+        return explicit
+    has_refs = bool(arguments.get("reference_image_urls")) or bool(arguments.get("reference_image_base64")) or bool(
+        str(arguments.get("generated_background_base64", "")).strip()
+    )
+    if has_refs:
+        return ""
+    if not os.getenv("PEXELS_API_KEY", "").strip():
+        return ""
+    has_user_image = bool(request.assets.user_image_paths) or bool(arguments.get("user_image_urls")) or bool(
+        arguments.get("user_image_base64")
+    )
+    if has_user_image:
+        return ""
+    subject = (request.style.subject or "").strip()
+    title = (request.title or "").strip()
+    if subject:
+        return f"{subject} soft natural light portrait"
+    if title:
+        return f"{title} editorial portrait"
+    return ""
+
+
 def _encode_output_image(path: str | None) -> str | None:
     if not path:
         return None
@@ -269,8 +382,9 @@ def _needs_intake(arguments: dict) -> bool:
 
 
 def handle_tool_call(arguments: dict) -> dict:
-    temp_dir: str | None = None
+    temp_dirs: list[str] = []
     try:
+        arguments = dict(arguments)
         show_design_guide = bool(arguments.get("show_design_guide", False))
         if _needs_intake(arguments):
             payload = {
@@ -289,7 +403,16 @@ def handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
+        auto_query = _auto_pexels_query(arguments, request)
+        if auto_query:
+            arguments["pexels_query"] = auto_query
+            arguments["use_reference_as_fallback"] = True
         temp_dir = _materialize_remote_images(arguments, request)
+        if temp_dir:
+            temp_dirs.append(temp_dir)
+        reference_context = _materialize_reference_images(arguments, request)
+        if reference_context["temp_dir"]:
+            temp_dirs.append(reference_context["temp_dir"])
         generator = PosterGenerator()
         result = generator.generate(request)
         output_image_base64 = _encode_output_image(result.output_path)
@@ -318,6 +441,15 @@ def handle_tool_call(arguments: dict) -> dict:
             "rendered": True,
             "display_priority": ["image", "download", "text"],
             "notes": result.notes,
+            "reference_images_used": reference_context["used_as_fallback"],
+            "style_from_reference_applied": reference_context["style_from_reference_applied"],
+            "source_credits": reference_context["source_credits"],
+            "auto_pexels_query_used": auto_query or None,
+            "compliance_notes": [
+                "Pexels content should be requested via official API; avoid scraping.",
+                "Do not redistribute source images on a standalone basis.",
+                "Keep prominent link/credit to Pexels and photographer when possible.",
+            ],
             "intake_questions": build_intake_questions(),
             "result_json": _safe_json_dumps(
                 {
@@ -352,5 +484,5 @@ def handle_tool_call(arguments: dict) -> dict:
             payload["design_guide"] = build_design_guide()
         return payload
     finally:
-        if temp_dir:
+        for temp_dir in temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)

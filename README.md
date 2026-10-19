@@ -23,6 +23,12 @@ Key arguments:
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
 - `style_preset`: reusable style profile (e.g. `minimal-charity-tw`)
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
+- `reference_image_urls`: style reference images (URL)
+- `reference_image_base64`: style reference images (base64)
+- `generated_background_base64`: a GPT-generated background draft to use as top-priority reference
+- `pexels_query`, `pexels_orientation`, `pexels_per_page`: fetch references from Pexels API
+- `auto_pexels_fallback`: opt-in automatic Pexels query when no image/reference is provided (default: off)
+- `use_reference_as_fallback`: if no user photo, allow reference image to be used directly
 - `open_source_font_paths`
 - `width`, `height`, `allow_ai_fallback`
 - `request_intake_only` (只回前置提問，不渲染)
@@ -61,6 +67,35 @@ For cleaner copy control, prefer:
 
 Preset example:
 - `minimal-charity-tw`: softer cream/sage palette, lighter background elements, shorter text panel, cleaner nonprofit poster hierarchy.
+
+## Pexels reference workflow (no repo image storage)
+
+For legal and operational safety, use Pexels via official API:
+- Set environment variable: `PEXELS_API_KEY`
+- Provide `pexels_query` (and optional orientation/per_page)
+- The tool downloads reference images to temp storage at runtime, then cleans them up.
+
+Returned fields include:
+- `source_credits` (Pexels photo page, photographer, source URL)
+- `style_from_reference_applied` (palette extracted from reference)
+- `reference_images_used` (reference image used directly as fallback or not)
+- `auto_pexels_query_used` (only when `auto_pexels_fallback=true` and API key exists)
+
+Recommended generation order:
+1. Use user-provided real images if available (highest priority).
+2. If no user image, pass a GPT-generated background draft via `generated_background_base64` to guide style.
+3. If still no image input, use `pexels_query` as fallback reference source.
+4. Keep `auto_pexels_fallback=false` during manual-library phase; turn it on later when API is available.
+5. Always render text using open-source fonts from `assets\fonts` or explicit font paths.
+
+## Pexels compliance notes
+
+- Do **not** scrape Pexels pages for bulk extraction; use official API.
+- Do **not** redistribute source image files on a standalone basis.
+- Keep a prominent link to Pexels and credit photographer when possible.
+- Review current Pexels License and Terms before production rollout:
+  - https://www.pexels.com/license/
+  - https://www.pexels.com/terms-of-service/
 
 ## UAT with text interface (chat-like)
 

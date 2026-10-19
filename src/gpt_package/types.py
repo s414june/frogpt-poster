@@ -31,7 +31,7 @@ class PosterStyle:
     panel_ratio: float = 0.24
     title_max_lines: int = 2
     body_max_lines: int = 4
-    background_shape_count: int = 3
+    background_shape_count: int = 0
     background_shape_alpha_min: int = 10
     background_shape_alpha_max: int = 28
 
