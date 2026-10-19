@@ -173,6 +173,55 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(second_structured.get("intake_session_state", {}).get("intake_completed"))
         self.assertTrue(second_structured.get("request", {}).get("style", {}).get("variation_token"))
 
+    def test_mcp_auto_regenerate_ignores_stale_variation_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bg_path = Path(tmp_dir) / "bg.png"
+            Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
+            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+
+            first = {
+                "jsonrpc": "2.0",
+                "id": 8,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "intake_confirmed": True,
+                        "title": "變體測試",
+                        "body": "第一次",
+                        "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
+                    },
+                },
+            }
+            first_response = dispatch(first)
+            first_structured = first_response["result"].get("structuredContent", {})
+            first_token = first_structured.get("request", {}).get("style", {}).get("variation_token")
+            self.assertTrue(isinstance(first_token, str) and len(first_token) > 0)
+
+            second = {
+                "jsonrpc": "2.0",
+                "id": 9,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "intake_confirmed": True,
+                        "title": "變體測試",
+                        "body": "第二次",
+                        "variation_token": first_token,
+                        "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
+                    },
+                },
+            }
+            second_response = dispatch(second)
+
+        second_structured = second_response["result"].get("structuredContent", {})
+        second_token = second_structured.get("request", {}).get("style", {}).get("variation_token")
+        self.assertTrue(isinstance(second_token, str) and len(second_token) > 0)
+        self.assertNotEqual(first_token, second_token)
+
     def test_tools_call_accepts_intake_fields_inside_poster_request(self) -> None:
         first = {
             "jsonrpc": "2.0",

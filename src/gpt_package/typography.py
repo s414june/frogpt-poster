@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -25,6 +27,7 @@ class TypographyEngine:
         width, height = image.size
         margin = max(36, int(width * 0.06))
         sample_text = f"{title}\n{body}"
+        variant_index = self._variant_index(str(getattr(style, "variation_token", "")), modulo=4)
         body_font_path = self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
         heading_font_path = self._find_heading_font_from_body_family(
             font_paths=font_paths,
@@ -65,7 +68,9 @@ class TypographyEngine:
         title_color = self._pick_text_color(image, title_region)
         body_color = self._pick_text_color(image, body_region)
 
-        y = max(24, int(height * 0.12))
+        title_y_candidates = [0.10, 0.12, 0.14, 0.16]
+        body_y_candidates = [0.70, 0.72, 0.74, 0.76]
+        y = max(24, int(height * title_y_candidates[variant_index]))
         for line in title_lines[:title_max_lines]:
             box = draw.textbbox((0, 0), line, font=title_font)
             line_w = box[2] - box[0]
@@ -73,7 +78,7 @@ class TypographyEngine:
             draw.text((x, y), line, fill=title_color, font=title_font)
             y += int(title_font.size * 1.22)
 
-        y = int(height * 0.74)
+        y = int(height * body_y_candidates[variant_index])
         subtitle_line = body_lines[0] if body_lines else ""
         rest_lines = body_lines[1:] if len(body_lines) > 1 else []
         if subtitle_line:
@@ -98,6 +103,7 @@ class TypographyEngine:
             "title_font": heading_font_path or body_font_path,
             "body_font": body_font_path,
             "layout_mode": "default",
+            "layout_variant": variant_index,
         }
 
     def _apply_focus_aware_two_size(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
@@ -146,12 +152,14 @@ class TypographyEngine:
         hero_height = self._lines_height(hero_font.size, len(hero_lines), 1.20)
         minor_height = self._lines_height(minor_font.size, len(minor_lines), 1.30)
         focus_box = self._estimate_focus_box(image)
+        variant_index = self._variant_index(str(getattr(style, "variation_token", "")), modulo=5)
         hero_region, minor_region = self._pick_two_block_regions(
             image=image,
             margin=margin,
             hero_height=hero_height,
             minor_height=minor_height,
             focus_box=focus_box,
+            variant_index=variant_index,
         )
 
         hero_color = self._pick_text_color(image, hero_region)
@@ -181,6 +189,7 @@ class TypographyEngine:
             "title_font": heading_font_path or body_font_path,
             "body_font": body_font_path,
             "layout_mode": "both_focus_aware",
+            "layout_variant": variant_index,
             "hero_font_size": hero_font.size,
             "minor_font_size": minor_font.size,
             "focus_box": focus_box,
@@ -352,6 +361,7 @@ class TypographyEngine:
         hero_height: int,
         minor_height: int,
         focus_box: tuple[int, int, int, int],
+        variant_index: int = 0,
     ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
         width, height = image.size
         candidates = [
@@ -361,6 +371,9 @@ class TypographyEngine:
             (0.70, 0.16),
             (0.76, 0.22),
         ]
+        if candidates:
+            offset = variant_index % len(candidates)
+            candidates = candidates[offset:] + candidates[:offset]
         best: tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None = None
         best_score = float("inf")
         for hero_r, minor_r in candidates:
@@ -404,6 +417,13 @@ class TypographyEngine:
         if y2 > height:
             p += abs(y2 - height) * 20.0
         return p
+
+    def _variant_index(self, token: str, modulo: int) -> int:
+        text = (token or "").strip()
+        if not text or modulo <= 0:
+            return 0
+        digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        return int(digest[:8], 16) % modulo
 
     def _font_family_key(self, path: str) -> str:
         stem = path.lower().replace("\\", "/").split("/")[-1]

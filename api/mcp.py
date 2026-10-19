@@ -184,8 +184,9 @@ def dispatch(message):
             auto_confirmed = token_from_request and _has_render_brief(args)
             intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
             call_args = dict(args)
-            if intake_confirmed_effective and "regenerate_variant" not in call_args and "variation_token" not in call_args:
+            if intake_confirmed_effective and "regenerate_variant" not in call_args:
                 call_args["regenerate_variant"] = True
+                call_args.pop("variation_token", None)
             if not intake_confirmed_effective:
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
