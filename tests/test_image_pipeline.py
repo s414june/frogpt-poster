@@ -131,6 +131,30 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
         self.assertLess(_avg_sat(image), 0.10)
 
+    def test_light_design_background_is_brighter(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="春季市集", body="柔和淺色設計")
+        req.style.primary_color = "#C8D7C8"
+        req.style.secondary_color = "#D1DDD1"
+        req.style.background_mode = "gradient"
+        req.style.background_color_hint = "light"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        lumas = [(p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in sample.getdata()]
+        avg_luma = sum(lumas) / max(1, len(lumas))
+        self.assertGreater(avg_luma, 168.0)
+
+    def test_auto_mode_defaults_to_solid_not_gradient(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="預設背景", body="不要漸層")
+        req.style.primary_color = "#D4E0D4"
+        req.style.secondary_color = "#A8C0A8"
+        req.style.background_mode = "auto"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        top = image.getpixel((image.width // 2, int(image.height * 0.15)))
+        bottom = image.getpixel((image.width // 2, int(image.height * 0.85)))
+        self.assertEqual(top, bottom)
+
 
 if __name__ == "__main__":
     unittest.main()

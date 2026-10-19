@@ -22,6 +22,7 @@ Key arguments:
 - `title`, `body`: optional overrides
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
 - `background_mode`: `auto` | `solid` | `gradient` | `reference`
+  - `auto` 預設偏向單色背景（不自動套漸層）；若要漸層請明確指定 `gradient`，或使用 GPT 自動設計模式讓系統判斷。
 - `image_role_mode`: `auto` | `subject` | `background` | `both`
 - `geometry_enabled`: `true/false` (solid/gradient + single subject 時預設會加幾何裝飾)
 - `subject_mask_mode`: `rounded` | `feather`
@@ -200,6 +201,10 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
   -H "Content-Type: application/json" ^
   -d "{\"arguments\":{\"poster_request\":{\"title\":\"Inline\",\"body\":\"No local path\",\"layout\":{\"width\":1080,\"height\":1350},\"allow_ai_fallback\":true,\"assets\":{\"open_source_font_paths\":[]}}}}"
 ```
+
+Path handling note:
+- Chat sandbox paths like `/mnt/data/...` are often not readable by your deployed MCP runtime.
+- Prefer `user_image_base64` / `subject_image_base64` or public `*_image_urls` when calling through ChatGPT.
 
 Manual-library mode sample (GPT background reference, no auto Pexels):
 

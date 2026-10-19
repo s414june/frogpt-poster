@@ -1152,6 +1152,23 @@ def handle_tool_call(arguments: dict) -> dict:
         if bool(arguments.get("show_design_guide", False)):
             payload["design_guide"] = build_design_guide()
         return payload
+    except Exception as exc:  # pragma: no cover - safety net for unexpected runtime failures
+        payload = {
+            "ok": False,
+            "tool_name": TOOL_NAME,
+            "status": {
+                "code": "failed",
+                "message": "poster_render_failed_internal",
+            },
+            "next_action": "retry_or_check_server_logs",
+            "rendered": False,
+            "error_type": exc.__class__.__name__,
+            "error": str(exc) or "unexpected internal error",
+            "intake_questions": build_intake_questions(),
+        }
+        if bool(arguments.get("show_design_guide", False)):
+            payload["design_guide"] = build_design_guide()
+        return payload
     finally:
         for temp_dir in temp_dirs:
             shutil.rmtree(temp_dir, ignore_errors=True)

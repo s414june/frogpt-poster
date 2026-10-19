@@ -5,6 +5,7 @@ import unittest
 import sys
 import base64
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -293,6 +294,40 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertNotEqual(token, stale)
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_handle_tool_call_returns_structured_error_on_unexpected_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bg_path = Path(tmp_dir) / "bg.png"
+            Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
+            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            with patch("gpt_package.openai_tool.PosterGenerator.generate", side_effect=RuntimeError("boom")):
+                result = handle_tool_call(
+                    {
+                        "title": "Unhandled error case",
+                        "body": "Should not crash tool",
+                        "image_role_mode": "background",
+                        "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
+                        "allow_ai_fallback": True,
+                    }
+                )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["status"]["code"], "failed")
+        self.assertEqual(result["error_type"], "RuntimeError")
+        self.assertIn("boom", result["error"])
+
+    def test_mnt_data_path_returns_actionable_validation_error(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "Path test",
+                "body": "Using chat sandbox path",
+                "user_image_paths": ["/mnt/data/16056.png"],
+                "allow_ai_fallback": True,
+            }
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_type"], "ValidationError")
+        self.assertIn("not accessible from this runtime", result["error"])
 
     def test_gradient_mode_without_any_visual_assets_still_requires_background_generation(self) -> None:
         result = handle_tool_call(

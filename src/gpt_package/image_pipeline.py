@@ -58,8 +58,8 @@ class ImagePipeline:
         )
         tone = self._tone_hint(getattr(getattr(self, "_style", None), "background_color_hint", ""))
         if tone == "light":
-            top = self._enforce_luma_floor(top, 162)
-            bottom = self._enforce_luma_floor(bottom, 156)
+            top = self._enforce_luma_floor(top, 250)
+            bottom = self._enforce_luma_floor(bottom, 150)
         elif tone == "dark":
             top = self._enforce_luma_ceiling(top, 112)
             bottom = self._enforce_luma_ceiling(bottom, 126)
@@ -74,9 +74,8 @@ class ImagePipeline:
         if mode == "solid":
             background = Image.new("RGB", size, top)
         else:
-            use_gradient = True
-            if mode == "auto":
-                use_gradient = top != bottom
+            # Default policy: auto prefers solid background unless user/GPT explicitly chooses gradient.
+            use_gradient = mode == "gradient"
             if use_gradient:
                 background = Image.new("RGB", size)
                 draw = ImageDraw.Draw(background)
@@ -293,6 +292,12 @@ class ImagePipeline:
             _h, s, _v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
             sats.append(s)
         return max(sats) <= 0.10
+
+    def _is_light_design(self, top: tuple[int, int, int], bottom: tuple[int, int, int], tone: str) -> bool:
+        if tone == "light":
+            return True
+        avg_luma = (self._luma(top) + self._luma(bottom)) / 2.0
+        return avg_luma >= 152.0
 
     def _hsv_to_rgb(self, h: float, s: float, v: float) -> tuple[int, int, int]:
         r, g, b = colorsys.hsv_to_rgb(h, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
