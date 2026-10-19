@@ -34,6 +34,7 @@ class PosterStyle:
     background_shape_count: int = 0
     background_shape_alpha_min: int = 10
     background_shape_alpha_max: int = 28
+    variation_token: str = ""
 
 
 @dataclass(slots=True)

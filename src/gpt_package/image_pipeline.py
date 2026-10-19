@@ -80,7 +80,7 @@ class ImagePipeline:
         subject_text = getattr(getattr(self, "_style", None), "subject", "")
         subject_blob = f"{subject_text} {seed_text}".lower()
         if "hamster" in subject_blob or "倉鼠" in subject_blob:
-            self._draw_hamster(composited, accent)
+            self._draw_hamster(composited, accent, rng)
         return composited.convert("RGB")
 
     def build_background(self, request: PosterRequest, decision: PosterDecision) -> Image.Image:
@@ -88,13 +88,21 @@ class ImagePipeline:
         size = (request.layout.width, request.layout.height)
         if decision.image_source == ImageSource.USER_IMAGE:
             return self._from_user_image(request.assets.user_image_paths[0], size)
-        return self._generated_fallback(size, seed_text=f"{request.title}\n{request.body}")
+        return self._generated_fallback(
+            size,
+            seed_text=(
+                f"{request.title}\n{request.body}\n"
+                f"{request.style.subject}\n{request.style.preset}\n"
+                f"{request.style.primary_color}|{request.style.secondary_color}|{request.style.accent_color}\n"
+                f"{request.style.variation_token}"
+            ),
+        )
 
-    def _draw_hamster(self, image: Image.Image, accent: tuple[int, int, int]) -> None:
+    def _draw_hamster(self, image: Image.Image, accent: tuple[int, int, int], rng: random.Random) -> None:
         width, height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
-        center_x = int(width * 0.53)
-        center_y = int(height * 0.42)
+        center_x = int(width * (0.53 + rng.uniform(-0.03, 0.03)))
+        center_y = int(height * (0.42 + rng.uniform(-0.03, 0.03)))
         body_r = int(min(width, height) * 0.18)
         ear_r = int(body_r * 0.42)
         fur = (227, 196, 150, 255)

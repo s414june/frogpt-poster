@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -69,6 +70,11 @@ def build_tool_definition() -> dict:
                 "allow_ai_fallback": {"type": "boolean"},
                 "subject": {"type": "string"},
                 "style_preset": {"type": "string"},
+                "variation_token": {"type": "string"},
+                "regenerate_variant": {
+                    "type": "boolean",
+                    "description": "Generate a new visual variant for same brief.",
+                },
                 "primary_color": {"type": "string"},
                 "secondary_color": {"type": "string"},
                 "accent_color": {"type": "string"},
@@ -131,6 +137,8 @@ def _build_request(arguments: dict) -> PosterRequest:
         request.style.subject = str(arguments["subject"])
     if "style_preset" in arguments:
         request.style.preset = str(arguments["style_preset"])
+    if "variation_token" in arguments:
+        request.style.variation_token = str(arguments["variation_token"])
     if "primary_color" in arguments:
         request.style.primary_color = str(arguments["primary_color"])
     if "secondary_color" in arguments:
@@ -198,6 +206,7 @@ def _from_inline_request(payload: dict) -> PosterRequest:
                     payload.get("background_shape_alpha_max", 28),
                 )
             ),
+            variation_token=str(style.get("variation_token", payload.get("variation_token", ""))),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )
@@ -403,6 +412,8 @@ def handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
+        if bool(arguments.get("regenerate_variant", False)) and not request.style.variation_token:
+            request.style.variation_token = uuid.uuid4().hex[:12]
         auto_query = _auto_pexels_query(arguments, request)
         if auto_query:
             arguments["pexels_query"] = auto_query

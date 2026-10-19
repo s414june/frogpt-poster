@@ -1,0 +1,29 @@
+{
+  "arguments": {
+    "intake_confirmed": true,
+    "poster_request": {
+      "copy": {
+        "headline": "讓小小生命，被好好愛著",
+        "subtitle": "愛鼠協會｜倉鼠關懷宣傳",
+        "cta": "認養代替購買・尊重生命・不棄養"
+      },
+      "style": {
+        "preset": "minimal-charity-tw",
+        "subject": "hamster"
+      },
+      "layout": {
+        "width": 1080,
+        "height": 1350
+      },
+      "allow_ai_fallback": true,
+      "assets": {
+        "open_source_font_paths": []
+      }
+    },
+    "generated_background_base64": "data:image/png;base64,REPLACE_WITH_YOUR_IMAGE_BASE64",
+    "auto_pexels_fallback": false,
+    "use_reference_as_fallback": true,
+    "regenerate_variant": true
+  }
+}
+
