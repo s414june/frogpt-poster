@@ -16,10 +16,7 @@ class MCPOutputOrderTests(unittest.TestCase):
             "method": "tools/call",
             "params": {
                 "name": "prepare_poster",
-                "arguments": {
-                    "title": "讓小小生命，被好好愛著",
-                    "body": "愛鼠協會｜倉鼠關懷宣傳",
-                },
+                "arguments": {},
             },
         }
         response = dispatch(message)
@@ -32,6 +29,29 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(structured.get("next_action"), "ask_user_intake_questions")
         self.assertIn("intake_questions", structured)
         self.assertIn("尚未渲染海報", result["content"][0]["text"])
+
+    def test_tools_call_renders_when_brief_complete_without_confirmation(self) -> None:
+        message = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": "prepare_poster",
+                "arguments": {
+                    "title": "讓小小生命，被好好愛著",
+                    "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+                    "width": 1080,
+                    "height": 1350,
+                },
+            },
+        }
+        response = dispatch(message)
+        self.assertIsNotNone(response)
+        result = response["result"]
+        self.assertFalse(result["isError"])
+        structured = result.get("structuredContent", {})
+        self.assertEqual(structured.get("status", {}).get("code"), "completed")
+        self.assertTrue(structured.get("rendered"))
 
     def test_tools_call_returns_image_first_then_text(self) -> None:
         message = {

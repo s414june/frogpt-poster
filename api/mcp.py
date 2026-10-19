@@ -48,7 +48,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.1"}, "instructions": "Always run intake first. If intake_confirmed is not true, call the tool to get intake_questions and ask the user. Only render after user confirms and intake_confirmed=true."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.2"}, "instructions": "If brief information is incomplete, call tool to get intake_questions first. If title/body (or poster_request.copy) is already complete, render directly even without intake_confirmed."}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -62,11 +62,15 @@ def dispatch(message):
         else:
             intake_confirmed = bool(args.get("intake_confirmed", False))
             call_args = dict(args)
-            if not intake_confirmed:
+            if not intake_confirmed and not _has_render_brief(args):
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
             output = handle_tool_call(call_args)
-            if not intake_confirmed and output.get("status", {}).get("code") != "needs_input":
+            if (
+                not intake_confirmed
+                and not _has_render_brief(args)
+                and output.get("status", {}).get("code") != "needs_input"
+            ):
                 output["status"] = {
                     "code": "needs_input",
                     "message": "intake_questions_required_before_render",
@@ -120,6 +124,27 @@ def dispatch(message):
     else:
         result["error"] = {"code": -32601, "message": "Method not found"}
     return result
+
+
+def _has_render_brief(args: dict) -> bool:
+    title = str(args.get("title", "")).strip()
+    body = str(args.get("body", "")).strip()
+    if title and body:
+        return True
+    payload = args.get("poster_request")
+    if not isinstance(payload, dict):
+        return False
+    p_title = str(payload.get("title", "")).strip()
+    p_body = str(payload.get("body", "")).strip()
+    if p_title and p_body:
+        return True
+    copy = payload.get("copy")
+    if isinstance(copy, dict):
+        headline = str(copy.get("headline", "")).strip()
+        subtitle = str(copy.get("subtitle", "")).strip()
+        cta = str(copy.get("cta", "")).strip()
+        return bool(headline and (subtitle or cta))
+    return False
 
 class handler(BaseHTTPRequestHandler):
     def reply(self, status, payload=None):
