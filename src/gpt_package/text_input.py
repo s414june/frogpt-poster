@@ -46,9 +46,10 @@ def load_request_from_text_file(path: str) -> PosterRequest:
             panel_ratio=float(style.get("panel_ratio", 0.24)),
             title_max_lines=int(style.get("title_max_lines", 2)),
             body_max_lines=int(style.get("body_max_lines", 4)),
-            background_shape_count=int(style.get("background_shape_count", 3)),
+            background_shape_count=int(style.get("background_shape_count", 0)),
             background_shape_alpha_min=int(style.get("background_shape_alpha_min", 10)),
             background_shape_alpha_max=int(style.get("background_shape_alpha_max", 28)),
+            variation_token=str(style.get("variation_token", "")),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )

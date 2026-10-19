@@ -143,6 +143,12 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
   -d "{\"arguments\":{\"poster_request\":{\"title\":\"Inline\",\"body\":\"No local path\",\"layout\":{\"width\":1080,\"height\":1350},\"allow_ai_fallback\":true,\"assets\":{\"open_source_font_paths\":[]}}}}"
 ```
 
+Manual-library mode sample (GPT background reference, no auto Pexels):
+
+```bash
+python scripts\uat_run_tool.py --input examples\uat\tool-call-manual-library.json
+```
+
 Local run:
 
 ```bash
