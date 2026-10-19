@@ -269,6 +269,7 @@ class TypographyEngine:
             variant_index=variant_index,
             hero_shift=hero_shift,
             minor_shift=minor_shift,
+            minor_y_ratio=getattr(style, "body_y_ratio", None),
         )
 
         body_y_ratio = getattr(style, "body_y_ratio", None)
@@ -534,6 +535,7 @@ class TypographyEngine:
         variant_index: int = 0,
         hero_shift: float = 0.0,
         minor_shift: float = 0.0,
+        minor_y_ratio: float | None = None,
     ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
         width, height = image.size
         candidates = [
@@ -551,6 +553,8 @@ class TypographyEngine:
         for hero_r, minor_r in candidates:
             hero_y = int(height * max(0.06, min(0.86, hero_r + hero_shift)))
             minor_y = int(height * max(0.06, min(0.90, minor_r + minor_shift)))
+            if minor_y_ratio is not None:
+                minor_y = max(margin, min(int(height * minor_y_ratio), height - margin - minor_height))
             hero_region = (margin, hero_y, width - margin, hero_y + hero_height)
             minor_region = (margin, minor_y, width - margin, minor_y + minor_height)
             clearance = int(max(8, hero_height * 0.05))

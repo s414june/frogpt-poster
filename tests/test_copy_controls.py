@@ -9,7 +9,7 @@ from gpt_package.openai_tool import _build_request
 class CopyControlTests(unittest.TestCase):
     def test_inline_controls_preserve_multiline_title_and_align_all_copy(self):
         request = _build_request({'poster_request': {'title': '厚切\n三明治。',
-            'body': '把新鮮，夾進日常\n新鮮食材・現點現做',
+            'body': '把新鮮，夾進日常\n新鮮食材・現點現做\n好好吃一餐，從這一口開始',
             'style': {'image_role_mode': 'both', 'headline_source': 'title',
                       'text_align': 'left', 'body_y_ratio': 0.64}}})
         image = Image.new('RGB', (480, 640), 'beige')
@@ -29,6 +29,7 @@ class CopyControlTests(unittest.TestCase):
         self.assertEqual(len({row[3] for row in drawn}), 1)
         self.assertEqual(info['minor_region'][1], int(640 * 0.64))
         self.assertGreater(info['hero_font_size'], info['minor_font_size'])
+        self.assertEqual(engine._overlap_area(info["hero_region"], info["minor_region"]), 0)
 
     def test_body_position_stays_inside_canvas(self):
         engine = TypographyEngine()
