@@ -184,6 +184,61 @@ def _resolve_intake_confirmed(args: dict) -> bool:
             return nested
     return False
 
+
+def _has_path_style_image_inputs(args: dict) -> bool:
+    path_keys = ("user_image_paths", "subject_image_paths", "reference_image_paths")
+    if any(bool(args.get(k)) for k in path_keys):
+        return True
+    payload = args.get("poster_request")
+    if isinstance(payload, dict):
+        if bool(payload.get("reference_image_paths")):
+            return True
+        assets = payload.get("assets")
+        if isinstance(assets, dict):
+            if bool(assets.get("user_image_paths")) or bool(assets.get("subject_image_paths")):
+                return True
+    return False
+
+
+def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
+    return {
+        "ok": True,
+        "tool_name": NAME,
+        "pipeline_stage": "intake",
+        "status": {
+            "code": "needs_input",
+            "message": "image_upload_required_use_base64_or_url",
+        },
+        "next_action": "reupload_image_as_base64_or_url",
+        "rendered": False,
+        "intake_session_token": token,
+        "intake_session_state": {
+            "intake_completed": bool(intake_completed),
+            "ttl_seconds": _INTAKE_SESSION_TTL_SECONDS,
+        },
+        "user_friendly_hint": {
+            "what_happened": "收到的是圖片檔案路徑，雲端執行環境通常無法讀取這種本機路徑。",
+            "please_do": [
+                "請改用圖片上傳（base64）",
+                "或提供可公開存取的圖片網址（URL）",
+            ],
+            "accepted_fields": [
+                "user_image_base64",
+                "subject_image_base64",
+                "user_image_urls",
+                "subject_image_urls",
+                "reference_image_urls",
+                "reference_image_base64",
+            ],
+            "not_accepted_fields": [
+                "user_image_paths",
+                "subject_image_paths",
+                "reference_image_paths",
+            ],
+        },
+    }
+
+
 def dispatch(message):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
@@ -213,6 +268,27 @@ def dispatch(message):
             now_ts = time.time()
             _prune_intake_sessions(now_ts)
             intake_session_token, intake_state, token_from_request = _ensure_intake_session_token(args, now_ts)
+            if _has_path_style_image_inputs(args):
+                output = _build_path_input_rejection(
+                    token=intake_session_token,
+                    intake_completed=bool(intake_state.get("intake_completed", False)),
+                )
+                content = [
+                    {
+                        "type": "text",
+                        "text": (
+                            "目前收到的是圖片路徑（paths），這種格式在雲端通常無法讀取。\n"
+                            "請改用圖片上傳（base64）或圖片網址（URL）後重試。"
+                        ),
+                    },
+                    {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
+                ]
+                result["result"] = {
+                    "content": content,
+                    "structuredContent": _compact_output(output),
+                    "isError": False,
+                }
+                return result
             intake_confirmed = _resolve_intake_confirmed(args)
             remembered = bool(intake_state.get("intake_completed", False))
             auto_confirmed = token_from_request and _has_render_brief(args)

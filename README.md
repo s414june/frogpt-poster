@@ -210,6 +210,7 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
 Path handling note:
 - Chat sandbox paths like `/mnt/data/...` are often not readable by your deployed MCP runtime.
 - Prefer `user_image_base64` / `subject_image_base64` or public `*_image_urls` when calling through ChatGPT.
+- MCP adapter now enforces this rule for user-facing calls: path-based image fields (`*_image_paths`, `reference_image_paths`) are rejected with a friendly re-upload hint.
 
 Manual-library mode sample (GPT background reference, no auto Pexels):
 

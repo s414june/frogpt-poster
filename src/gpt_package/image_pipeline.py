@@ -57,14 +57,24 @@ class ImagePipeline:
             self._parse_color(getattr(getattr(self, "_style", None), "secondary_color", "#A8BFA8"))
         )
         tone = self._tone_hint(getattr(getattr(self, "_style", None), "background_color_hint", ""))
+        hint_text = str(getattr(getattr(self, "_style", None), "background_color_hint", ""))
         if tone == "light":
             top = self._enforce_luma_floor(top, 250)
             bottom = self._enforce_luma_floor(bottom, 150)
         elif tone == "dark":
             top = self._enforce_luma_ceiling(top, 112)
             bottom = self._enforce_luma_ceiling(bottom, 126)
+        if self._is_white_hint(hint_text):
+            top = (252, 252, 252)
+            bottom = (248, 248, 248)
+        elif self._is_black_hint(hint_text):
+            top = (18, 18, 18)
+            bottom = (14, 14, 14)
+        elif self._is_gray_hint(hint_text):
+            top = (166, 166, 166)
+            bottom = (152, 152, 152)
         if not self._is_monochrome_intent(
-            hint_text=str(getattr(getattr(self, "_style", None), "background_color_hint", "")),
+            hint_text=hint_text,
             colors=[top, bottom],
         ):
             top = self._boost_saturation(top, lift=0.10, min_sat=0.32)
@@ -169,9 +179,24 @@ class ImagePipeline:
         if parsed is None:
             return background
         hue, sat, val = parsed
+        mono_white = self._is_white_hint(hint_text)
+        mono_black = self._is_black_hint(hint_text)
+        mono_gray = self._is_gray_hint(hint_text)
 
         tone = self._tone_hint(hint_text)
-        if tone == "light":
+        if mono_white:
+            sat = 0.0
+            top_val = 0.995
+            bottom_val = 0.985
+        elif mono_black:
+            sat = 0.0
+            top_val = 0.11
+            bottom_val = 0.10
+        elif mono_gray:
+            sat = 0.0
+            top_val = 0.66
+            bottom_val = 0.64
+        elif tone == "light":
             sat = max(0.20, min(0.58, sat * 0.84))
             val = max(0.72, min(0.90, val + 0.06))
             top_val = min(0.94, val + 0.06)
@@ -212,7 +237,14 @@ class ImagePipeline:
             alpha += 0.04
         if mode == "gradient":
             alpha += 0.02
-        alpha = max(0.08, min(0.26, alpha))
+        if mono_white:
+            alpha = 0.52
+        elif mono_black:
+            alpha = 0.64
+        elif mono_gray:
+            alpha = 0.58
+        else:
+            alpha = max(0.08, min(0.26, alpha))
 
         base = background.convert("RGB")
         return Image.blend(base, overlay, alpha=alpha)
@@ -300,6 +332,18 @@ class ImagePipeline:
         raw = (text or "").strip().lower()
         mono_keywords = ("black", "white", "gray", "grey", "黑", "白", "灰")
         return any(k in raw for k in mono_keywords)
+
+    def _is_white_hint(self, text: str) -> bool:
+        raw = (text or "").strip().lower()
+        return ("white" in raw) or ("白" in raw)
+
+    def _is_black_hint(self, text: str) -> bool:
+        raw = (text or "").strip().lower()
+        return ("black" in raw) or ("黑" in raw)
+
+    def _is_gray_hint(self, text: str) -> bool:
+        raw = (text or "").strip().lower()
+        return ("gray" in raw) or ("grey" in raw) or ("灰" in raw)
 
     def _is_monochrome_intent(self, hint_text: str, colors: list[tuple[int, int, int]]) -> bool:
         if self._contains_mono_keyword(hint_text):
