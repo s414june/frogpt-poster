@@ -18,6 +18,10 @@ class TypographyEngine:
         return ranked[0]
 
     def apply(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
+        role_mode = str(getattr(style, "image_role_mode", "auto")).strip().lower() if style else "auto"
+        if role_mode == "both":
+            return self._apply_focus_aware_two_size(image, title, body, font_paths, style=style)
+
         width, height = image.size
         margin = max(36, int(width * 0.06))
         sample_text = f"{title}\n{body}"
@@ -93,6 +97,95 @@ class TypographyEngine:
             "selected_font": body_font_path or self.select_font(font_paths, sample_text=sample_text),
             "title_font": heading_font_path or body_font_path,
             "body_font": body_font_path,
+            "layout_mode": "default",
+        }
+
+    def _apply_focus_aware_two_size(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
+        width, height = image.size
+        margin = max(36, int(width * 0.06))
+        sample_text = f"{title}\n{body}"
+
+        body_font_path = self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
+        heading_font_path = self._find_heading_font_from_body_family(
+            font_paths=font_paths,
+            body_font_path=body_font_path,
+            sample_text=sample_text,
+        )
+
+        hero_font = self._load_font(
+            [heading_font_path] if heading_font_path else font_paths,
+            size=max(48, int(width * 0.072)),
+            sample_text=sample_text,
+            role="heading",
+        )
+        minor_font = self._load_font(
+            [body_font_path] if body_font_path else font_paths,
+            size=max(24, int(width * 0.034)),
+            sample_text=sample_text,
+            role="body",
+        )
+
+        draw = ImageDraw.Draw(image, "RGBA")
+        text_width = width - margin * 2
+        raw_title_lines = self._wrap_text(draw, title.strip(), minor_font, text_width)
+        raw_body_lines = self._wrap_text(draw, body.strip(), minor_font, text_width)
+        if raw_body_lines and raw_body_lines[0].strip():
+            hero_text = raw_body_lines[0].strip()
+            hero_lines = self._wrap_text(draw, hero_text, hero_font, text_width)
+            minor_lines = [line for line in (raw_title_lines + raw_body_lines[1:]) if line.strip()]
+        else:
+            hero_text = title.strip()
+            hero_lines = self._wrap_text(draw, hero_text, hero_font, text_width)
+            minor_lines = [line for line in raw_body_lines if line.strip()]
+
+        if not hero_lines:
+            hero_lines = [title.strip() or body.strip() or ""]
+        if not minor_lines:
+            minor_lines = [line for line in raw_title_lines if line.strip()]
+
+        hero_height = self._lines_height(hero_font.size, len(hero_lines), 1.20)
+        minor_height = self._lines_height(minor_font.size, len(minor_lines), 1.30)
+        focus_box = self._estimate_focus_box(image)
+        hero_region, minor_region = self._pick_two_block_regions(
+            image=image,
+            margin=margin,
+            hero_height=hero_height,
+            minor_height=minor_height,
+            focus_box=focus_box,
+        )
+
+        hero_color = self._pick_text_color(image, hero_region)
+        minor_color = self._pick_text_color(image, minor_region)
+        hero_start_y = hero_region[1]
+        for line in hero_lines:
+            box = draw.textbbox((0, 0), line, font=hero_font)
+            line_w = box[2] - box[0]
+            x = max(margin, (width - line_w) // 2)
+            draw.text((x, hero_start_y), line, fill=hero_color, font=hero_font)
+            hero_start_y += int(hero_font.size * 1.20)
+
+        minor_start_y = minor_region[1]
+        for line in minor_lines:
+            box = draw.textbbox((0, 0), line, font=minor_font)
+            line_w = box[2] - box[0]
+            x = max(margin, (width - line_w) // 2)
+            draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
+            minor_start_y += int(minor_font.size * 1.30)
+
+        credit_text = str(getattr(style, "source_credit_text", "")).strip() if style else ""
+        if credit_text:
+            self.apply_source_credit_overlay(image, credit_text, font_paths)
+
+        return {
+            "selected_font": body_font_path or self.select_font(font_paths, sample_text=sample_text),
+            "title_font": heading_font_path or body_font_path,
+            "body_font": body_font_path,
+            "layout_mode": "both_focus_aware",
+            "hero_font_size": hero_font.size,
+            "minor_font_size": minor_font.size,
+            "focus_box": focus_box,
+            "hero_region": hero_region,
+            "minor_region": minor_region,
         }
 
     def apply_source_credit_overlay(self, image: Image.Image, credit_text: str, font_paths: list[str]) -> None:
@@ -203,7 +296,9 @@ class TypographyEngine:
             if any(token in name for token in ("black", "bold")):
                 weight_rank = max(weight_rank, 1)
 
-        return (cjk_rank, sans_rank + weight_rank, name)
+        variable_rank = 1 if ("variablefont" in name or "[wght]" in name) else 0
+
+        return (cjk_rank, sans_rank + weight_rank + variable_rank, name)
 
     def _find_heading_font_from_body_family(
         self,
@@ -218,6 +313,97 @@ class TypographyEngine:
         if same_family:
             return self.select_font_by_role(same_family, sample_text=sample_text, role="heading")
         return body_font_path
+
+    def _lines_height(self, font_size: int, line_count: int, line_ratio: float) -> int:
+        count = max(1, line_count)
+        return int(font_size * line_ratio * count)
+
+    def _estimate_focus_box(self, image: Image.Image) -> tuple[int, int, int, int]:
+        width, height = image.size
+        small = image.convert("L").resize((96, 96), Image.Resampling.BILINEAR)
+        pix = small.load()
+        total = 0.0
+        sum_x = 0.0
+        sum_y = 0.0
+        for y in range(1, 95):
+            for x in range(1, 95):
+                gx = abs(int(pix[x + 1, y]) - int(pix[x - 1, y]))
+                gy = abs(int(pix[x, y + 1]) - int(pix[x, y - 1]))
+                w = float(gx + gy)
+                total += w
+                sum_x += x * w
+                sum_y += y * w
+        if total <= 0.0:
+            cx = width // 2
+            cy = height // 2
+        else:
+            cx = int((sum_x / total) / 95.0 * width)
+            cy = int((sum_y / total) / 95.0 * height)
+        box_w = int(width * 0.34)
+        box_h = int(height * 0.30)
+        x1 = max(0, min(width - box_w, cx - box_w // 2))
+        y1 = max(0, min(height - box_h, cy - box_h // 2))
+        return (x1, y1, x1 + box_w, y1 + box_h)
+
+    def _pick_two_block_regions(
+        self,
+        image: Image.Image,
+        margin: int,
+        hero_height: int,
+        minor_height: int,
+        focus_box: tuple[int, int, int, int],
+    ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
+        width, height = image.size
+        candidates = [
+            (0.10, 0.80),
+            (0.13, 0.74),
+            (0.18, 0.78),
+            (0.70, 0.16),
+            (0.76, 0.22),
+        ]
+        best: tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None = None
+        best_score = float("inf")
+        for hero_r, minor_r in candidates:
+            hero_y = int(height * hero_r)
+            minor_y = int(height * minor_r)
+            hero_region = (margin, hero_y, width - margin, hero_y + hero_height)
+            minor_region = (margin, minor_y, width - margin, minor_y + minor_height)
+            score = 0.0
+            score += self._overlap_area(hero_region, focus_box) * 6.0
+            score += self._overlap_area(minor_region, focus_box) * 4.0
+            score += self._overlap_area(hero_region, minor_region) * 8.0
+            score += self._out_of_bounds_penalty(hero_region, width, height)
+            score += self._out_of_bounds_penalty(minor_region, width, height)
+            if score < best_score:
+                best_score = score
+                best = (hero_region, minor_region)
+        if best is None:
+            top = (margin, int(height * 0.12), width - margin, int(height * 0.12) + hero_height)
+            bottom = (margin, int(height * 0.76), width - margin, int(height * 0.76) + minor_height)
+            return top, bottom
+        return best
+
+    def _overlap_area(self, a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> int:
+        x1 = max(a[0], b[0])
+        y1 = max(a[1], b[1])
+        x2 = min(a[2], b[2])
+        y2 = min(a[3], b[3])
+        if x2 <= x1 or y2 <= y1:
+            return 0
+        return (x2 - x1) * (y2 - y1)
+
+    def _out_of_bounds_penalty(self, region: tuple[int, int, int, int], width: int, height: int) -> float:
+        x1, y1, x2, y2 = region
+        p = 0.0
+        if x1 < 0:
+            p += abs(x1) * 20.0
+        if y1 < 0:
+            p += abs(y1) * 20.0
+        if x2 > width:
+            p += abs(x2 - width) * 20.0
+        if y2 > height:
+            p += abs(y2 - height) * 20.0
+        return p
 
     def _font_family_key(self, path: str) -> str:
         stem = path.lower().replace("\\", "/").split("/")[-1]

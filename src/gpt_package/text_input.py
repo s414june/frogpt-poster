@@ -39,6 +39,7 @@ def load_request_from_text_file(path: str) -> PosterRequest:
         ),
         style=PosterStyle(
             background_mode=str(style.get("background_mode", "auto")),
+            image_role_mode=str(style.get("image_role_mode", payload.get("image_role_mode", "auto"))),
             geometry_enabled=bool(style.get("geometry_enabled", True)),
             subject_mask_mode=str(style.get("subject_mask_mode", "rounded")),
             subject_border_px=int(style.get("subject_border_px", 0)),

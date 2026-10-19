@@ -10,6 +10,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
 
+from PIL import Image
+
 from .client import PosterGenerator
 from .errors import PosterError
 from .errors import ValidationError
@@ -21,6 +23,7 @@ from .types import PosterAssetSet, PosterLayout, PosterRequest, PosterStyle
 
 TOOL_NAME = "generate_poster_with_real_image_priority"
 _BACKGROUND_MODES = {"auto", "solid", "gradient", "reference"}
+_IMAGE_ROLE_MODES = {"auto", "subject", "background", "both"}
 _DEFAULT_PRIMARY_COLOR = "#F6F1E8"
 _DEFAULT_SECONDARY_COLOR = "#A8BFA8"
 _DEFAULT_ACCENT_COLOR = "#6D8A72"
@@ -94,6 +97,10 @@ def build_tool_definition() -> dict:
                 "background_mode": {
                     "type": "string",
                     "enum": ["auto", "solid", "gradient", "reference"],
+                },
+                "image_role_mode": {
+                    "type": "string",
+                    "enum": ["auto", "subject", "background", "both"],
                 },
                 "geometry_enabled": {"type": "boolean"},
                 "subject_mask_mode": {
@@ -173,6 +180,8 @@ def _build_request(arguments: dict) -> PosterRequest:
         request.style.subject = str(arguments["subject"])
     if "background_mode" in arguments:
         request.style.background_mode = _normalize_background_mode(arguments["background_mode"])
+    if "image_role_mode" in arguments:
+        request.style.image_role_mode = _normalize_image_role_mode(arguments["image_role_mode"])
     if "geometry_enabled" in arguments:
         if not isinstance(arguments["geometry_enabled"], bool):
             raise ValidationError("geometry_enabled must be a boolean")
@@ -234,6 +243,9 @@ def _from_inline_request(payload: dict) -> PosterRequest:
         style=PosterStyle(
             background_mode=_normalize_background_mode(
                 style.get("background_mode", payload.get("background_mode", "auto"))
+            ),
+            image_role_mode=_normalize_image_role_mode(
+                style.get("image_role_mode", payload.get("image_role_mode", "auto"))
             ),
             geometry_enabled=bool(style.get("geometry_enabled", payload.get("geometry_enabled", True))),
             subject_mask_mode=_normalize_subject_mask_mode(
@@ -492,6 +504,73 @@ def _normalize_subject_mask_mode(value: object) -> str:
     return mode
 
 
+def _normalize_image_role_mode(value: object) -> str:
+    mode = str(value or "auto").strip().lower()
+    if mode not in _IMAGE_ROLE_MODES:
+        raise ValidationError("image_role_mode must be one of: auto, subject, background, both")
+    return mode
+
+
+def _resolve_image_role_mode(request: PosterRequest) -> tuple[str, str]:
+    chosen = _normalize_image_role_mode(request.style.image_role_mode)
+    if chosen != "auto":
+        return chosen, "user_selected"
+
+    text_blob = f"{request.title} {request.body} {request.style.subject} {request.style.background_color_hint}".lower()
+    if any(k in text_blob for k in ("兩者", "同時", "both", "直接加字", "只加文字")):
+        return "both", "keyword_both"
+    if any(k in text_blob for k in ("主體", "去背", "subject", "foreground", "cutout")):
+        return "subject", "keyword_subject"
+    if any(k in text_blob for k in ("背景", "底圖", "background")):
+        return "background", "keyword_background"
+
+    if request.assets.subject_image_paths and not request.assets.user_image_paths:
+        return "subject", "subject_images_provided"
+    if request.assets.user_image_paths and request.assets.subject_image_paths:
+        return "background", "both_sources_already_provided"
+    if not request.assets.user_image_paths:
+        return "background", "no_user_image"
+
+    first = Path(request.assets.user_image_paths[0])
+    try:
+        with Image.open(first) as img:
+            width, height = img.size
+            if "A" in img.getbands():
+                alpha = img.getchannel("A").resize((64, 64))
+                values = list(alpha.getdata())
+                transparent = sum(1 for v in values if v < 250)
+                if transparent / max(1, len(values)) >= 0.05:
+                    return "subject", "alpha_transparency_detected"
+    except OSError:
+        return "background", "unreadable_image_default_background"
+
+    ratio = width / max(1, height)
+    poster_ratio = request.layout.width / max(1, request.layout.height)
+    if 0.86 <= ratio <= 1.14:
+        return "subject", "near_square_image"
+    if abs(ratio - poster_ratio) <= 0.18:
+        return "background", "matches_poster_ratio"
+    if ratio < 0.72:
+        return "subject", "narrow_portrait_image"
+    return "background", "default_background_photo"
+
+
+def _apply_image_role_mode(request: PosterRequest, role_mode: str) -> None:
+    role = _normalize_image_role_mode(role_mode)
+    if role == "subject":
+        if request.assets.user_image_paths and not request.assets.subject_image_paths:
+            request.assets.subject_image_paths = [request.assets.user_image_paths[0]]
+            request.assets.user_image_paths = request.assets.user_image_paths[1:]
+        return
+    if role == "background":
+        return
+    if role == "both":
+        if not request.assets.user_image_paths and request.assets.subject_image_paths:
+            request.assets.user_image_paths = [request.assets.subject_image_paths[0]]
+        request.assets.subject_image_paths = []
+        request.style.geometry_enabled = False
+
+
 def _has_explicit_palette(arguments: dict, request: PosterRequest) -> bool:
     if any(key in arguments for key in ("primary_color", "secondary_color", "accent_color")):
         return True
@@ -672,6 +751,8 @@ def handle_tool_call(arguments: dict) -> dict:
         reference_context = _materialize_reference_images(arguments, request)
         if reference_context["temp_dir"]:
             temp_dirs.append(reference_context["temp_dir"])
+        resolved_image_role_mode, image_role_resolution_reason = _resolve_image_role_mode(request)
+        _apply_image_role_mode(request, resolved_image_role_mode)
         palette_from_assets_applied, palette_source_path = _apply_palette_from_assets(
             arguments, request, reference_context
         )
@@ -705,6 +786,8 @@ def handle_tool_call(arguments: dict) -> dict:
                 "intake_questions": build_intake_questions(),
                 "palette_from_assets_applied": palette_from_assets_applied,
                 "palette_source_path": palette_source_path,
+                "resolved_image_role_mode": resolved_image_role_mode,
+                "image_role_resolution_reason": image_role_resolution_reason,
             }
         if _needs_text_free_background_confirmation(arguments, request):
             return {
@@ -730,6 +813,8 @@ def handle_tool_call(arguments: dict) -> dict:
                 "intake_questions": build_intake_questions(),
                 "palette_from_assets_applied": palette_from_assets_applied,
                 "palette_source_path": palette_source_path,
+                "resolved_image_role_mode": resolved_image_role_mode,
+                "image_role_resolution_reason": image_role_resolution_reason,
             }
         request.style.source_credit_text = str(reference_context.get("attribution_label", "")).strip()
         generator = PosterGenerator()
@@ -763,6 +848,8 @@ def handle_tool_call(arguments: dict) -> dict:
             "reference_images_used": reference_context["used_as_fallback"],
             "style_from_reference_applied": reference_context["style_from_reference_applied"],
             "palette_source_path": palette_source_path,
+            "resolved_image_role_mode": resolved_image_role_mode,
+            "image_role_resolution_reason": image_role_resolution_reason,
             "source_credits": reference_context["source_credits"],
             "source_credit_overlay_applied": bool(request.style.source_credit_text),
             "source_credit_overlay_text": request.style.source_credit_text or None,

@@ -11,6 +11,7 @@ _MIN_SIZE = 256
 _MAX_SIZE = 4096
 _FONT_EXTS = {".ttf", ".otf", ".ttc", ".woff2"}
 _BACKGROUND_MODES = {"auto", "solid", "gradient", "reference"}
+_IMAGE_ROLE_MODES = {"auto", "subject", "background", "both"}
 _SUBJECT_MASK_MODES = {"rounded", "feather"}
 
 
@@ -40,6 +41,9 @@ def validate_request(request: PosterRequest) -> None:
     mode = (request.style.background_mode or "").strip().lower()
     if mode not in _BACKGROUND_MODES:
         raise ValidationError("background_mode must be one of: auto, solid, gradient, reference")
+    image_role_mode = (request.style.image_role_mode or "").strip().lower()
+    if image_role_mode not in _IMAGE_ROLE_MODES:
+        raise ValidationError("image_role_mode must be one of: auto, subject, background, both")
     mask_mode = (request.style.subject_mask_mode or "").strip().lower()
     if mask_mode not in _SUBJECT_MASK_MODES:
         raise ValidationError("subject_mask_mode must be one of: rounded, feather")

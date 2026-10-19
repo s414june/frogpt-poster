@@ -25,6 +25,7 @@ class PosterLayout:
 @dataclass(slots=True)
 class PosterStyle:
     background_mode: str = "auto"
+    image_role_mode: str = "auto"
     geometry_enabled: bool = True
     subject_mask_mode: str = "rounded"
     subject_border_px: int = 0
