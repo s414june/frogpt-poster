@@ -15,6 +15,8 @@ _INTAKE_SESSION_TTL_SECONDS = 60 * 60 * 12
 _INTAKE_SESSIONS: dict[str, dict] = {}
 _MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _MAX_EMBED_FULLSIZE_BASE64 = 5_500_000
+_MAX_STRUCTURED_PREVIEW_BASE64 = 2_000_000
+_MAX_STRUCTURED_FULLSIZE_BASE64 = 5_500_000
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -117,6 +119,25 @@ def _compact_output(output: dict) -> dict:
         compact["output_image_data_url_length"] = len(data_url)
     if isinstance(preview_data_url, str):
         compact["output_preview_data_url_length"] = len(preview_data_url)
+    # Relay-safe payloads for clients/channels that cannot forward image blocks.
+    relay: dict = {
+        "preview_available": False,
+        "fullsize_available": False,
+        "preview_limit_base64_bytes": _MAX_STRUCTURED_PREVIEW_BASE64,
+        "fullsize_limit_base64_bytes": _MAX_STRUCTURED_FULLSIZE_BASE64,
+    }
+    if isinstance(preview_b64, str) and preview_b64:
+        if len(preview_b64) <= _MAX_STRUCTURED_PREVIEW_BASE64:
+            relay["preview_available"] = True
+            relay["preview_base64"] = preview_b64
+            relay["preview_mime_type"] = output.get("output_preview_mime_type", "image/jpeg")
+    if isinstance(image_b64, str) and image_b64:
+        if len(image_b64) <= _MAX_STRUCTURED_FULLSIZE_BASE64:
+            relay["fullsize_available"] = True
+            relay["fullsize_base64"] = image_b64
+            relay["fullsize_mime_type"] = output.get("output_mime_type", "image/png")
+            relay["fullsize_filename"] = output.get("output_filename", "poster.png")
+    compact["relay_payload"] = relay
     request = compact.get("request")
     if isinstance(request, dict):
         compact["request"] = _compact_request(request)
@@ -441,6 +462,16 @@ def dispatch(message):
                         "type": "text",
                         "text": (
                             "若客戶端不支援 image content，請改走 API `/api/poster` 讀取 `output_image_data_url`。"
+                        ),
+                    }
+                )
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "對話模式轉送失敗時，請改用 structuredContent.relay_payload：\n"
+                            "- relay_payload.preview_base64\n"
+                            "- relay_payload.fullsize_base64（若 available）"
                         ),
                     }
                 )

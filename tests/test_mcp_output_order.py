@@ -109,11 +109,17 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(structured.get("final_delivery_contract", {}).get("must_include_fullsize_download"))
         self.assertNotIn("output_image_base64", structured)
         self.assertIn("output_image_base64_length", structured)
+        relay = structured.get("relay_payload", {})
+        self.assertTrue(relay.get("preview_available"))
+        self.assertIsInstance(relay.get("preview_base64"), str)
+        self.assertGreater(len(relay.get("preview_base64", "")), 100)
         if structured.get("final_delivery_contract", {}).get("fullsize_embedded"):
             self.assertEqual(content[2]["type"], "image")
             self.assertIn("若客戶端不支援 image content", content[4]["text"])
+            self.assertIn("relay_payload", content[5]["text"])
         else:
             self.assertIn("若客戶端不支援 image content", content[3]["text"])
+            self.assertIn("relay_payload", content[4]["text"])
         self.assertNotIn("data:image/png;base64,", content[1]["text"])
         target_text_idx = 4 if structured.get("final_delivery_contract", {}).get("fullsize_embedded") else 3
         self.assertNotIn("data:image/png;base64,", content[target_text_idx]["text"])
