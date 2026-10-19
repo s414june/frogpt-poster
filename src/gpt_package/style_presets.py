@@ -14,7 +14,6 @@ def apply_style_preset(request: PosterRequest) -> None:
     request.style.panel_ratio = 0.24
     request.style.title_max_lines = 2
     request.style.body_max_lines = 4
-    request.style.background_shape_count = 3
+    request.style.background_shape_count = 1
     request.style.background_shape_alpha_min = 8
-    request.style.background_shape_alpha_max = 18
-
+    request.style.background_shape_alpha_max = 14

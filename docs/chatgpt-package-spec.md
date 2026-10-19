@@ -17,6 +17,9 @@
 - 提供 OpenAI Tools function schema 與 tool handler。
 - 支援文字檔（JSON）輸入與欄位驗證。
 - 支援 inline JSON 請求、圖片 URL、圖片 base64（避免本機路徑依賴）。
+- 支援參考圖流程（reference image URLs、Pexels API query），並可在必要時直接作為 fallback 主視覺。
+- 支援「GPT 先生成背景草稿」作為參考圖（base64），再套開源字型完成海報。
+- 預設繞過自動 Pexels 抓圖，改走手動圖庫流程；保留 `PEXELS_API_KEY` 與 `auto_pexels_fallback` 開關供後續啟用。
 - 未指定字型路徑時，自動掃描專案 `assets/fonts` 字型資料夾。
 - 預留去背、裁切、字型注入與美感調教的擴充點。
 
@@ -39,11 +42,14 @@
 6. **版面合成**：套用字型、文字階層、留白規則、色彩策略輸出海報。
 7. **決策落地**：回傳輸出檔案與來源決策資訊，利於稽核與調教。
 8. **跨端輸出**：回傳 `output_image_base64` 供 Web/行動端直接顯示。
+9. **參考圖合規**：第三方圖源優先走官方 API，回傳來源 credit 與合規提醒。
+10. **圖片優先序**：使用者圖片 > GPT 背景參考圖 > Pexels 參考圖 > 內建 fallback。
 
 ## 6. 套件架構（目標）
 - `gpt_package.types`：輸入輸出資料模型（海報請求、資產、結果）。
 - `gpt_package.policy`：圖片來源決策（真圖優先邏輯）。
 - `gpt_package.openai_tool`：OpenAI Tools schema 與 handler。
+- `gpt_package.reference_images`：參考圖下載、Pexels API 查詢、色盤抽取。
 - `gpt_package.text_input`：文字檔（JSON）載入。
 - `gpt_package.font_discovery`：本地字型自動掃描（`assets/fonts`）。
 - `gpt_package.validation`：請求欄位與路徑驗證。
@@ -68,6 +74,16 @@ print(result["ok"], result["decision"]["image_source"])
 - **可測試性**：決策邏輯獨立可單元測試。
 - **可擴充性**：影像與排版引擎可插拔。
 - **可追蹤性**：每次輸出保留決策紀錄與原因。
+- **合規性**：第三方圖源記錄來源與攝影師資訊，避免 standalone 再散布。
+
+## 11. 第三方圖源法規備註（Pexels）
+- 應使用官方 API 取圖，避免 scraping/data extraction 方式抓站。
+- 不得以 Standalone 形式轉售或再散布來源圖。
+- 建議保留顯著來源連結與攝影師 credit。
+- 參考：  
+  - https://www.pexels.com/license/  
+  - https://www.pexels.com/terms-of-service/  
+  - https://www.pexels.com/api/documentation/
 
 ## 9. 驗收標準（v0.3）
 - 專案可安裝，且可 `import gpt_package`。
