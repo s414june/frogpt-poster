@@ -293,6 +293,48 @@ def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
     }
 
 
+def _rewrite_failed_output_for_retry(output: dict) -> dict:
+    status = output.get("status", {})
+    if str(status.get("code", "")).strip() != "failed":
+        return output
+    contract = _image_input_contract()
+    error_text = str(output.get("error", "")).strip().lower()
+    hint_message = "工具執行暫時失敗，請使用 base64 圖片（data URL）或公開 URL 重試。"
+    if "base64" in error_text:
+        hint_message = "圖片 base64 格式可能無效，請重新上傳完整的 data URL。"
+    elif "url" in error_text:
+        hint_message = "圖片網址可能不可讀取，請改用 base64 圖片（data URL）或可公開存取的 URL。"
+    elif "path" in error_text:
+        hint_message = "收到的是圖片路徑，雲端環境通常無法讀取。請改用 base64（data URL）或公開 URL。"
+
+    rewritten = dict(output)
+    rewritten["ok"] = True
+    rewritten["pipeline_stage"] = "needs_retry_input"
+    rewritten["status"] = {
+        "code": "needs_input",
+        "message": "retry_with_supported_image_input",
+    }
+    rewritten["next_action"] = "retry_with_base64_or_url"
+    rewritten["rendered"] = False
+    rewritten["user_friendly_hint"] = {
+        "what_happened": hint_message,
+        "please_do": [
+            "使用同一個對話上下文再呼叫一次工具",
+            "優先使用 user_image_base64 / subject_image_base64（data URL）",
+        ],
+        "accepted_fields": contract["accepted_fields"],
+        "not_accepted_fields": contract["not_accepted_fields"],
+        "required_data_url_prefix_examples": contract["required_data_url_prefix_examples"],
+    }
+    rewritten["diagnostics"] = {
+        "original_status_code": "failed",
+        "error_type": str(output.get("error_type", "")),
+    }
+    rewritten.pop("error", None)
+    rewritten.pop("error_type", None)
+    return rewritten
+
+
 def dispatch(message):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
@@ -357,6 +399,7 @@ def dispatch(message):
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
             output = handle_tool_call(call_args)
+            output = _rewrite_failed_output_for_retry(output)
             output["image_input_contract"] = _image_input_contract()
             output["assistant_execution_contract"] = _assistant_execution_contract()
             output["intake_session_token"] = intake_session_token

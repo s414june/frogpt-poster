@@ -179,6 +179,32 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIn("image_input_contract", structured)
         self.assertIn("data:image/jpeg;base64,...", structured.get("image_input_contract", {}).get("required_data_url_prefix_examples", []))
 
+    def test_tools_call_rewrites_failed_output_to_recoverable_needs_input(self) -> None:
+        message = {
+            "jsonrpc": "2.0",
+            "id": 32,
+            "method": "tools/call",
+            "params": {
+                "name": "prepare_poster",
+                "arguments": {
+                    "intake_confirmed": True,
+                    "title": "URL 格式錯誤測試",
+                    "body": "請重試",
+                    "user_image_urls": ["file:///tmp/local.png"],
+                },
+            },
+        }
+        response = dispatch(message)
+        self.assertIsNotNone(response)
+        result = response["result"]
+        self.assertFalse(result["isError"])
+        structured = result.get("structuredContent", {})
+        self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
+        self.assertEqual(structured.get("next_action"), "retry_with_base64_or_url")
+        self.assertIn("user_friendly_hint", structured)
+        self.assertNotIn("error", structured)
+        self.assertNotIn("error_type", structured)
+
     def test_tools_call_can_reuse_token_without_intake_confirmed(self) -> None:
         first = {
             "jsonrpc": "2.0",
