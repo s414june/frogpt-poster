@@ -2,9 +2,20 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 30
+    },
+    "api/mcp.py": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
+    {
+      "source": "/mcp",
+      "destination": "/api/mcp.py"
+    },
+    {
+      "source": "/api/mcp",
+      "destination": "/api/mcp.py"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
