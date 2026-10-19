@@ -1,9 +1,10 @@
 # gpt-package
 
-OpenAI Tools plugin scaffold for an anti-`AI-look` poster workflow:
+OpenAI Tools plugin for an anti-`AI-look` poster workflow:
 - prefers user-provided real photos,
 - uses AI image generation only as fallback,
-- validates text-file input before running.
+- validates text-file input before running,
+- renders and saves poster output (`.png`).
 
 ## Quick start
 
@@ -17,8 +18,10 @@ Tool name: `generate_poster_with_real_image_priority`
 
 Key arguments:
 - `poster_text_file`: UTF-8 JSON input path
+- `poster_request`: inline request object (recommended for web/mobile)
 - `title`, `body`: optional overrides
-- `user_image_paths`, `open_source_font_paths`
+- `user_image_paths`, `user_image_urls`, `user_image_base64`
+- `open_source_font_paths`
 - `width`, `height`, `allow_ai_fallback`
 
 If `open_source_font_paths` is omitted/empty, the tool auto-discovers fonts under:
@@ -36,6 +39,8 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 3. Expected:
 - `ok: true` for valid payloads,
 - `ok: false` with `ValidationError` for invalid payloads.
+- `output_path` points to a generated poster image for successful calls.
+- `output_image_base64` is included for browser/mobile clients.
 
 ## UAT with text interface (chat-like)
 
@@ -75,6 +80,14 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
   -d "{\"arguments\":{\"poster_text_file\":\"examples\\\\uat\\\\poster-input.json\"}}"
 ```
 
+Web/mobile-style request (no local path):
+
+```bash
+curl -X POST "http://127.0.0.1:8000/api/poster" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"arguments\":{\"poster_request\":{\"title\":\"Inline\",\"body\":\"No local path\",\"layout\":{\"width\":1080,\"height\":1350},\"allow_ai_fallback\":true,\"assets\":{\"open_source_font_paths\":[]}}}}"
+```
+
 Local run:
 
 ```bash
@@ -87,3 +100,12 @@ Place your downloaded open-source fonts in:
 - `assets\fonts`
 
 They will be picked up automatically when `open_source_font_paths` is not provided.
+
+## Render output directory
+
+Generated posters are written to:
+- local: `outputs\posters`
+- Vercel: `/tmp/posters`
+
+You can override with environment variable:
+- `POSTER_OUTPUT_DIR`

@@ -16,6 +16,7 @@
 - 建立「真圖優先、AI 備援」決策介面。
 - 提供 OpenAI Tools function schema 與 tool handler。
 - 支援文字檔（JSON）輸入與欄位驗證。
+- 支援 inline JSON 請求、圖片 URL、圖片 base64（避免本機路徑依賴）。
 - 未指定字型路徑時，自動掃描專案 `assets/fonts` 字型資料夾。
 - 預留去背、裁切、字型注入與美感調教的擴充點。
 
@@ -37,6 +38,7 @@
 5. **圖片前處理**：若為真圖，執行裁切/去背/比例調整。
 6. **版面合成**：套用字型、文字階層、留白規則、色彩策略輸出海報。
 7. **決策落地**：回傳輸出檔案與來源決策資訊，利於稽核與調教。
+8. **跨端輸出**：回傳 `output_image_base64` 供 Web/行動端直接顯示。
 
 ## 6. 套件架構（目標）
 - `gpt_package.types`：輸入輸出資料模型（海報請求、資產、結果）。
@@ -59,7 +61,7 @@ result = handle_tool_call({"poster_text_file": "examples\\uat\\poster-input.json
 print(result["ok"], result["decision"]["image_source"])
 ```
 
-> 註：v0.3 先完成「插件可呼叫 + 驗證 + 決策骨架」，後續版本補實作。
+> 註：v0.3 已完成「插件可呼叫 + 驗證 + 基本海報渲染」，後續版本持續優化美學與 AI 備援品質。
 
 ## 8. 非功能需求
 - **可維護性**：模組職責清楚，流程與策略可替換。

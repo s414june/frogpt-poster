@@ -1,0 +1,17 @@
+{
+  "arguments": {
+    "poster_request": {
+      "title": "Inline API Request",
+      "body": "This payload is web/mobile friendly without local file paths.",
+      "layout": {
+        "width": 1080,
+        "height": 1350
+      },
+      "allow_ai_fallback": true,
+      "assets": {
+        "open_source_font_paths": []
+      }
+    }
+  }
+}
+

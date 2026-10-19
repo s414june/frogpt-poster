@@ -11,7 +11,9 @@ requires-python = ">=3.10"
 authors = [
   { name = "frogpt-poster contributors" }
 ]
-dependencies = []
+dependencies = [
+  "Pillow==11.0.0"
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
