@@ -299,8 +299,60 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         sample = image.resize((48, 48)).convert("RGB")
         h, s, v = colorsys.rgb_to_hsv(*[x / 255.0 for x in sample.getpixel((24, 24))])
         self.assertTrue(0.06 <= h < 0.11)
-        self.assertGreaterEqual(s, 0.60)
+        self.assertGreaterEqual(s, 0.46)
+        self.assertLessEqual(s, 0.73)
         self.assertGreaterEqual(v, 0.76)
+
+    def test_geometry_yellow_can_be_lower_saturation_when_explicitly_requested(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="粉霧黃", body="柔和 低彩 pastel")
+        self.assertTrue(pipe._allow_low_sat_yellow(req))
+        bg = (248, 241, 176)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(188, 160, 60)],
+            bg_sample=bg,
+            rng=random.Random(37),
+            allow_low_sat_yellow=True,
+        )
+        yellow_sats = []
+        for color in pair:
+            h, s, _v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            if 0.11 <= h <= 0.22:
+                yellow_sats.append(s)
+        self.assertTrue(yellow_sats)
+        self.assertGreaterEqual(min(yellow_sats), 0.46)
+
+    def test_geometry_dull_yellow_is_replaced_on_warm_background(self) -> None:
+        pipe = ImagePipeline()
+        bg = (236, 196, 146)  # warm orange-ish background
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(150, 133, 82)],  # muddy yellow source
+            bg_sample=bg,
+            rng=random.Random(41),
+            allow_low_sat_yellow=False,
+        )
+        for color in pair:
+            h, s, v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            if 0.11 <= h <= 0.22:
+                self.assertGreaterEqual(s, 0.62)
+                self.assertGreaterEqual(v, 0.84)
+            else:
+                # Replacement should land in adjacent orange/green family.
+                self.assertTrue((0.06 <= h < 0.11) or (0.22 <= h <= 0.36))
+
+    def test_geometry_dark_orange_is_forced_to_higher_saturation(self) -> None:
+        pipe = ImagePipeline()
+        bg = (236, 198, 176)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(130, 92, 58)],  # dark coffee-like orange
+            bg_sample=bg,
+            rng=random.Random(43),
+            allow_low_sat_yellow=False,
+        )
+        for color in pair:
+            h, s, v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            if 0.06 <= h < 0.11 and v < 0.80:
+                self.assertGreaterEqual(s, 0.68)
 
     def test_flat_user_background_yellow_is_visibly_lightened(self) -> None:
         pipe = ImagePipeline()

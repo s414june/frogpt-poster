@@ -156,6 +156,19 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
+    def test_handle_tool_call_rejects_non_image_base64_payload(self) -> None:
+        bogus = base64.b64encode(b"this-is-not-an-image").decode("ascii")
+        result = handle_tool_call(
+            {
+                "title": "Invalid image payload",
+                "body": "Should fail early with validation error",
+                "user_image_base64": [bogus],
+            }
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_type"], "ValidationError")
+        self.assertIn("not a valid image payload", result["error"])
+
     def test_handle_tool_call_uses_user_image_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
