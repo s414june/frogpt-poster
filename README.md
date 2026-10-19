@@ -31,10 +31,8 @@ Key arguments:
 - `creative_source_preference`: `auto` | `real_image_priority` | `gpt_generate`
   - `gpt_generate`：在未自訂設計參數時，交由 GPT 以**非隨機**規則自動判斷背景策略（Pexels / 單色 / 漸層 / 需先生成無字背景）。
 - `intake_answers`: 可選；以 `{question_id: answer}` 回傳首輪問卷答案（例如 `creative_source_preference`、`image_ready`）。
-- `user_image_paths`, `user_image_urls`, `user_image_base64`
-- `subject_image_paths`, `subject_image_urls`, `subject_image_base64` (可疊加為前景主體，建議透明背景 PNG)
-- `reference_image_urls`: style reference images (URL)
-- `reference_image_paths`: local reference images (e.g. downloaded library files)
+- `user_image_base64`
+- `subject_image_base64` (可疊加為前景主體，建議透明背景 PNG)
 - `reference_image_base64`: style reference images (base64)
 - `generated_background_base64`: a GPT-generated background draft to use as top-priority reference
 - `generated_background_text_free_confirmed`: set `true` only after confirming generated background has no text/logo/watermark
@@ -211,8 +209,8 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
 
 Path handling note:
 - Chat sandbox paths like `/mnt/data/...` are often not readable by your deployed MCP runtime.
-- Prefer `user_image_base64` / `subject_image_base64` or public `*_image_urls` when calling through ChatGPT.
-- MCP adapter now enforces this rule for user-facing calls: path-based image fields (`*_image_paths`, `reference_image_paths`) are rejected with a friendly re-upload hint.
+- MCP adapter enforces **base64-only** for user-facing calls through ChatGPT.
+- URL/path image fields (`*_image_urls`, `*_image_paths`, `reference_image_urls`, `reference_image_paths`) are rejected with a friendly re-upload hint.
 
 Manual-library mode sample (GPT background reference, no auto Pexels):
 
@@ -243,7 +241,7 @@ vercel dev
 ```
 
 Deployment notes:
-- MCP endpoint request body limit is **8 MB**. Prefer `subject_image_urls` / `user_image_urls`; only use base64 for smaller images.
+- MCP endpoint request body limit is **8 MB**. Since MCP is base64-only, compress/resize images before upload when needed.
 - Keep serverless bundle slim via `.vercelignore`. This project excludes most `assets\fonts` and keeps lightweight runtime families.
 - For Traditional Chinese rendering in deployment, keep `assets\fonts\Noto_Sans_TC\static\*.ttf` (or equivalent CJK sans static files) in bundle; otherwise text may degrade to tofu squares.
 - If deploy still nears platform limits, remove extra local assets (docs/examples/test data/fonts) from runtime bundle.

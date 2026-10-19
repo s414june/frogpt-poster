@@ -335,7 +335,35 @@ class ImagePipeline:
 
     def _soften_background_harsh_hues(self, rgb: tuple[int, int, int], tone: str) -> tuple[int, int, int]:
         h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
-        if self._is_green_hue(h):
+        if self._is_orange_hue(h):
+            # Keep orange vivid; do not wash it out while lifting brightness a bit.
+            sat_floor = 0.60 if tone == "light" else 0.62
+            sat_cap = 0.90
+            if tone == "dark":
+                val_floor = 0.78
+            elif tone == "light":
+                val_floor = 0.84
+            else:
+                val_floor = 0.80
+            s = max(sat_floor, min(sat_cap, s + 0.08))
+            v = max(val_floor, min(0.94, v + 0.06))
+            return self._hsv_to_rgb(h, s, v)
+        if self._is_yellow_hue(h):
+            # Avoid muddy/dark yellow: push both value and saturation up.
+            sat_floor = 0.56 if tone == "light" else 0.60
+            sat_cap = 0.82
+            if tone == "dark":
+                val_floor = 0.84
+            elif tone == "light":
+                val_floor = 0.90
+            else:
+                val_floor = 0.88
+            s = max(sat_floor, min(sat_cap, s + 0.12))
+            v = max(val_floor, min(0.98, v + 0.10))
+            yellow_rgb = self._hsv_to_rgb(h, s, v)
+            mix = 0.38 if tone == "light" else 0.32
+            return self._mix_with_white(yellow_rgb, mix)
+        elif self._is_green_hue(h):
             sat_cap = 0.30 if tone == "light" else 0.33
             sat_floor = 0.20 if tone == "light" else 0.22
             s = max(sat_floor, min(sat_cap, s - 0.14))
@@ -597,6 +625,7 @@ class ImagePipeline:
         main, soft = self._soften_overstimulating_hues(main, soft, bg_sample)
         # Re-apply luminance separation after saturation lift so both constraints hold.
         main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
+        main, soft = self._lift_yellow_geometry_clarity(main, soft)
         if self._rgb_distance(soft, bg_sample) < (self._min_geometry_bg_distance * 0.62):
             soft = self._ensure_min_color_distance(soft, bg_sample, rng, self._min_geometry_bg_distance * 0.62)
         if self._rgb_distance(main, bg_sample) < self._min_geometry_bg_distance:
@@ -612,7 +641,7 @@ class ImagePipeline:
         main_hsv = colorsys.rgb_to_hsv(main[0] / 255.0, main[1] / 255.0, main[2] / 255.0)
         soft_hsv = colorsys.rgb_to_hsv(soft[0] / 255.0, soft[1] / 255.0, soft[2] / 255.0)
         risk_detected = any(
-            self._is_green_hue(h) or self._is_fluorescent_purple(h, s, v)
+            self._is_yellow_hue(h) or self._is_green_hue(h) or self._is_fluorescent_purple(h, s, v)
             for h, s, v in (main_hsv, soft_hsv)
         )
         if not risk_detected:
@@ -623,6 +652,15 @@ class ImagePipeline:
 
         def _reduce_one(hsv: tuple[float, float, float]) -> tuple[int, int, int]:
             h, s, v = hsv
+            if self._is_orange_hue(h):
+                boosted_s = max(0.62, min(0.90, s + 0.06))
+                boosted_v = max(0.76, min(0.92, v + 0.06))
+                return self._hsv_to_rgb(h, boosted_s, boosted_v)
+            if self._is_yellow_hue(h):
+                boosted_s = max(0.60, min(0.86, s + 0.08))
+                boosted_v = max(0.82, min(0.96, v + 0.12))
+                yellow_rgb = self._hsv_to_rgb(h, boosted_s, boosted_v)
+                return self._mix_with_white(yellow_rgb, 0.14)
             reduced = max(sat_floor, s - 0.10)
             if self._is_green_hue(h):
                 reduced = min(reduced, 0.76)
@@ -632,8 +670,42 @@ class ImagePipeline:
 
         return _reduce_one(main_hsv), _reduce_one(soft_hsv)
 
+    def _lift_yellow_geometry_clarity(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        def _lift_one(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+            h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+            if self._is_orange_hue(h):
+                s = max(0.62, min(0.90, s + 0.04))
+                v = max(0.76, min(0.92, v + 0.06))
+                return self._hsv_to_rgb(h, s, v)
+            if not self._is_yellow_hue(h):
+                return rgb
+            s = max(0.58, min(0.86, s + 0.04))
+            v = max(0.80, min(0.96, v + 0.10))
+            lifted = self._hsv_to_rgb(h, s, v)
+            return self._mix_with_white(lifted, 0.10)
+
+        return _lift_one(main), _lift_one(soft)
+
     def _is_green_hue(self, hue: float) -> bool:
         return 0.22 <= hue <= 0.46
+
+    def _is_yellow_hue(self, hue: float) -> bool:
+        return 0.11 <= hue <= 0.22
+
+    def _is_orange_hue(self, hue: float) -> bool:
+        return 0.06 <= hue < 0.11
+
+    def _mix_with_white(self, rgb: tuple[int, int, int], amount: float) -> tuple[int, int, int]:
+        t = max(0.0, min(1.0, amount))
+        return (
+            self._clamp_color(int(rgb[0] * (1.0 - t) + 255 * t)),
+            self._clamp_color(int(rgb[1] * (1.0 - t) + 255 * t)),
+            self._clamp_color(int(rgb[2] * (1.0 - t) + 255 * t)),
+        )
 
     def _is_purple_hue(self, hue: float) -> bool:
         return 0.74 <= hue <= 0.93

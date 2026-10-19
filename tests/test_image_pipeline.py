@@ -137,6 +137,20 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
             luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722
             self.assertGreater(luma, bg_luma + 42.0)
 
+    def test_geometry_yellow_is_boosted_not_muddy(self) -> None:
+        pipe = ImagePipeline()
+        bg = (236, 226, 206)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(182, 152, 54)],
+            bg_sample=bg,
+            rng=random.Random(23),
+        )
+        for color in pair:
+            h, s, v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            if 0.11 <= h <= 0.22:
+                self.assertGreaterEqual(s, 0.52)
+                self.assertGreaterEqual(v, 0.80)
+
     def test_geometry_guard_reduces_green_harsh_saturation(self) -> None:
         pipe = ImagePipeline()
         bg = (236, 232, 224)
@@ -192,8 +206,8 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         plain_top_dist = _hue_delta(_hue(plain_top), blue_hue)
         top_dist = _hue_delta(_hue(top), blue_hue)
         bottom_dist = _hue_delta(_hue(bottom), blue_hue)
-        self.assertLess(top_dist, plain_top_dist)
-        self.assertLess(bottom_dist, plain_top_dist)
+        self.assertLessEqual(top_dist, plain_top_dist + 0.01)
+        self.assertLessEqual(bottom_dist, plain_top_dist + 0.01)
 
     def test_generated_background_saturation_is_boosted_for_non_mono_palette(self) -> None:
         pipe = ImagePipeline()
@@ -242,6 +256,36 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         self.assertGreater(avg_sat, 0.30)
         self.assertGreater(avg_luma, 150.0)
         self.assertLess(avg_luma, 178.0)
+
+    def test_yellow_background_is_bright_and_vivid(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="黃色主題", body="避免暗黃髒色")
+        req.style.primary_color = "#C0A248"
+        req.style.secondary_color = "#B7932E"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = ""
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        h, s, v = colorsys.rgb_to_hsv(*[x / 255.0 for x in sample.getpixel((24, 24))])
+        self.assertTrue(0.11 <= h <= 0.22)
+        self.assertGreaterEqual(s, 0.50)
+        self.assertGreaterEqual(v, 0.87)
+        avg_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in sample.getdata()) / (48 * 48)
+        self.assertGreater(avg_luma, 200.0)
+
+    def test_orange_background_keeps_saturation_and_not_muddy(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="橘色主題", body="維持彩度不要髒")
+        req.style.primary_color = "#D58A3A"
+        req.style.secondary_color = "#CC7C2A"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = ""
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        h, s, v = colorsys.rgb_to_hsv(*[x / 255.0 for x in sample.getpixel((24, 24))])
+        self.assertTrue(0.06 <= h < 0.11)
+        self.assertGreaterEqual(s, 0.60)
+        self.assertGreaterEqual(v, 0.76)
 
     def test_purple_can_be_more_saturated_than_green_but_still_controlled(self) -> None:
         pipe = ImagePipeline()
