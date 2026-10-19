@@ -17,6 +17,7 @@ class ImagePipeline:
     """Builds poster background from user photo or generated fallback."""
 
     def __init__(self) -> None:
+        self._min_geometry_bg_distance = 42.0
         self._last_effects = {
             "subject_mask_applied": False,
             "subject_mask_style": None,
@@ -256,6 +257,7 @@ class ImagePipeline:
         subject_color = self._extract_subject_color(subject_path) if subject_path else None
         if subject_color is None:
             subject_color = self._parse_color(request.style.accent_color)
+        color_pool = self._prepare_geometry_color_pool(background, subject_color, request, rng)
 
         draw = ImageDraw.Draw(background)
         shape_count = 0
@@ -273,7 +275,7 @@ class ImagePipeline:
                 px = max(0, min(width - 1, px))
                 py = max(0, min(height - 1, py))
                 size = int(min(width, height) * rng.uniform(0.12, 0.22))
-                color = self._geometry_color(background, (px, py), subject_color, rng)
+                color = self._geometry_color(background, (px, py), color_pool, rng)
                 self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
                 shape_count += 1
             return (strategy, shape_count)
@@ -284,7 +286,7 @@ class ImagePipeline:
             for _ in range(2):
                 px, py = self._edge_anchor(edge, width, height, span, rng)
                 size = int(min(width, height) * rng.uniform(0.12, 0.22))
-                color = self._geometry_color(background, (px, py), subject_color, rng)
+                color = self._geometry_color(background, (px, py), color_pool, rng)
                 self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
                 shape_count += 1
         if shape_count == 0:
@@ -314,18 +316,17 @@ class ImagePipeline:
         self,
         background: Image.Image,
         center: tuple[int, int],
-        subject_color: tuple[int, int, int],
+        color_pool: list[tuple[int, int, int]],
         rng: random.Random,
     ) -> tuple[int, int, int]:
         cx, cy = center
         cx = max(0, min(background.width - 1, cx))
         cy = max(0, min(background.height - 1, cy))
         bg = background.getpixel((cx, cy))
-        color = (
-            self._clamp_color(subject_color[0] + rng.randint(-28, 28)),
-            self._clamp_color(subject_color[1] + rng.randint(-28, 28)),
-            self._clamp_color(subject_color[2] + rng.randint(-28, 28)),
-        )
+        if not color_pool:
+            color_pool = [bg]
+        color = color_pool[rng.randint(0, len(color_pool) - 1)]
+        color = self._nudge_color(color, rng, 10)
         color = self._match_saturation_to_background(color, bg, rng)
         bg_luma = self._luma(bg)
         target_luma = max(72, min(196, bg_luma + rng.randint(-14, 14)))
@@ -342,7 +343,52 @@ class ImagePipeline:
             color = self._match_saturation_to_background(color, bg, rng)
             color = self._with_target_luma(color, target_luma)
         color = self._normalize_moderate_tone(color)
-        return self._match_saturation_to_background(color, bg, rng)
+        color = self._match_saturation_to_background(color, bg, rng)
+        return self._ensure_min_color_distance(color, bg, rng, self._min_geometry_bg_distance)
+
+    def _prepare_geometry_color_pool(
+        self,
+        background: Image.Image,
+        subject_color: tuple[int, int, int],
+        request: PosterRequest,
+        rng: random.Random,
+    ) -> list[tuple[int, int, int]]:
+        bg_sample = background.getpixel((background.width // 2, background.height // 2))
+        bh, bs, bv = colorsys.rgb_to_hsv(bg_sample[0] / 255.0, bg_sample[1] / 255.0, bg_sample[2] / 255.0)
+        sh, ss, _sv = colorsys.rgb_to_hsv(subject_color[0] / 255.0, subject_color[1] / 255.0, subject_color[2] / 255.0)
+        wants_contrast = self._wants_contrast_geometry(request)
+
+        hues: list[float] = [bh]
+        if self._hue_delta(bh, sh) <= 0.14:
+            hues.append(sh)
+        else:
+            hues.append((bh + (0.06 if rng.random() < 0.5 else -0.06)) % 1.0)
+
+        if wants_contrast:
+            hues.append((bh + 0.5) % 1.0)
+        else:
+            hues.append((bh + (0.10 if rng.random() < 0.5 else -0.10)) % 1.0)
+
+        uniq_hues: list[float] = []
+        for h in hues:
+            if all(self._hue_delta(h, seen) > 0.045 for seen in uniq_hues):
+                uniq_hues.append(h)
+            if len(uniq_hues) >= 3:
+                break
+        if not uniq_hues:
+            uniq_hues = [bh]
+
+        pool: list[tuple[int, int, int]] = []
+        base_sat = max(0.18, min(0.70, bs))
+        for h in uniq_hues[:3]:
+            if wants_contrast and self._hue_delta(h, (bh + 0.5) % 1.0) < 0.08:
+                sat = max(0.32, min(0.78, base_sat + 0.14))
+            else:
+                sat = max(0.16, min(0.74, (base_sat * 0.72) + (ss * 0.28) + rng.uniform(-0.04, 0.04)))
+            val = max(0.34, min(0.82, bv + rng.uniform(-0.06, 0.06)))
+            r, g, b = colorsys.hsv_to_rgb(h, sat, val)
+            pool.append((self._clamp_color(int(r * 255)), self._clamp_color(int(g * 255)), self._clamp_color(int(b * 255))))
+        return pool[:3]
 
     def _shape_types(self) -> list[str]:
         return [
@@ -352,7 +398,6 @@ class ImagePipeline:
             "diamond",
             "triangle",
             "spark_star",
-            "leaf",
             "flower",
         ]
 
@@ -412,19 +457,6 @@ class ImagePipeline:
                 py = cy + int(math.sin(angle) * r)
                 points.append((px, py))
             draw.polygon(points, fill=color)
-            return
-        if shape == "leaf":
-            w = int(size * 1.6)
-            h = int(size * 0.95)
-            draw.ellipse([(cx - w, cy - h), (cx + w, cy + h)], fill=color)
-            draw.polygon(
-                [
-                    (cx - int(size * 0.2), cy - int(size * 1.0)),
-                    (cx + int(size * 1.8), cy),
-                    (cx - int(size * 0.2), cy + int(size * 1.0)),
-                ],
-                fill=self._lighten(color, 48),
-            )
             return
         if shape == "flower":
             petal = int(size * 0.62)
@@ -496,6 +528,61 @@ class ImagePipeline:
             self._clamp_color(int(g * 255)),
             self._clamp_color(int(b * 255)),
         )
+
+    def _nudge_color(self, rgb: tuple[int, int, int], rng: random.Random, delta: int) -> tuple[int, int, int]:
+        return (
+            self._clamp_color(rgb[0] + rng.randint(-delta, delta)),
+            self._clamp_color(rgb[1] + rng.randint(-delta, delta)),
+            self._clamp_color(rgb[2] + rng.randint(-delta, delta)),
+        )
+
+    def _hue_delta(self, a: float, b: float) -> float:
+        d = abs(a - b)
+        return min(d, 1.0 - d)
+
+    def _ensure_min_color_distance(
+        self,
+        color: tuple[int, int, int],
+        bg: tuple[int, int, int],
+        rng: random.Random,
+        minimum: float,
+    ) -> tuple[int, int, int]:
+        if self._rgb_distance(color, bg) >= minimum:
+            return color
+        ch, cs, cv = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+        bh, bs, bv = colorsys.rgb_to_hsv(bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0)
+        attempts = [
+            ((ch + 0.08) % 1.0, max(cs, min(0.80, bs + 0.10)), min(0.88, cv + 0.08)),
+            ((ch - 0.08) % 1.0, max(cs, min(0.80, bs + 0.10)), max(0.24, cv - 0.08)),
+            ((bh + 0.12) % 1.0, max(0.24, min(0.82, bs + 0.12)), min(0.88, bv + 0.10)),
+            ((bh - 0.12) % 1.0, max(0.24, min(0.82, bs + 0.12)), max(0.24, bv - 0.10)),
+        ]
+        best = color
+        best_distance = self._rgb_distance(color, bg)
+        for h, s, v in attempts:
+            rr, gg, bb = colorsys.hsv_to_rgb(h, s, v)
+            candidate = (
+                self._clamp_color(int(rr * 255)),
+                self._clamp_color(int(gg * 255)),
+                self._clamp_color(int(bb * 255)),
+            )
+            candidate = self._nudge_color(candidate, rng, 4)
+            d = self._rgb_distance(candidate, bg)
+            if d > best_distance:
+                best = candidate
+                best_distance = d
+            if d >= minimum:
+                return candidate
+        return best
+
+    def _wants_contrast_geometry(self, request: PosterRequest) -> bool:
+        text = (
+            f"{request.title} {request.body} "
+            f"{getattr(request.style, 'background_color_hint', '')} "
+            f"{getattr(request.style, 'subject', '')}"
+        ).lower()
+        keywords = ("跳色", "撞色", "對比色", "高對比", "contrast", "complementary")
+        return any(k in text for k in keywords)
 
     def _tone_hint(self, raw: str) -> str:
         text = (raw or "").strip().lower()

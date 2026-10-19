@@ -37,6 +37,7 @@ SCHEMA = {
         "reference_image_paths": {"type": "array", "items": {"type": "string"}},
         "reference_image_base64": {"type": "array", "items": {"type": "string"}},
         "generated_background_base64": {"type": "string"},
+        "generated_background_text_free_confirmed": {"type": "boolean"},
         "pexels_query": {"type": "string"},
         "pexels_orientation": {"type": "string"},
         "pexels_per_page": {"type": "integer", "minimum": 1, "maximum": 10},
@@ -223,11 +224,14 @@ def dispatch(message):
                 )
             if status_code == "needs_background_generation":
                 prompt = output.get("background_generation_prompt", "")
+                reqs = output.get("background_generation_requirements", {})
+                required_flag = reqs.get("required_flag_on_retry", "generated_background_text_free_confirmed=true")
                 content.append(
                     {
                         "type": "text",
                         "text": (
-                            "目前沒有可用圖片。請先用 GPT 生成『無字背景海報』，再把 base64 放到 generated_background_base64 後重呼叫。\n"
+                            "目前需要『無字背景海報』才能繼續。請先用 GPT 生成無文字背景，並確認沒有字母/數字/logo/浮水印。\n"
+                            f"重呼叫時請同時帶入: {required_flag}\n"
                             f"建議提示詞：{prompt}"
                         ),
                     }

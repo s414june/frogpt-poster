@@ -85,7 +85,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "allow_ai_fallback": True,
                     }
                     ,
-                    "generated_background_base64": bg_b64
+                    "generated_background_base64": bg_b64,
+                    "generated_background_text_free_confirmed": True
                 },
             },
         }
@@ -158,6 +159,7 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "width": 1080,
                         "height": 1350,
                         "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
                     },
                 },
             }
@@ -204,6 +206,7 @@ class MCPOutputOrderTests(unittest.TestCase):
                             "assets": {"open_source_font_paths": []},
                         },
                         "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
                     },
                 },
             }

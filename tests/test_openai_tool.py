@@ -44,6 +44,7 @@ class OpenAIToolTests(unittest.TestCase):
                     {
                         "poster_text_file": str(input_file),
                         "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
                     }
                 )
                 self.assertTrue(result["ok"])
@@ -198,6 +199,7 @@ class OpenAIToolTests(unittest.TestCase):
                         "title": "Ref test",
                         "body": "Using generated background as reference",
                         "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
                     }
                 )
                 self.assertTrue(result["ok"])
@@ -205,6 +207,27 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertTrue(result["reference_images_used"])
                 self.assertTrue(result["style_from_reference_applied"])
                 self.assertEqual(result["decision"]["image_source"], "user_image")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_generated_background_requires_text_free_confirmation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                image_path = Path(tmp_dir) / "bg.png"
+                Image.new("RGB", (540, 720), (233, 241, 228)).save(image_path)
+                bg_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+                result = handle_tool_call(
+                    {
+                        "title": "Ref test",
+                        "body": "Needs confirmation",
+                        "generated_background_base64": bg_b64,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertFalse(result["rendered"])
+                self.assertEqual(result["status"]["code"], "needs_background_generation")
+                self.assertIn("background_generation_requirements", result)
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
@@ -500,6 +523,32 @@ class OpenAIToolTests(unittest.TestCase):
                 b = int(primary[4:6], 16)
                 luma = r * 0.2126 + g * 0.7152 + b * 0.0722
                 self.assertGreater(luma, 138.0)
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_background_color_hint_forces_requested_hue_when_image_lacks_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                ref = Path(tmp_dir) / "ref-brown.png"
+                Image.new("RGB", (280, 280), (142, 106, 88)).save(ref)
+                result = handle_tool_call(
+                    {
+                        "title": "Hue steer",
+                        "body": "希望藍色調",
+                        "background_mode": "gradient",
+                        "reference_image_paths": [str(ref)],
+                        "use_reference_as_fallback": False,
+                        "background_color_hint": "blue light",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                primary = result["request"]["style"]["primary_color"].lstrip("#")
+                r = int(primary[0:2], 16)
+                g = int(primary[2:4], 16)
+                b = int(primary[4:6], 16)
+                self.assertGreater(b, r)
+                self.assertGreater(b, g)
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
