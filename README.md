@@ -80,6 +80,7 @@ MCP intake behavior (強制一次)：
 - 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
 - 首輪問卷也會詢問圖片角色：`auto / subject / background / both`。
 - MCP 在 intake 完成後，若未顯式提供 `variation_token`，會自動啟用變體模式（等同 `regenerate_variant=true`）以避免每次重跑完全相同。
+- MCP 在 intake 完成後，若未顯式設定 `regenerate_variant`，預設會啟用變體模式並忽略傳入的舊 `variation_token`（避免重跑仍同圖）。
 
 When first interaction enters intake mode, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)
@@ -109,7 +110,7 @@ Typography/layout policy:
 - ellipse/oval geometry is disabled; only perfect circles are used when circular motifs are rendered.
 
 No-image flow:
-- if no user image/reference is provided, tool returns `status.code = needs_background_generation`
+- if no user image/reference is provided, tool returns `status.code = needs_background_generation` (regardless of `background_mode`, including `solid/gradient`)
 - it includes `background_generation_prompt`; generate a **text-free** background first, then retry with `generated_background_base64`.
 - retry must include `generated_background_text_free_confirmed=true`; otherwise tool keeps `needs_background_generation` to prevent accidental text-in-background output.
 - prompt policy defaults to presentation style: mostly solid/soft-gradient background, minimal geometry, clear foreground subject.

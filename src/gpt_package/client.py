@@ -45,6 +45,8 @@ class PosterGenerator:
 
         selected_font = typography_info.get("selected_font")
         font_note = selected_font if selected_font else "default built-in font"
+        layout_mode = str(typography_info.get("layout_mode", "default"))
+        layout_variant = typography_info.get("layout_variant")
         return PosterResult(
             output_path=str(output_path),
             decision=decision,
@@ -53,6 +55,8 @@ class PosterGenerator:
                 "Validation passed.",
                 f"Poster rendered at: {output_path}",
                 f"Typography font: {font_note}",
+                f"Typography layout mode: {layout_mode}",
+                f"Typography layout variant: {layout_variant}",
                 f"Subject mask applied: {image_effects.get('subject_mask_applied', False)}",
                 f"Subject mask style: {image_effects.get('subject_mask_style')}",
                 f"Decorative geometry applied: {image_effects.get('decorative_geometry_applied', False)}",

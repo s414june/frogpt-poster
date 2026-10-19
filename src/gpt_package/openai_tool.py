@@ -20,6 +20,7 @@ from .guidance import build_design_guide, build_intake_questions
 from .reference_images import apply_style_from_reference, build_credit_label, fetch_pexels_references, resolve_reference_url
 from .text_input import load_request_from_text_file
 from .types import PosterAssetSet, PosterLayout, PosterRequest, PosterStyle
+from .validation import validate_request
 
 TOOL_NAME = "generate_poster_with_real_image_priority"
 _BACKGROUND_MODES = {"auto", "solid", "gradient", "reference"}
@@ -684,15 +685,36 @@ def _needs_intake(arguments: dict) -> bool:
 
 
 def _needs_background_generation(arguments: dict, request: PosterRequest, reference_context: dict) -> bool:
-    mode = (request.style.background_mode or "auto").strip().lower()
-    if mode in ("solid", "gradient"):
-        return False
     has_user_image = bool(request.assets.user_image_paths)
+    has_subject_image = bool(request.assets.subject_image_paths)
     has_reference = bool(reference_context.get("downloaded_paths"))
     has_pexels_query = bool(str(arguments.get("pexels_query", "")).strip())
-    if has_user_image or has_reference or has_pexels_query:
+    if has_user_image or has_subject_image or has_reference or has_pexels_query:
+        return False
+    mode = (request.style.background_mode or "auto").strip().lower()
+    if mode in ("solid", "gradient") and not _wants_explicit_visual_subject(request):
         return False
     return True
+
+
+def _wants_explicit_visual_subject(request: PosterRequest) -> bool:
+    if str(request.style.subject or "").strip():
+        return True
+    blob = f"{request.title} {request.body}".lower()
+    keywords = (
+        "主角", "主視覺", "主圖", "餐點", "料理", "食物", "商品", "人像", "人物", "動物",
+        "hero", "main visual", "subject", "food", "dish", "product", "portrait", "character",
+    )
+    return any(k in blob for k in keywords)
+
+
+def _validate_pre_render_request(request: PosterRequest) -> None:
+    try:
+        validate_request(request)
+    except ValidationError as exc:
+        if str(exc).strip() == "user_image_paths is required when allow_ai_fallback is false":
+            return
+        raise
 
 
 def _needs_text_free_background_confirmation(arguments: dict, request: PosterRequest) -> bool:
@@ -753,6 +775,7 @@ def handle_tool_call(arguments: dict) -> dict:
             temp_dirs.append(reference_context["temp_dir"])
         resolved_image_role_mode, image_role_resolution_reason = _resolve_image_role_mode(request)
         _apply_image_role_mode(request, resolved_image_role_mode)
+        _validate_pre_render_request(request)
         palette_from_assets_applied, palette_source_path = _apply_palette_from_assets(
             arguments, request, reference_context
         )

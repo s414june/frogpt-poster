@@ -43,6 +43,44 @@ class TypographyPriorityTests(unittest.TestCase):
         overlap = engine._overlap_area(hero_region, focus_box)
         self.assertEqual(overlap, 0)
 
+    def test_variation_token_changes_default_layout_variant(self) -> None:
+        engine = TypographyEngine()
+        tokens = ["token-a", "token-b", "token-c", "token-d", "token-e"]
+        variants = [(t, engine._variant_index(t, 4)) for t in tokens]
+        distinct = {}
+        for t, v in variants:
+            distinct.setdefault(v, t)
+        self.assertGreaterEqual(len(distinct), 2)
+        picked = list(distinct.values())[:2]
+
+        class _StyleA:
+            image_role_mode = "background"
+            source_credit_text = ""
+            variation_token = picked[0]
+
+        class _StyleB:
+            image_role_mode = "background"
+            source_credit_text = ""
+            variation_token = picked[1]
+
+        img_a = Image.new("RGB", (1080, 1350), (226, 226, 226))
+        info_a = engine.apply(
+            image=img_a,
+            title="主標題",
+            body="副標題\n單位資訊",
+            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            style=_StyleA(),
+        )
+        img_b = Image.new("RGB", (1080, 1350), (226, 226, 226))
+        info_b = engine.apply(
+            image=img_b,
+            title="主標題",
+            body="副標題\n單位資訊",
+            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            style=_StyleB(),
+        )
+        self.assertNotEqual(info_a.get("layout_variant"), info_b.get("layout_variant"))
+
 
 if __name__ == "__main__":
     unittest.main()

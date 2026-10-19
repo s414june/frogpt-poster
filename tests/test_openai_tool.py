@@ -203,6 +203,19 @@ class OpenAIToolTests(unittest.TestCase):
                 else:
                     os.environ["PEXELS_API_KEY"] = old
 
+    def test_gradient_mode_without_any_visual_assets_still_requires_background_generation(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "番茄義大利麵海報主角",
+                "body": "溫暖義式風格",
+                "background_mode": "gradient",
+                "allow_ai_fallback": True,
+            }
+        )
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["rendered"])
+        self.assertEqual(result["status"]["code"], "needs_background_generation")
+
     def test_generated_background_base64_is_used_as_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
