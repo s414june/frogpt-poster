@@ -78,27 +78,29 @@ def _image_input_contract() -> dict:
         "accepted_fields": [
             "user_image_base64",
             "subject_image_base64",
-            "user_image_urls",
-            "subject_image_urls",
-            "reference_image_urls",
             "reference_image_base64",
+            "generated_background_base64",
         ],
         "not_accepted_fields": [
             "user_image_paths",
             "subject_image_paths",
             "reference_image_paths",
+            "user_image_urls",
+            "subject_image_urls",
+            "reference_image_urls",
         ],
         "required_data_url_prefix_examples": [
             "data:image/jpeg;base64,...",
             "data:image/png;base64,...",
         ],
-        "rule": "Do not send filesystem paths. Send image bytes as base64 data URL or public URL.",
+        "rule": "Only send image bytes as base64 data URL. Do not send filesystem paths or URLs.",
     }
 
 
 def _image_input_contract_text() -> str:
     return (
-        "圖片輸入規則：請傳 base64（data URL）或圖片網址（URL），不要傳本機/沙箱路徑。\n"
+        "圖片輸入規則：只接受 base64（data URL）。\n"
+        "不要傳本機/沙箱路徑，也不要傳圖片網址（URL）。\n"
         "正確示例：subject_image_base64: [\"data:image/jpeg;base64,...\"]"
     )
 
@@ -247,22 +249,34 @@ def _resolve_intake_confirmed(args: dict) -> bool:
     return False
 
 
-def _has_path_style_image_inputs(args: dict) -> bool:
-    path_keys = ("user_image_paths", "subject_image_paths", "reference_image_paths")
-    if any(bool(args.get(k)) for k in path_keys):
+def _has_non_base64_image_inputs(args: dict) -> bool:
+    disallowed_keys = (
+        "user_image_paths",
+        "subject_image_paths",
+        "reference_image_paths",
+        "user_image_urls",
+        "subject_image_urls",
+        "reference_image_urls",
+    )
+    if any(bool(args.get(k)) for k in disallowed_keys):
         return True
     payload = args.get("poster_request")
     if isinstance(payload, dict):
-        if bool(payload.get("reference_image_paths")):
+        if bool(payload.get("reference_image_paths")) or bool(payload.get("reference_image_urls")):
             return True
         assets = payload.get("assets")
         if isinstance(assets, dict):
-            if bool(assets.get("user_image_paths")) or bool(assets.get("subject_image_paths")):
+            if (
+                bool(assets.get("user_image_paths"))
+                or bool(assets.get("subject_image_paths"))
+                or bool(assets.get("user_image_urls"))
+                or bool(assets.get("subject_image_urls"))
+            ):
                 return True
     return False
 
 
-def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
+def _build_non_base64_input_rejection(token: str, intake_completed: bool) -> dict:
     contract = _image_input_contract()
     return {
         "ok": True,
@@ -270,9 +284,9 @@ def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
         "pipeline_stage": "intake",
         "status": {
             "code": "needs_input",
-            "message": "image_upload_required_use_base64_or_url",
+            "message": "image_upload_required_use_base64_only",
         },
-        "next_action": "reupload_image_as_base64_or_url",
+        "next_action": "reupload_image_as_base64_only",
         "rendered": False,
         "intake_session_token": token,
         "intake_session_state": {
@@ -280,10 +294,10 @@ def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
             "ttl_seconds": _INTAKE_SESSION_TTL_SECONDS,
         },
         "user_friendly_hint": {
-            "what_happened": "收到的是圖片檔案路徑，雲端執行環境通常無法讀取這種本機路徑。",
+            "what_happened": "收到的圖片格式不是 base64（data URL）。",
             "please_do": [
-                "請改用圖片上傳（base64）",
-                "或提供可公開存取的圖片網址（URL）",
+                "請改用圖片上傳（base64 data URL）",
+                "不要使用圖片路徑，也不要使用圖片網址（URL）",
             ],
             "accepted_fields": contract["accepted_fields"],
             "not_accepted_fields": contract["not_accepted_fields"],
@@ -299,13 +313,13 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
         return output
     contract = _image_input_contract()
     error_text = str(output.get("error", "")).strip().lower()
-    hint_message = "工具執行暫時失敗，請使用 base64 圖片（data URL）或公開 URL 重試。"
+    hint_message = "工具執行暫時失敗，請使用 base64 圖片（data URL）重試。"
     if "base64" in error_text:
         hint_message = "圖片 base64 格式可能無效，請重新上傳完整的 data URL。"
     elif "url" in error_text:
-        hint_message = "圖片網址可能不可讀取，請改用 base64 圖片（data URL）或可公開存取的 URL。"
+        hint_message = "目前只接受 base64 圖片，請將圖片轉為 data URL 後重試。"
     elif "path" in error_text:
-        hint_message = "收到的是圖片路徑，雲端環境通常無法讀取。請改用 base64（data URL）或公開 URL。"
+        hint_message = "收到的是圖片路徑，雲端環境通常無法讀取。請改用 base64（data URL）。"
 
     rewritten = dict(output)
     rewritten["ok"] = True
@@ -314,13 +328,13 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
         "code": "needs_input",
         "message": "retry_with_supported_image_input",
     }
-    rewritten["next_action"] = "retry_with_base64_or_url"
+    rewritten["next_action"] = "retry_with_base64_only"
     rewritten["rendered"] = False
     rewritten["user_friendly_hint"] = {
         "what_happened": hint_message,
         "please_do": [
             "使用同一個對話上下文再呼叫一次工具",
-            "優先使用 user_image_base64 / subject_image_base64（data URL）",
+            "使用 user_image_base64 / subject_image_base64（data URL）",
         ],
         "accepted_fields": contract["accepted_fields"],
         "not_accepted_fields": contract["not_accepted_fields"],
@@ -364,8 +378,8 @@ def dispatch(message):
             now_ts = time.time()
             _prune_intake_sessions(now_ts)
             intake_session_token, intake_state, token_from_request = _ensure_intake_session_token(args, now_ts)
-            if _has_path_style_image_inputs(args):
-                output = _build_path_input_rejection(
+            if _has_non_base64_image_inputs(args):
+                output = _build_non_base64_input_rejection(
                     token=intake_session_token,
                     intake_completed=bool(intake_state.get("intake_completed", False)),
                 )
@@ -374,8 +388,8 @@ def dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "目前收到的是圖片路徑（paths），這種格式在雲端通常無法讀取。\n"
-                            "請改用圖片上傳（base64）或圖片網址（URL）後重試。\n"
+                            "目前只接受 base64 圖片（data URL）。\n"
+                            "請改用圖片上傳（base64）後重試，不要使用 paths 或 URLs。\n"
                             + _image_input_contract_text()
                             + "\n\n禁止直接用 GPT 產生最終海報回覆；請改用工具重試直到完成渲染。"
                         ),

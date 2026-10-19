@@ -35,6 +35,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIn("assistant_execution_contract", structured)
         self.assertTrue(structured.get("assistant_execution_contract", {}).get("must_use_tool_for_final_poster"))
         self.assertIn("user_image_base64", structured.get("image_input_contract", {}).get("accepted_fields", []))
+        self.assertNotIn("user_image_urls", structured.get("image_input_contract", {}).get("accepted_fields", []))
         self.assertTrue(str(structured.get("intake_session_token", "")).startswith("intake_"))
         self.assertIn("尚未渲染海報", result["content"][0]["text"])
 
@@ -172,10 +173,11 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIsNotNone(response)
         structured = response["result"].get("structuredContent", {})
         self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
-        self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_or_url")
+        self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_only")
         hint = structured.get("user_friendly_hint", {})
         self.assertIn("user_image_base64", hint.get("accepted_fields", []))
         self.assertIn("user_image_paths", hint.get("not_accepted_fields", []))
+        self.assertIn("user_image_urls", hint.get("not_accepted_fields", []))
         self.assertIn("image_input_contract", structured)
         self.assertIn("data:image/jpeg;base64,...", structured.get("image_input_contract", {}).get("required_data_url_prefix_examples", []))
 
@@ -188,9 +190,9 @@ class MCPOutputOrderTests(unittest.TestCase):
                 "name": "prepare_poster",
                 "arguments": {
                     "intake_confirmed": True,
-                    "title": "URL 格式錯誤測試",
+                    "title": "base64 格式錯誤測試",
                     "body": "請重試",
-                    "user_image_urls": ["file:///tmp/local.png"],
+                    "user_image_base64": ["not-base64"],
                 },
             },
         }
@@ -200,7 +202,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertFalse(result["isError"])
         structured = result.get("structuredContent", {})
         self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
-        self.assertEqual(structured.get("next_action"), "retry_with_base64_or_url")
+        self.assertEqual(structured.get("next_action"), "retry_with_base64_only")
         self.assertIn("user_friendly_hint", structured)
         self.assertNotIn("error", structured)
         self.assertNotIn("error_type", structured)
