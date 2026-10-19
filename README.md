@@ -290,3 +290,7 @@ All multiline title and body blocks use a 1.5-em line advance: one font em plus 
 ## Attachment preflight and error reporting
 
 Before rendering, the assistant must obtain and successfully decode the current attachment bytes. A missing local path is a pre-tool attachment failure: stop reusing it, reacquire the same attachment through an available platform mechanism, or stop with「附件讀取失敗，尚未傳入套件」and request reattachment. The remote MCP server cannot read or repair the chat host filesystem. Never encode a filename/path, invent base64, or regenerate the user photo as a replacement. Only known image ValidationErrors receive base64 recovery advice; runtime/renderer failures preserve their error status and diagnostics. Generic transport errors do not establish a server-side cause.
+
+## Conversation-mode fallback
+
+If the host cannot reacquire a missing attachment, stop before rendering and recommend「工作」instead of「對話」, with the original image reattached in the new work. For unknown tool/transport errors, allow at most one extra retry after a concrete input correction or successful byte recovery; unchanged failures stop immediately. Do not guarantee that switching modes fixes server errors. If already in Work, report the failure stage and retain diagnostics instead of looping on mode-switch advice. The MCP server cannot recreate chat-host files or automatically switch user modes.

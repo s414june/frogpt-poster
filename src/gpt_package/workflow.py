@@ -1,12 +1,20 @@
 """Shared, explicit instructions for the assistant-controlled image workflow."""
 
+WORK_MODE_FALLBACK_MESSAGE = (
+    '目前無法在「對話」中完成圖片傳送或海報生成。請改用「工作」模式，'
+    '在新工作中重新附上原圖，再使用 @FroGPT Poster 生成海報。'
+    '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
+)
+
 ASSISTANT_INSTRUCTIONS = """先完成一次需求確認，重用 intake_session_token。AI 生圖流程必須分成兩階段：
 附件讀取前置檢查（適用使用者上傳圖片與 AI 圖）：在助理所在環境先確認本輪提供的附件可實際讀取，並能以圖片解碼器開啟；僅看見對話中的圖片，不代表已取得可傳送的圖片位元組。
 若附件路徑出現 No such file or directory／FileNotFoundError，停止使用該失效路徑，不得原樣重試或把其他對話的暫存路徑當成目前附件。
 優先使用本輪附件參照，透過平台提供的附件取得機制重新取得同一張原圖；只有確實取得圖片位元組且驗證可解碼後，才能縮小、轉成完整 base64 data URL 並呼叫套件渲染。
-若平台沒有可用的附件取得機制或重新取得失敗，停止渲染並明確回報「附件讀取失敗，尚未傳入套件」，再請使用者重新附圖。禁止假稱已上傳、編造 base64、用 AI 重畫原圖或把路徑文字編碼冒充圖片。
+若平台沒有可用的附件取得機制或重新取得失敗，停止渲染並明確回報「附件讀取失敗，尚未傳入套件」，並提示使用者改用「工作」模式而非「對話」，在新工作中重新附上同一張原圖再呼叫 @FroGPT Poster。不得要求使用者繼續在原失敗對話反覆重試。禁止假稱已上傳、編造 base64、用 AI 重畫原圖或把路徑文字編碼冒充圖片。
 失敗原因必須分層回報：本機附件讀取失敗屬於工具呼叫前；API 圖片格式驗證失敗屬於輸入驗證；只有套件確實回傳渲染錯誤才稱為套件處理失敗。
 若僅收到 Tool failed internally／傳輸錯誤而沒有伺服器診斷，只能說「工具呼叫失敗，原因尚未確認」，不可斷言是套件內部、附件路徑或圖片格式，也不可無限重試。
+只有具體修正了輸入或重新取得附件才可額外重試一次；相同錯誤、沒有新證據時立即停止。若仍只有不明工具/傳輸錯誤，提示使用者改用「工作」模式而非「對話」，並重新附上原圖；不能說已證明是「對話」模式故障，也不能保證切換模式必定解決。
+已在「工作」模式時不要重複叫使用者切換；回報目前可確認的失敗階段，無法取得原圖時請重新附圖，工具仍失敗時保留診斷供排查。不能替使用者自動切換模式。
 第一階段：背景與主體都由 AI 生成為同一張完整的無文字海報設計圖；禁止文字、字母、數字、logo、浮水印。
 主體的包圍框中心必須在畫布中心 (50%, 50%)，主體寬度不得超過畫布寬度 50%，主體高度不得超過畫布高度 50%；上下保留排字留白。
 測試階段預設 480×640。生成後等比例縮小，優先 JPEG quality 60–70，base64 本體盡量不超過 100000 字元；必要時降低尺寸或品質，不可截斷字串。
@@ -30,6 +38,15 @@ def assistant_execution_contract() -> dict:
             "on_unavailable_bytes": "stop_before_render_and_ask_for_reattachment",
             "failure_message": "附件讀取失敗，尚未傳入套件",
             "forbidden": ["repeat_missing_path", "encode_path_text_as_image", "invent_base64", "regenerate_user_photo_without_request"],
+        },
+        "work_mode_fallback": {
+            "trigger": ["attachment_recovery_unavailable_or_failed", "unknown_tool_or_transport_failure_after_one_corrected_retry"],
+            "max_corrected_retries": 1,
+            "retry_requires_changed_input_or_recovered_bytes": True,
+            "message": WORK_MODE_FALLBACK_MESSAGE,
+            "reattach_original_image_in_new_work": True,
+            "already_in_work": "report_failure_stage_and_diagnostics; do_not_repeat_mode_switch_advice",
+            "guarantees_resolution": False,
         },
         "error_reporting": {
             "attachment_read": "before_tool_call",
