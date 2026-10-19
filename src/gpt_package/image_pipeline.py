@@ -194,14 +194,20 @@ class ImagePipeline:
         top_h = (hue - hue_shift) % 1.0
         bottom_h = (hue + hue_shift) % 1.0
 
+        mode = str(getattr(request.style, "background_mode", "auto")).strip().lower()
+        use_gradient_tint = mode == "gradient"
+
         top_rgb = self._hsv_to_rgb(top_h, sat, top_val)
-        bottom_rgb = self._hsv_to_rgb(bottom_h, sat, bottom_val)
+        if use_gradient_tint:
+            bottom_rgb = self._hsv_to_rgb(bottom_h, sat, bottom_val)
+        else:
+            # Keep solid/auto visually non-gradient: apply uniform tint.
+            bottom_rgb = top_rgb
         overlay = self._vertical_gradient(background.size, top_rgb, bottom_rgb)
 
         alpha = 0.24
         if decision.image_source == ImageSource.USER_IMAGE:
             alpha = 0.16
-        mode = str(getattr(request.style, "background_mode", "auto")).strip().lower()
         if mode == "solid":
             alpha += 0.04
         if mode == "gradient":
@@ -393,7 +399,8 @@ class ImagePipeline:
         if not bool(getattr(request.style, "geometry_enabled", True)):
             return False
         mode = str(getattr(request.style, "background_mode", "auto")).strip().lower()
-        if mode not in ("solid", "gradient"):
+        # auto now renders as solid by default, so it should still be eligible for geometry.
+        if mode not in ("auto", "solid", "gradient"):
             return False
         if len(request.assets.subject_image_paths) != 1:
             return False
