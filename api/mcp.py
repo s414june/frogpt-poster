@@ -318,6 +318,18 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
         return output
     contract = _image_input_contract()
     error_text = str(output.get("error", "")).strip().lower()
+    # Never relabel renderer/runtime failures as invalid base64 or claim recovery.
+    is_image_validation = output.get("error_type") == "ValidationError" and any(
+        term in error_text for term in ("base64", "image path", "image url", "reference image path")
+    )
+    if not is_image_validation:
+        failed = dict(output)
+        failed["failure_stage"] = "server_processing"
+        failed["next_action"] = "inspect_server_diagnostics_do_not_blame_attachment_or_retry_blindly"
+        failed["user_friendly_hint"] = {
+            "what_happened": "套件處理未完成；請依伺服器診斷確認原因，不要推定為附件或 base64 問題。"
+        }
+        return failed
     hint_message = "工具執行暫時失敗，請使用 base64 圖片（data URL）重試。"
     if "base64" in error_text:
         hint_message = "圖片 base64 格式可能無效，請重新上傳完整的 data URL。"
@@ -329,6 +341,7 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
     rewritten = dict(output)
     rewritten["ok"] = True
     rewritten["pipeline_stage"] = "needs_retry_input"
+    rewritten["failure_stage"] = "image_input_validation"
     rewritten["status"] = {
         "code": "needs_input",
         "message": "retry_with_supported_image_input",

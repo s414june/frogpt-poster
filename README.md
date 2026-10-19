@@ -286,3 +286,7 @@ MCP top-level arguments or `poster_request.style` accept `text_align` (`left` / 
 ## Line spacing
 
 All multiline title and body blocks use a 1.5-em line advance: one font em plus a 0.5-em gap, calculated separately for each font size and rounded only to the nearest pixel. Block height estimation uses the same advance as drawing; 8px grid snapping does not alter line spacing.
+
+## Attachment preflight and error reporting
+
+Before rendering, the assistant must obtain and successfully decode the current attachment bytes. A missing local path is a pre-tool attachment failure: stop reusing it, reacquire the same attachment through an available platform mechanism, or stop with「附件讀取失敗，尚未傳入套件」and request reattachment. The remote MCP server cannot read or repair the chat host filesystem. Never encode a filename/path, invent base64, or regenerate the user photo as a replacement. Only known image ValidationErrors receive base64 recovery advice; runtime/renderer failures preserve their error status and diagnostics. Generic transport errors do not establish a server-side cause.
