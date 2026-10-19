@@ -67,7 +67,7 @@ SCHEMA = {
 }
 TOOL = {
     "name": NAME,
-    "description": "Mandatory first-round intake poster tool. Ask intake once, then reuse intake_session_token for follow-up renders.",
+    "description": "Mandatory first-round intake poster tool. Ask intake once, then reuse conversation context for follow-up renders.",
     "inputSchema": SCHEMA,
     "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
@@ -101,6 +101,16 @@ def _image_input_contract_text() -> str:
         "圖片輸入規則：請傳 base64（data URL）或圖片網址（URL），不要傳本機/沙箱路徑。\n"
         "正確示例：subject_image_base64: [\"data:image/jpeg;base64,...\"]"
     )
+
+
+def _assistant_execution_contract() -> dict:
+    return {
+        "must_use_tool_for_final_poster": True,
+        "disallow_direct_model_generated_final_image": True,
+        "when_status_not_completed": "assistant_must_call_tool_again",
+        "required_final_status_code": "completed",
+        "required_final_rendered": True,
+    }
 
 
 def _compact_output(output: dict) -> dict:
@@ -297,7 +307,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse intake_session_token across calls; once brief is provided after intake, the token is remembered and follow-up renders no longer need intake_confirmed=true."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse the same conversation context across calls; once brief is provided after intake, the context is remembered and follow-up renders no longer need intake_confirmed=true. Do not generate a final poster image directly outside this tool; continue tool-calls until status.code=completed and rendered=true."}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -317,6 +327,7 @@ def dispatch(message):
                     token=intake_session_token,
                     intake_completed=bool(intake_state.get("intake_completed", False)),
                 )
+                output["assistant_execution_contract"] = _assistant_execution_contract()
                 content = [
                     {
                         "type": "text",
@@ -324,6 +335,7 @@ def dispatch(message):
                             "目前收到的是圖片路徑（paths），這種格式在雲端通常無法讀取。\n"
                             "請改用圖片上傳（base64）或圖片網址（URL）後重試。\n"
                             + _image_input_contract_text()
+                            + "\n\n禁止直接用 GPT 產生最終海報回覆；請改用工具重試直到完成渲染。"
                         ),
                     },
                     {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
@@ -346,6 +358,7 @@ def dispatch(message):
                 call_args["show_design_guide"] = True
             output = handle_tool_call(call_args)
             output["image_input_contract"] = _image_input_contract()
+            output["assistant_execution_contract"] = _assistant_execution_contract()
             output["intake_session_token"] = intake_session_token
             output["intake_session_state"] = {
                 "intake_completed": bool(intake_state.get("intake_completed", False)),
@@ -378,10 +391,11 @@ def dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再用同一個 intake_session_token 重新呼叫工具：\n"
+                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再用同一個對話上下文重新呼叫工具：\n"
                             + "\n".join(question_lines)
                             + "\n\n"
                             + _image_input_contract_text()
+                            + "\n\n禁止直接用 GPT 產生最終海報回覆；請繼續呼叫工具直到 status.code=completed。"
                         ),
                     }
                 )
@@ -397,6 +411,7 @@ def dispatch(message):
                             f"重呼叫時請同時帶入: {required_flag}\n"
                             f"建議提示詞：{prompt}\n\n"
                             + _image_input_contract_text()
+                            + "\n\n注意：這一步只是在準備背景，不是最終海報。請務必回呼工具完成最終渲染。"
                         ),
                     }
                 )
