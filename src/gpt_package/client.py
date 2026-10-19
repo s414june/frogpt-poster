@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from .image_pipeline import ImagePipeline
 from .policy import PosterPolicy
+from .style_presets import apply_style_preset
 from .types import PosterRequest, PosterResult
 from .typography import TypographyEngine
 from .validation import validate_request
@@ -30,6 +31,7 @@ class PosterGenerator:
         self.output_dir = Path(output_dir or self._default_output_dir())
 
     def generate(self, request: PosterRequest) -> PosterResult:
+        apply_style_preset(request)
         validate_request(request)
         decision = self.policy.decide(request)
         background = self.image_pipeline.build_background(request, decision)
@@ -38,6 +40,7 @@ class PosterGenerator:
             title=request.title,
             body=request.body,
             font_paths=request.assets.open_source_font_paths,
+            style=request.style,
         )
         output_path = self._save_image(background)
 

@@ -123,6 +123,32 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
+    def test_style_preset_minimal_charity_tw_applies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                result = handle_tool_call(
+                    {
+                        "poster_request": {
+                            "title": "讓小小生命，被好好愛著",
+                            "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+                            "style": {"preset": "minimal-charity-tw", "subject": "hamster"},
+                            "layout": {"width": 1080, "height": 1350},
+                            "assets": {"open_source_font_paths": []},
+                        }
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["status"]["code"], "completed")
+                self.assertEqual(
+                    result["request"]["style"]["primary_color"],
+                    "#F7F2E9",
+                )
+                self.assertEqual(result["request"]["style"]["panel_ratio"], 0.24)
+                self.assertTrue(result["output_image_data_url"].startswith("data:image/png;base64,"))
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
 
 if __name__ == "__main__":
     unittest.main()

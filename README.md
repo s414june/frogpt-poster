@@ -21,6 +21,7 @@ Key arguments:
 - `poster_request`: inline request object (recommended for web/mobile)
 - `title`, `body`: optional overrides
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
+- `style_preset`: reusable style profile (e.g. `minimal-charity-tw`)
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
 - `open_source_font_paths`
 - `width`, `height`, `allow_ai_fallback`
@@ -57,6 +58,9 @@ For cleaner copy control, prefer:
 - `poster_request.copy.subtitle`
 - `poster_request.copy.organization`
 - `poster_request.copy.cta`
+
+Preset example:
+- `minimal-charity-tw`: softer cream/sage palette, lighter background elements, shorter text panel, cleaner nonprofit poster hierarchy.
 
 ## UAT with text interface (chat-like)
 

@@ -23,10 +23,17 @@ class PosterLayout:
 
 @dataclass(slots=True)
 class PosterStyle:
+    preset: str = ""
     primary_color: str = "#F6F1E8"
     secondary_color: str = "#A8BFA8"
     accent_color: str = "#6D8A72"
     subject: str = ""
+    panel_ratio: float = 0.24
+    title_max_lines: int = 2
+    body_max_lines: int = 4
+    background_shape_count: int = 3
+    background_shape_alpha_min: int = 10
+    background_shape_alpha_max: int = 28
 
 
 @dataclass(slots=True)

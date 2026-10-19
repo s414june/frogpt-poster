@@ -55,6 +55,7 @@ def build_tool_definition() -> dict:
                 "height": {"type": "integer", "minimum": 256, "maximum": 4096},
                 "allow_ai_fallback": {"type": "boolean"},
                 "subject": {"type": "string"},
+                "style_preset": {"type": "string"},
                 "primary_color": {"type": "string"},
                 "secondary_color": {"type": "string"},
                 "accent_color": {"type": "string"},
@@ -115,6 +116,8 @@ def _build_request(arguments: dict) -> PosterRequest:
         request.allow_ai_fallback = arguments["allow_ai_fallback"]
     if "subject" in arguments:
         request.style.subject = str(arguments["subject"])
+    if "style_preset" in arguments:
+        request.style.preset = str(arguments["style_preset"])
     if "primary_color" in arguments:
         request.style.primary_color = str(arguments["primary_color"])
     if "secondary_color" in arguments:
@@ -159,10 +162,29 @@ def _from_inline_request(payload: dict) -> PosterRequest:
             height=int(layout.get("height", 1350)),
         ),
         style=PosterStyle(
+            preset=str(style.get("preset", payload.get("style_preset", ""))),
             primary_color=str(style.get("primary_color", payload.get("primary_color", "#F6F1E8"))),
             secondary_color=str(style.get("secondary_color", payload.get("secondary_color", "#A8BFA8"))),
             accent_color=str(style.get("accent_color", payload.get("accent_color", "#6D8A72"))),
             subject=str(style.get("subject", payload.get("subject", ""))),
+            panel_ratio=float(style.get("panel_ratio", payload.get("panel_ratio", 0.24))),
+            title_max_lines=int(style.get("title_max_lines", payload.get("title_max_lines", 2))),
+            body_max_lines=int(style.get("body_max_lines", payload.get("body_max_lines", 4))),
+            background_shape_count=int(
+                style.get("background_shape_count", payload.get("background_shape_count", 3))
+            ),
+            background_shape_alpha_min=int(
+                style.get(
+                    "background_shape_alpha_min",
+                    payload.get("background_shape_alpha_min", 10),
+                )
+            ),
+            background_shape_alpha_max=int(
+                style.get(
+                    "background_shape_alpha_max",
+                    payload.get("background_shape_alpha_max", 28),
+                )
+            ),
         ),
         allow_ai_fallback=bool(payload.get("allow_ai_fallback", True)),
     )
