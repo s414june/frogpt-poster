@@ -282,3 +282,7 @@ You can override with environment variable:
 ## Explicit copy controls (v0.3.1)
 
 MCP top-level arguments or `poster_request.style` accept `text_align` (`left` / `center` / `right`), `headline_source` (`title` / legacy `body_first`), and `body_y_ratio` (0–1, top of body block). Use `headline_source="title"` to keep explicit title newlines as the large heading. In `both` mode, `body_y_ratio=0.64` places subtitle/body nearer the vertical center; placement is clamped inside the canvas. All blocks retain one shared color.
+
+## Line spacing
+
+All multiline title and body blocks use a 1.5-em line advance: one font em plus a 0.5-em gap, calculated separately for each font size and rounded only to the nearest pixel. Block height estimation uses the same advance as drawing; 8px grid snapping does not alter line spacing.

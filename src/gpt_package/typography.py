@@ -105,8 +105,8 @@ class TypographyEngine:
         major_gap = self._snap8(max(8, int(title_font.size * 0.2)))
         focus_clearance = self._snap8(max(8, int(title_font.size * 0.25)))
         title_line_count = max(1, len(title_lines[:title_max_lines]))
-        title_step = self._snap8(max(8, int(title_font.size * 1.22)))
-        minor_step = self._snap8(max(8, int(minor_font.size * 1.32)))
+        title_step = self._line_step(title_font.size)
+        minor_step = self._line_step(minor_font.size)
         title_block_h = title_step * title_line_count
         if has_explicit_focus_box:
             y = max(margin, focus_box[1] - focus_clearance - title_block_h)
@@ -253,8 +253,8 @@ class TypographyEngine:
         if not minor_lines:
             minor_lines = [line for line in raw_title_lines if line.strip()]
 
-        hero_height = self._lines_height(hero_font.size, len(hero_lines), 1.20)
-        minor_height = self._lines_height(minor_font.size, len(minor_lines), 1.30)
+        hero_height = self._lines_height(hero_font.size, len(hero_lines))
+        minor_height = self._lines_height(minor_font.size, len(minor_lines))
         focus_box = self._estimate_focus_box(image)
         variant_token = str(getattr(style, "variation_token", ""))
         variant_index = self._variant_index(variant_token, modulo=29)
@@ -282,7 +282,7 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, hero_start_y), line, fill=hero_color, font=hero_font)
-            hero_start_y += self._snap8(max(8, int(hero_font.size * 1.20)))
+            hero_start_y += self._line_step(hero_font.size)
 
         minor_start_y = minor_region[1]
         for line in minor_lines:
@@ -290,7 +290,7 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
             draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
-            minor_start_y += self._snap8(max(8, int(minor_font.size * 1.30)))
+            minor_start_y += self._line_step(minor_font.size)
 
         credit_text = (
             str(getattr(style, "source_credit_text", "")).strip() if style else ""
@@ -466,9 +466,12 @@ class TypographyEngine:
             )
         return body_font_path
 
-    def _lines_height(self, font_size: int, line_count: int, line_ratio: float) -> int:
-        count = max(1, line_count)
-        return self._snap8(int(font_size * line_ratio * count))
+    def _line_step(self, font_size: int) -> int:
+        """One font em plus a half-em gap, rounded only to whole pixels."""
+        return max(1, int(round(font_size * 1.5)))
+
+    def _lines_height(self, font_size: int, line_count: int) -> int:
+        return self._line_step(font_size) * max(1, line_count)
 
     def _snap8(self, value: int) -> int:
         if value <= 0:

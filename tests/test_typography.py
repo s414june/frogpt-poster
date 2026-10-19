@@ -128,7 +128,7 @@ class TypographyPriorityTests(unittest.TestCase):
         self.assertLessEqual(title_start + title_h + clearance, focus_top)
         self.assertGreaterEqual(body_start, focus_bottom + clearance)
 
-    def test_default_layout_snaps_vertical_metrics_to_8pt_grid(self) -> None:
+    def test_default_layout_snaps_positions_but_preserves_half_em_line_gap(self) -> None:
         engine = TypographyEngine()
 
         class _Style:
@@ -144,9 +144,10 @@ class TypographyPriorityTests(unittest.TestCase):
             font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_Style(),
         )
-        for key in ("title_start_y", "title_block_h", "body_start_y", "focus_clearance"):
+        for key in ("title_start_y", "body_start_y", "focus_clearance"):
             value = int(info.get(key, 0))
             self.assertEqual(value % 8, 0, f"{key} should align to 8pt grid")
+        self.assertEqual(info["title_block_h"] % round(info["major_font_size"] * 1.5), 0)
 
 
 if __name__ == "__main__":
