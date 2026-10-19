@@ -298,3 +298,9 @@ If the host cannot reacquire a missing attachment, stop before rendering and rec
 ## Font selection
 
 Default `font_family=sans` uses Noto Sans TC (黑體). Set `font_family` at MCP/API top-level or in `poster_request.style` to `serif` (明體／宋體, Noto Serif TC), `kai` (楷體, LXGW WenKai TC), or `rounded` (圓體, Chiron GoRound TC). Chinese aliases are accepted. Explicit family choice filters font files before typography ranking. Unknown or undeployed families return a validation error rather than silently substituting sans. Direct API callers may supply validated server-local `assets.open_source_font_paths` for other deployed fonts when no family is selected. Runtime fonts retain their OFL licenses.
+
+## Runtime font bundle budget
+
+`.vercelignore` uses an exact file allowlist matching `font_registry.FONT_FAMILIES`: six font files (sans Regular/Medium, serif Regular/Medium, kai Regular, rounded Regular) and four OFL licenses. Variable-font duplicates, unused weights and duplicate SC families remain in the development repository but are excluded from deployment. Font files are loaded for rendering; the API still returns rendered image bytes as base64, not encoded font files.
+
+Local ignore-rule audit: font resources fall from 170.45 MB to 74.67 MB (decimal). This is a measured source-font reduction, **not** a verified Vercel function bundle size. Dependencies and build-time packaging still contribute to the final deployment. `tests/test_font_bundle.py` checks that only registered fonts/licenses are included and that fonts remain below an 80 MB budget. Each family was also locally loaded through FreeType and rendered through the image-to-base64-to-PNG pipeline.
