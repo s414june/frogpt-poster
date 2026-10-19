@@ -68,6 +68,7 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 - `status.code` returns `completed` or `failed`.
 - `status.code` may return `needs_input` when request data is incomplete.
 - `output_image_data_url` can be rendered directly in UI (`<img src=\"...\">`).
+- `output_preview_markdown` is included for clients/GPT that can render Markdown image previews.
 - `source_credit_overlay_applied` / `source_credit_overlay_text` indicate whether corner source attribution was stamped.
 - `scripts\uat_run_tool.py` will also save a JPG preview to `outputs\uat-jpg\` when render succeeds.
 
@@ -78,6 +79,7 @@ MCP intake behavior (強制一次)：
 - 你仍可顯式傳 `intake_confirmed=true`，但不是必填。
 - 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
 - 首輪問卷也會詢問圖片角色：`auto / subject / background / both`。
+- MCP 在 intake 完成後，若未顯式提供 `variation_token`，會自動啟用變體模式（等同 `regenerate_variant=true`）以避免每次重跑完全相同。
 
 When first interaction enters intake mode, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)

@@ -842,6 +842,7 @@ def handle_tool_call(arguments: dict) -> dict:
             "output_image_base64": output_image_base64,
             "output_image_data_url": output_image_data_url,
             "output_download_data_url": output_image_data_url,
+            "output_preview_markdown": f"![poster-preview]({output_image_data_url})",
             "rendered": True,
             "display_priority": ["image", "download", "text"],
             "notes": result.notes,

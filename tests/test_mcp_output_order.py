@@ -171,6 +171,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(second_structured.get("rendered"))
         self.assertEqual(second_structured.get("intake_session_token"), token)
         self.assertTrue(second_structured.get("intake_session_state", {}).get("intake_completed"))
+        self.assertTrue(second_structured.get("request", {}).get("style", {}).get("variation_token"))
 
     def test_tools_call_accepts_intake_fields_inside_poster_request(self) -> None:
         first = {
