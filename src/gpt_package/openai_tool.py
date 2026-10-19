@@ -331,14 +331,22 @@ def _download_image(url: str, output_path: Path) -> None:
 
 def _decode_base64_image(data: str, output_path: Path) -> None:
     token = data.strip()
-    if token.startswith("data:"):
+    if token.lower().startswith("data:"):
+        if "," not in token:
+            raise ValidationError("user_image_base64 data URL is missing payload")
         _, token = token.split(",", 1)
+    token = "".join(token.split())
     try:
         content = base64.b64decode(token, validate=True)
     except Exception as exc:
         raise ValidationError("user_image_base64 contains invalid base64") from exc
     if not content:
         raise ValidationError("user_image_base64 contains empty image data")
+    try:
+        with Image.open(io.BytesIO(content)) as img:
+            img.verify()
+    except Exception as exc:
+        raise ValidationError("user_image_base64 is not a valid image payload") from exc
     output_path.write_bytes(content)
 
 

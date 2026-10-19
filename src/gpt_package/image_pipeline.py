@@ -394,16 +394,16 @@ class ImagePipeline:
     def _soften_background_harsh_hues(self, rgb: tuple[int, int, int], tone: str) -> tuple[int, int, int]:
         h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
         if self._is_orange_hue(h):
-            # Keep orange vivid; do not wash it out while lifting brightness a bit.
-            sat_floor = 0.60 if tone == "light" else 0.62
-            sat_cap = 0.90
+            # Background-only orange: keep clean but lower saturation a step.
+            sat_floor = 0.46 if tone == "light" else 0.48
+            sat_cap = 0.72
             if tone == "dark":
                 val_floor = 0.78
             elif tone == "light":
                 val_floor = 0.84
             else:
                 val_floor = 0.80
-            s = max(sat_floor, min(sat_cap, s + 0.08))
+            s = max(sat_floor, min(sat_cap, s - 0.04))
             v = max(val_floor, min(0.94, v + 0.06))
             return self._hsv_to_rgb(h, s, v)
         if self._is_yellow_hue(h):
@@ -600,10 +600,12 @@ class ImagePipeline:
         if subject_color is None:
             subject_color = self._parse_color(request.style.accent_color)
         color_pool = self._prepare_geometry_color_pool(background, subject_color, request, rng)
+        allow_low_sat_yellow = self._allow_low_sat_yellow(request)
         brand_pair = self._build_geometry_brand_pair(
             color_pool=color_pool,
             bg_sample=background.getpixel((background.width // 2, background.height // 2)),
             rng=rng,
+            allow_low_sat_yellow=allow_low_sat_yellow,
         )
         shape_alpha = 132
 
@@ -654,6 +656,7 @@ class ImagePipeline:
         color_pool: list[tuple[int, int, int]],
         bg_sample: tuple[int, int, int],
         rng: random.Random,
+        allow_low_sat_yellow: bool = False,
     ) -> list[tuple[int, int, int]]:
         if not color_pool:
             color_pool = [bg_sample]
@@ -685,6 +688,13 @@ class ImagePipeline:
         main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
         main, soft = self._lift_yellow_geometry_clarity(main, soft)
         main, soft = self._boost_geometry_pop_for_light_warm_background(main, soft, bg_sample)
+        main, soft = self._enforce_yellow_geometry_saturation_floor(
+            main,
+            soft,
+            allow_low_sat=allow_low_sat_yellow,
+        )
+        main, soft = self._replace_dull_yellow_geometry(main, soft, bg_sample, allow_low_sat_yellow)
+        main, soft = self._boost_brownish_orange_geometry_saturation(main, soft)
         if self._rgb_distance(soft, bg_sample) < (self._min_geometry_bg_distance * 0.62):
             soft = self._ensure_min_color_distance(soft, bg_sample, rng, self._min_geometry_bg_distance * 0.62)
         if self._rgb_distance(main, bg_sample) < self._min_geometry_bg_distance:
@@ -744,8 +754,7 @@ class ImagePipeline:
                 return rgb
             s = max(0.58, min(0.86, s + 0.04))
             v = max(0.80, min(0.96, v + 0.10))
-            lifted = self._hsv_to_rgb(h, s, v)
-            return self._mix_with_white(lifted, 0.10)
+            return self._hsv_to_rgb(h, s, v)
 
         return _lift_one(main), _lift_one(soft)
 
@@ -766,6 +775,87 @@ class ImagePipeline:
         main = self._enforce_min_saturation(main, pop_main)
         soft = self._enforce_min_saturation(soft, pop_soft)
         return main, soft
+
+    def _enforce_yellow_geometry_saturation_floor(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+        allow_low_sat: bool,
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        min_sat = 0.46 if allow_low_sat else 0.62
+        min_val = 0.74 if allow_low_sat else 0.82
+
+        def _fix_one(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+            h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+            if not self._is_yellow_hue(h):
+                return rgb
+            s = max(min_sat, min(0.90, s))
+            v = max(min_val, min(0.98, v))
+            return self._hsv_to_rgb(h, s, v)
+
+        return _fix_one(main), _fix_one(soft)
+
+    def _replace_dull_yellow_geometry(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+        bg_sample: tuple[int, int, int],
+        allow_low_sat: bool,
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        bg_h, _bg_s, _bg_v = colorsys.rgb_to_hsv(bg_sample[0] / 255.0, bg_sample[1] / 255.0, bg_sample[2] / 255.0)
+        warm_bg = self._is_yellow_hue(bg_h) or self._is_orange_hue(bg_h)
+
+        def _fix_one(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+            h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+            if not self._is_yellow_hue(h):
+                return rgb
+            min_s = 0.46 if allow_low_sat else 0.62
+            min_v = 0.74 if allow_low_sat else 0.84
+            if s >= min_s and v >= min_v:
+                return rgb
+            if warm_bg:
+                # On warm backgrounds, replace muddy yellow with cleaner orange.
+                return self._hsv_to_rgb(0.085, 0.72, 0.88)
+            if allow_low_sat:
+                return self._hsv_to_rgb(0.15, max(0.50, s), max(0.80, v))
+            # Default: use high-value yellow; if still risky, nearby green keeps freshness.
+            if v < 0.72:
+                return self._hsv_to_rgb(0.30, 0.66, 0.86)
+            return self._hsv_to_rgb(0.15, 0.70, 0.92)
+
+        return _fix_one(main), _fix_one(soft)
+
+    def _boost_brownish_orange_geometry_saturation(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        def _fix_one(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+            h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+            if not self._is_orange_hue(h):
+                return rgb
+            # Coffee-like orange (low value) should not look muddy: force higher saturation.
+            if v < 0.72:
+                s = max(0.74, min(0.94, s + 0.20))
+            elif v < 0.80:
+                s = max(0.68, min(0.92, s + 0.12))
+            else:
+                s = max(0.62, min(0.90, s))
+            return self._hsv_to_rgb(h, s, v)
+
+        return _fix_one(main), _fix_one(soft)
+
+    def _allow_low_sat_yellow(self, request: PosterRequest) -> bool:
+        text = (
+            f"{request.title} {request.body} "
+            f"{getattr(request.style, 'background_color_hint', '')} "
+            f"{getattr(request.style, 'subject', '')}"
+        ).lower()
+        keywords = (
+            "pastel", "muted", "desaturated", "dusty", "soft",
+            "柔和", "低彩", "淡", "粉霧", "莫蘭迪",
+        )
+        return any(k in text for k in keywords)
 
     def _is_green_hue(self, hue: float) -> bool:
         return 0.22 <= hue <= 0.46
