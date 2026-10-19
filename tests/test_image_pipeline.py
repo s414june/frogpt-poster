@@ -151,6 +151,21 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
                 self.assertGreaterEqual(s, 0.52)
                 self.assertGreaterEqual(v, 0.80)
 
+    def test_geometry_saturation_is_higher_on_light_warm_background(self) -> None:
+        pipe = ImagePipeline()
+        bg = (248, 241, 176)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(210, 164, 72)],
+            bg_sample=bg,
+            rng=random.Random(31),
+        )
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0)
+        sats = []
+        for color in pair:
+            _h, s, _v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            sats.append(s)
+        self.assertGreaterEqual(max(sats), bs + 0.30)
+
     def test_geometry_guard_reduces_green_harsh_saturation(self) -> None:
         pipe = ImagePipeline()
         bg = (236, 232, 224)
@@ -286,6 +301,22 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         self.assertTrue(0.06 <= h < 0.11)
         self.assertGreaterEqual(s, 0.60)
         self.assertGreaterEqual(v, 0.76)
+
+    def test_flat_user_background_yellow_is_visibly_lightened(self) -> None:
+        pipe = ImagePipeline()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "flat-yellow.png"
+            base_rgb = (183, 155, 54)
+            Image.new("RGB", (1080, 1350), base_rgb).save(path)
+            req = PosterRequest(title="黃底調整", body="無字背景")
+            req.assets.user_image_paths = [str(path)]
+            req.style.background_color_hint = ""
+            out = pipe.build_background(req, PosterDecision(image_source=ImageSource.USER_IMAGE, reason="test"))
+        out_sample = out.resize((48, 48)).convert("RGB")
+        base_luma = base_rgb[0] * 0.2126 + base_rgb[1] * 0.7152 + base_rgb[2] * 0.0722
+        out_pixels = list(out_sample.getdata())
+        out_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in out_pixels) / len(out_pixels)
+        self.assertGreater(out_luma, base_luma + 18.0)
 
     def test_purple_can_be_more_saturated_than_green_but_still_controlled(self) -> None:
         pipe = ImagePipeline()

@@ -34,10 +34,27 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIn("image_input_contract", structured)
         self.assertIn("assistant_execution_contract", structured)
         self.assertTrue(structured.get("assistant_execution_contract", {}).get("must_use_tool_for_final_poster"))
+        self.assertEqual(
+            structured.get("assistant_execution_contract", {}).get("delegate_phrase_mapping", {}).get("phrase"),
+            "全部交給你",
+        )
         self.assertIn("user_image_base64", structured.get("image_input_contract", {}).get("accepted_fields", []))
         self.assertNotIn("user_image_urls", structured.get("image_input_contract", {}).get("accepted_fields", []))
         self.assertTrue(str(structured.get("intake_session_token", "")).startswith("intake_"))
         self.assertIn("尚未渲染海報", result["content"][0]["text"])
+
+    def test_initialize_instructions_define_delegate_phrase_workflow(self) -> None:
+        message = {
+            "jsonrpc": "2.0",
+            "id": 40,
+            "method": "initialize",
+            "params": {"protocolVersion": "2025-06-18"},
+        }
+        response = dispatch(message)
+        self.assertIsNotNone(response)
+        instructions = response.get("result", {}).get("instructions", "")
+        self.assertIn("全部交給你", instructions)
+        self.assertIn("generated_background_base64", instructions)
 
     def test_tools_call_still_requires_intake_without_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
