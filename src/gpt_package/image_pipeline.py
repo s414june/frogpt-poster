@@ -141,6 +141,7 @@ class ImagePipeline:
                 ),
             )
         background = self._apply_background_hint_variation(background, request, decision)
+        background = self._apply_flat_warm_background_guard(background, request, decision)
 
         planned_box = None
         if request.assets.subject_image_paths:
@@ -253,6 +254,63 @@ class ImagePipeline:
 
         base = background.convert("RGB")
         return Image.blend(base, overlay, alpha=alpha)
+
+    def _apply_flat_warm_background_guard(
+        self,
+        background: Image.Image,
+        request: PosterRequest,
+        decision: PosterDecision,
+    ) -> Image.Image:
+        # When GPT supplies a text-free background image, this path is treated as USER_IMAGE.
+        # Apply warm-hue clarity guard here so yellow/orange tuning is visible in that workflow too.
+        if decision.image_source != ImageSource.USER_IMAGE:
+            return background
+        if request.assets.subject_image_paths:
+            return background
+
+        sample = background.resize((56, 56)).convert("RGB")
+        warm_pixels: list[tuple[float, float, float]] = []
+        yellow_count = 0
+        orange_count = 0
+        for r, g, b in sample.getdata():
+            h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+            if s < 0.16:
+                continue
+            if self._is_yellow_hue(h):
+                warm_pixels.append((h, s, v))
+                yellow_count += 1
+            elif self._is_orange_hue(h):
+                warm_pixels.append((h, s, v))
+                orange_count += 1
+        if not warm_pixels:
+            return background
+        warm_ratio = len(warm_pixels) / max(1, 56 * 56)
+        if warm_ratio < 0.42:
+            return background
+
+        avg_s = sum(s for _h, s, _v in warm_pixels) / len(warm_pixels)
+        avg_v = sum(v for _h, _s, v in warm_pixels) / len(warm_pixels)
+        dominant_h = 0.16 if yellow_count >= orange_count else 0.085
+        tone = self._tone_hint(getattr(request.style, "background_color_hint", ""))
+
+        base_rgb = self._hsv_to_rgb(dominant_h, avg_s, avg_v)
+        tuned_rgb = self._soften_background_harsh_hues(base_rgb, tone=tone)
+        if tuned_rgb == base_rgb:
+            # Fallback nudge when hue guards do not change enough.
+            target_s = max(0.54, min(0.88, avg_s + 0.06))
+            if yellow_count >= orange_count:
+                target_v = max(0.88, min(0.98, avg_v + 0.10))
+            else:
+                target_v = max(0.80, min(0.94, avg_v + 0.08))
+            tuned_rgb = self._hsv_to_rgb(dominant_h, target_s, target_v)
+
+        alpha = 0.24 if yellow_count >= orange_count else 0.16
+        if avg_v < 0.78:
+            alpha += 0.08
+        alpha = max(0.10, min(0.36, alpha))
+
+        overlay = Image.new("RGB", background.size, tuned_rgb)
+        return Image.blend(background.convert("RGB"), overlay, alpha=alpha)
 
     def _vertical_gradient(
         self,
@@ -626,6 +684,7 @@ class ImagePipeline:
         # Re-apply luminance separation after saturation lift so both constraints hold.
         main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
         main, soft = self._lift_yellow_geometry_clarity(main, soft)
+        main, soft = self._boost_geometry_pop_for_light_warm_background(main, soft, bg_sample)
         if self._rgb_distance(soft, bg_sample) < (self._min_geometry_bg_distance * 0.62):
             soft = self._ensure_min_color_distance(soft, bg_sample, rng, self._min_geometry_bg_distance * 0.62)
         if self._rgb_distance(main, bg_sample) < self._min_geometry_bg_distance:
@@ -689,6 +748,24 @@ class ImagePipeline:
             return self._mix_with_white(lifted, 0.10)
 
         return _lift_one(main), _lift_one(soft)
+
+    def _boost_geometry_pop_for_light_warm_background(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+        bg_sample: tuple[int, int, int],
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        bg_luma = self._luma(bg_sample)
+        bh, bs, _bv = colorsys.rgb_to_hsv(bg_sample[0] / 255.0, bg_sample[1] / 255.0, bg_sample[2] / 255.0)
+        is_warm = self._is_yellow_hue(bh) or self._is_orange_hue(bh)
+        if bg_luma < 170.0 or not is_warm:
+            return main, soft
+
+        pop_main = max(0.74, min(0.95, bs + 0.36))
+        pop_soft = max(0.64, min(0.90, bs + 0.28))
+        main = self._enforce_min_saturation(main, pop_main)
+        soft = self._enforce_min_saturation(soft, pop_soft)
+        return main, soft
 
     def _is_green_hue(self, hue: float) -> bool:
         return 0.22 <= hue <= 0.46

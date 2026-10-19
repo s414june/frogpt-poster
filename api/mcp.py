@@ -109,6 +109,15 @@ def _assistant_execution_contract() -> dict:
     return {
         "must_use_tool_for_final_poster": True,
         "disallow_direct_model_generated_final_image": True,
+        "delegate_phrase_mapping": {
+            "phrase": "全部交給你",
+            "meaning": "tool_orchestrated_workflow_only",
+        },
+        "required_workflow_when_no_visual_assets": [
+            "generate_text_free_background_image",
+            "call_tool_with_generated_background_base64",
+            "wait_until_status_completed_rendered_true",
+        ],
         "when_status_not_completed": "assistant_must_call_tool_again",
         "required_final_status_code": "completed",
         "required_final_rendered": True,
@@ -363,7 +372,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse the same conversation context across calls; once brief is provided after intake, the context is remembered and follow-up renders no longer need intake_confirmed=true. Do not generate a final poster image directly outside this tool; continue tool-calls until status.code=completed and rendered=true."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse the same conversation context across calls; once brief is provided after intake, the context is remembered and follow-up renders no longer need intake_confirmed=true. If user says '全部交給你', treat it as tool-orchestrated mode only: do not output a direct final image; when no visual assets exist, first generate a text-free background image, then call this tool again with generated_background_base64 and generated_background_text_free_confirmed=true, and continue tool-calls until status.code=completed and rendered=true."}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -465,6 +474,7 @@ def dispatch(message):
                         "type": "text",
                         "text": (
                             "目前需要『無字背景海報』才能繼續。請先用 GPT 生成無文字背景，並確認沒有字母/數字/logo/浮水印。\n"
+                            "若使用者說「全部交給你」，代表必須走這個工具流程，不能直接回最終海報。\n"
                             f"重呼叫時請同時帶入: {required_flag}\n"
                             f"建議提示詞：{prompt}\n\n"
                             + _image_input_contract_text()
