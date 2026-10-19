@@ -97,6 +97,7 @@ Typography/layout policy:
 - no solid background box behind slogan/body text.
 - title/subtitle are center-aligned and kept near visual center (not tied to subject edges), with larger default sizes.
 - body/campaign copy is center-aligned in lower area.
+- typography uses two sizes by default: headline + primary campaign line use major size; remaining detail line(s) use minor size.
 - sans-serif (黑體) is prioritized; heading prefers heavier weight, body keeps one consistent font/weight.
 - when no explicit palette is provided, colors are automatically extracted from user/GPT-provided images (subject/reference/background draft).
 - when `background_color_hint` is provided, palette selection first tries to match that hue from image colors; if no close same hue exists, it still uses image colors and adjusts saturation/lightness toward the hint.

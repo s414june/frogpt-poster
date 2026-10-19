@@ -81,6 +81,27 @@ class TypographyPriorityTests(unittest.TestCase):
         )
         self.assertNotEqual(info_a.get("layout_variant"), info_b.get("layout_variant"))
 
+    def test_default_layout_uses_two_size_policy(self) -> None:
+        engine = TypographyEngine()
+
+        class _Style:
+            image_role_mode = "background"
+            source_credit_text = ""
+            variation_token = "two-size-check"
+
+        image = Image.new("RGB", (1080, 1350), (220, 220, 220))
+        info = engine.apply(
+            image=image,
+            title="讓小小生命，被好好愛著",
+            body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            style=_Style(),
+        )
+        self.assertEqual(info.get("layout_mode"), "default")
+        self.assertIn("major_font_size", info)
+        self.assertIn("minor_font_size", info)
+        self.assertGreater(int(info.get("major_font_size", 0)), int(info.get("minor_font_size", 0)))
+
 
 if __name__ == "__main__":
     unittest.main()
