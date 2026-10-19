@@ -32,6 +32,8 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(structured.get("next_action"), "ask_user_intake_questions")
         self.assertIn("intake_questions", structured)
         self.assertIn("image_input_contract", structured)
+        self.assertIn("assistant_execution_contract", structured)
+        self.assertTrue(structured.get("assistant_execution_contract", {}).get("must_use_tool_for_final_poster"))
         self.assertIn("user_image_base64", structured.get("image_input_contract", {}).get("accepted_fields", []))
         self.assertTrue(str(structured.get("intake_session_token", "")).startswith("intake_"))
         self.assertIn("尚未渲染海報", result["content"][0]["text"])
