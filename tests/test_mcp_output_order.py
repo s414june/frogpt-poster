@@ -130,6 +130,31 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(structured.get("status", {}).get("code"), "needs_background_generation")
         self.assertFalse(structured.get("rendered"))
 
+    def test_tools_call_accepts_user_image_paths_from_mcp_schema(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "from-mcp-schema.png"
+            Image.new("RGB", (1080, 1350), (210, 220, 235)).save(img_path)
+            message = {
+                "jsonrpc": "2.0",
+                "id": 31,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "intake_confirmed": True,
+                        "title": "Schema receive test",
+                        "body": "Should render directly with provided image path",
+                        "image_role_mode": "both",
+                        "user_image_paths": [str(img_path)],
+                    },
+                },
+            }
+            response = dispatch(message)
+        self.assertIsNotNone(response)
+        structured = response["result"].get("structuredContent", {})
+        self.assertEqual(structured.get("status", {}).get("code"), "completed")
+        self.assertTrue(structured.get("rendered"))
+
     def test_tools_call_can_reuse_token_without_intake_confirmed(self) -> None:
         first = {
             "jsonrpc": "2.0",

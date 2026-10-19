@@ -125,6 +125,36 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
+    def test_handle_tool_call_accepts_nested_assets_user_image_base64(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                image_path = Path(tmp_dir) / "nested-inline.png"
+                Image.new("RGB", (320, 320), (92, 140, 210)).save(image_path)
+                image_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+                result = handle_tool_call(
+                    {
+                        "poster_request": {
+                            "title": "Nested assets image",
+                            "body": "Use nested base64 as background image",
+                            "layout": {"width": 800, "height": 1000},
+                            "allow_ai_fallback": True,
+                            "assets": {
+                                "open_source_font_paths": [],
+                                "user_image_base64": [image_b64],
+                            },
+                        },
+                        "image_role_mode": "both",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["status"]["code"], "completed")
+                self.assertTrue(result["rendered"])
+                self.assertEqual(result["decision"]["image_source"], "user_image")
+                self.assertTrue(result["request"]["assets"]["user_image_paths"])
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
     def test_handle_tool_call_uses_user_image_when_present(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.environ["POSTER_OUTPUT_DIR"] = tmp_dir

@@ -50,6 +50,8 @@ SCHEMA = {
         "auto_pexels_fallback": {"type": "boolean"},
         "use_reference_as_fallback": {"type": "boolean"},
         "user_image_base64": {"type": "array", "items": {"type": "string"}},
+        "user_image_urls": {"type": "array", "items": {"type": "string"}},
+        "user_image_paths": {"type": "array", "items": {"type": "string"}},
         "subject_image_base64": {"type": "array", "items": {"type": "string"}},
         "subject_image_urls": {"type": "array", "items": {"type": "string"}},
         "subject_image_paths": {"type": "array", "items": {"type": "string"}},

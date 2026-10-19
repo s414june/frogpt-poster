@@ -324,10 +324,15 @@ def _decode_base64_image(data: str, output_path: Path) -> None:
 
 
 def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str | None:
-    urls = arguments.get("user_image_urls", [])
-    b64_images = arguments.get("user_image_base64", [])
-    subject_urls = arguments.get("subject_image_urls", [])
-    subject_b64_images = arguments.get("subject_image_base64", [])
+    payload = arguments.get("poster_request")
+    payload_assets = payload.get("assets", {}) if isinstance(payload, dict) and isinstance(payload.get("assets"), dict) else {}
+
+    urls = arguments.get("user_image_urls", payload_assets.get("user_image_urls", []))
+    b64_images = arguments.get("user_image_base64", payload_assets.get("user_image_base64", []))
+    subject_urls = arguments.get("subject_image_urls", payload_assets.get("subject_image_urls", []))
+    subject_b64_images = arguments.get("subject_image_base64", payload_assets.get("subject_image_base64", []))
+    nested_user_paths = payload_assets.get("user_image_paths", [])
+    nested_subject_paths = payload_assets.get("subject_image_paths", [])
     if urls and not isinstance(urls, list):
         raise ValidationError("user_image_urls must be an array of strings")
     if b64_images and not isinstance(b64_images, list):
@@ -336,7 +341,12 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
         raise ValidationError("subject_image_urls must be an array of strings")
     if subject_b64_images and not isinstance(subject_b64_images, list):
         raise ValidationError("subject_image_base64 must be an array of strings")
-    if not urls and not b64_images and not subject_urls and not subject_b64_images:
+    if nested_user_paths and not isinstance(nested_user_paths, list):
+        raise ValidationError("poster_request.assets.user_image_paths must be an array of strings")
+    if nested_subject_paths and not isinstance(nested_subject_paths, list):
+        raise ValidationError("poster_request.assets.subject_image_paths must be an array of strings")
+
+    if not urls and not b64_images and not subject_urls and not subject_b64_images and not nested_user_paths and not nested_subject_paths:
         return None
 
     temp_dir = Path(tempfile.mkdtemp(prefix="poster-images-"))
@@ -359,8 +369,16 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
         _decode_base64_image(str(content), path)
         subject_materialized.append(str(path))
 
-    request.assets.user_image_paths = materialized + request.assets.user_image_paths
-    request.assets.subject_image_paths = subject_materialized + request.assets.subject_image_paths
+    request.assets.user_image_paths = (
+        materialized
+        + [str(item) for item in nested_user_paths]
+        + request.assets.user_image_paths
+    )
+    request.assets.subject_image_paths = (
+        subject_materialized
+        + [str(item) for item in nested_subject_paths]
+        + request.assets.subject_image_paths
+    )
     return str(temp_dir)
 
 
