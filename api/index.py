@@ -14,7 +14,11 @@ if str(SRC) not in sys.path:
 from gpt_package.openai_tool import TOOL_NAME, build_tool_definition, handle_tool_call
 
 
-class handler(BaseHTTPRequestHandler):
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mcp import handler as MCPHandler
+
+
+class handler(MCPHandler):
     def _json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -28,6 +32,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         path = self._path()
+        if path in ("/mcp", "/api/mcp", "/api/mcp.py"):
+            self.reply(405)
+            return
         if path in ("/api/health", "/health"):
             self._json(200, {"ok": True, "service": "poster-tool-api"})
             return
@@ -38,6 +45,9 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = self._path()
+        if path in ("/mcp", "/api/mcp", "/api/mcp.py"):
+            super().do_POST()
+            return
         if path not in ("/api/poster", "/poster"):
             self._json(404, {"ok": False, "error": "not_found"})
             return
