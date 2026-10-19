@@ -68,6 +68,7 @@ def _compact_output(output: dict) -> dict:
     image_b64 = compact.pop("output_image_base64", None)
     data_url = compact.pop("output_image_data_url", None)
     compact.pop("output_download_data_url", None)
+    compact.pop("output_preview_markdown", None)
     if isinstance(image_b64, str):
         compact["output_image_base64_length"] = len(image_b64)
     if isinstance(data_url, str):
@@ -255,14 +256,15 @@ def dispatch(message):
                 )
                 # 2) Download hint second
                 filename = output.get("output_filename", "poster.png")
-                download_url = output.get("output_download_data_url", output.get("output_image_data_url", ""))
+                sha = str(output.get("output_image_sha256", "")).strip()
+                short_sha = sha[:12] if sha else ""
                 content.append(
                     {
                         "type": "text",
                         "text": (
                             "已完成渲染，請優先顯示上方圖片。\n"
                             f"下載檔名: {filename}\n"
-                            f"下載連結(data URL): {download_url}"
+                            f"輸出指紋: {short_sha}"
                         ),
                     }
                 )
@@ -270,8 +272,7 @@ def dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "若客戶端不支援 image content，請使用以下 Markdown 顯示圖片：\n"
-                            f"![poster]({download_url})"
+                            "若客戶端不支援 image content，請改走 API `/api/poster` 讀取 `output_image_data_url`。"
                         ),
                     }
                 )

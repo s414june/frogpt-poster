@@ -43,15 +43,9 @@ class TypographyEngine:
             sample_text=sample_text,
             role="heading",
         )
-        subtitle_font = self._load_font(
-            [heading_font_path] if heading_font_path else font_paths,
-            size=max(32, int(width * 0.046)),
-            sample_text=sample_text,
-            role="heading",
-        )
-        body_font = self._load_font(
+        minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(width * 0.032)),
+            size=max(24, int(round(width * 0.032 * 1.05))),
             sample_text=sample_text,
             role="body",
         )
@@ -59,7 +53,8 @@ class TypographyEngine:
         text_width = width - margin * 2
         draw = ImageDraw.Draw(image, "RGBA")
         title_lines = self._wrap_text(draw, title.strip(), title_font, text_width)
-        body_lines = self._wrap_text(draw, body.strip(), body_font, text_width)
+        body_lines_major = self._wrap_text(draw, body.strip(), title_font, text_width)
+        body_lines_minor = self._wrap_text(draw, body.strip(), minor_font, text_width)
 
         title_max_lines = int(getattr(style, "title_max_lines", 2)) if style else 2
         body_max_lines = int(getattr(style, "body_max_lines", 4)) if style else 4
@@ -86,20 +81,25 @@ class TypographyEngine:
             y += int(title_font.size * 1.22)
 
         y = int(height * body_ratio)
-        subtitle_line = body_lines[0] if body_lines else ""
-        rest_lines = body_lines[1:] if len(body_lines) > 1 else []
+        # Two-size policy: body first line uses major size; remaining lines use minor size.
+        subtitle_line = body_lines_major[0] if body_lines_major else ""
+        rest_lines = body_lines_minor[1:] if len(body_lines_minor) > 1 else []
+        major_gap = int(title_font.size * 0.50)
         if subtitle_line:
-            box = draw.textbbox((0, 0), subtitle_line, font=subtitle_font)
+            y = max(y, int(height * title_ratio) + int(title_font.size * 1.22 * max(1, len(title_lines[:title_max_lines])) + major_gap))
+            box = draw.textbbox((0, 0), subtitle_line, font=title_font)
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
-            draw.text((x, y), subtitle_line, fill=body_color, font=subtitle_font)
-            y += int(subtitle_font.size * 1.30)
+            draw.text((x, y), subtitle_line, fill=body_color, font=title_font)
+            y += int(title_font.size * 1.22)
+        if subtitle_line and rest_lines:
+            y += major_gap
         for line in rest_lines[: max(1, body_max_lines - 1)]:
-            box = draw.textbbox((0, 0), line, font=body_font)
+            box = draw.textbbox((0, 0), line, font=minor_font)
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
-            draw.text((x, y), line, fill=body_color, font=body_font)
-            y += int(body_font.size * 1.32)
+            draw.text((x, y), line, fill=body_color, font=minor_font)
+            y += int(minor_font.size * 1.32)
 
         credit_text = str(getattr(style, "source_credit_text", "")).strip() if style else ""
         if credit_text:
@@ -111,6 +111,8 @@ class TypographyEngine:
             "body_font": body_font_path,
             "layout_mode": "default",
             "layout_variant": variant_index,
+            "major_font_size": title_font.size,
+            "minor_font_size": minor_font.size,
         }
 
     def _apply_focus_aware_two_size(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
@@ -133,7 +135,7 @@ class TypographyEngine:
         )
         minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(width * 0.034)),
+            size=max(24, int(round(width * 0.034 * 1.05))),
             sample_text=sample_text,
             role="body",
         )

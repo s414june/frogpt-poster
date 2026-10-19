@@ -58,6 +58,8 @@ class OpenAIToolTests(unittest.TestCase):
                     result["output_image_data_url"],
                 )
                 self.assertTrue(str(result.get("output_preview_markdown", "")).startswith("![poster-preview](data:image/png;base64,"))
+                self.assertEqual(len(str(result.get("output_image_sha256", ""))), 64)
+                self.assertGreater(int(result.get("output_image_bytes", 0)), 0)
                 self.assertTrue(result["output_filename"].endswith(".png"))
                 self.assertEqual(result["display_priority"], ["image", "download", "text"])
             finally:

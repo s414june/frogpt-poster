@@ -104,6 +104,8 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertNotIn("output_image_base64", structured)
         self.assertIn("output_image_base64_length", structured)
         self.assertIn("若客戶端不支援 image content", content[2]["text"])
+        self.assertNotIn("data:image/png;base64,", content[1]["text"])
+        self.assertNotIn("data:image/png;base64,", content[2]["text"])
         # The last item remains machine-readable JSON text
         json.loads(content[-1]["text"])
 

@@ -1,6 +1,7 @@
 """OpenAI Apps/Tools compatible tool definition and handler."""
 
 import base64
+import hashlib
 import json
 import os
 import shutil
@@ -674,6 +675,16 @@ def _output_filename(path: str | None) -> str:
     return Path(path).name or "poster.png"
 
 
+def _output_sha256(path: str | None) -> str | None:
+    if not path:
+        return None
+    file_path = Path(path)
+    if not file_path.is_file():
+        return None
+    digest = hashlib.sha256(file_path.read_bytes()).hexdigest()
+    return digest
+
+
 def _needs_intake(arguments: dict) -> bool:
     if bool(arguments.get("request_intake_only", False)):
         return True
@@ -887,6 +898,8 @@ def handle_tool_call(arguments: dict) -> dict:
             "output_image_data_url": output_image_data_url,
             "output_download_data_url": output_image_data_url,
             "output_preview_markdown": f"![poster-preview]({output_image_data_url})",
+            "output_image_sha256": _output_sha256(result.output_path),
+            "output_image_bytes": Path(result.output_path).stat().st_size if result.output_path else None,
             "rendered": True,
             "display_priority": ["image", "download", "text"],
             "notes": result.notes,
