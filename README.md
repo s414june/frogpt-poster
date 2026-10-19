@@ -189,6 +189,7 @@ Endpoints:
 
 MCP endpoint recommendation for GPT connector:
 - Use `https://<your-domain>/mcp` as the tool URL (avoid using `.py` suffix path).
+- Compatibility note: some clients/dev-mode probes may hit `/` first; this server now handles root probes and root POST fallback to MCP.
 
 Example request:
 

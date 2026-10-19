@@ -32,6 +32,17 @@ class handler(MCPHandler):
 
     def do_GET(self) -> None:
         path = self._path()
+        if path in ("", "/"):
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "poster-tool-api",
+                    "mcp_endpoint": "/mcp",
+                    "note": "Use POST JSON-RPC for MCP calls.",
+                },
+            )
+            return
         if path in ("/mcp", "/api/mcp", "/api/mcp.py"):
             self.reply(405)
             return
@@ -45,7 +56,7 @@ class handler(MCPHandler):
 
     def do_POST(self) -> None:
         path = self._path()
-        if path in ("/mcp", "/api/mcp", "/api/mcp.py"):
+        if path in ("", "/", "/mcp", "/api/mcp", "/api/mcp.py"):
             super().do_POST()
             return
         if path not in ("/api/poster", "/poster"):
@@ -63,4 +74,3 @@ class handler(MCPHandler):
         arguments = payload.get("arguments", {})
         result = handle_tool_call(arguments)
         self._json(200, {"tool_name": TOOL_NAME, "result": result})
-
