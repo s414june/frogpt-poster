@@ -63,6 +63,12 @@ class ImagePipeline:
         elif tone == "dark":
             top = self._enforce_luma_ceiling(top, 112)
             bottom = self._enforce_luma_ceiling(bottom, 126)
+        if not self._is_monochrome_intent(
+            hint_text=str(getattr(getattr(self, "_style", None), "background_color_hint", "")),
+            colors=[top, bottom],
+        ):
+            top = self._boost_saturation(top, lift=0.10, min_sat=0.32)
+            bottom = self._boost_saturation(bottom, lift=0.10, min_sat=0.30)
         accent = self._parse_color(getattr(getattr(self, "_style", None), "accent_color", "#6D8A72"))
         mode = str(getattr(getattr(self, "_style", None), "background_mode", "auto")).strip().lower()
         if mode == "solid":
@@ -123,6 +129,7 @@ class ImagePipeline:
                     f"{request.style.variation_token}"
                 ),
             )
+        background = self._apply_background_hint_variation(background, request, decision)
 
         planned_box = None
         if request.assets.subject_image_paths:
@@ -148,6 +155,152 @@ class ImagePipeline:
             self._last_effects["subject_mask_style"] = mask_style
 
         return background
+
+    def _apply_background_hint_variation(
+        self,
+        background: Image.Image,
+        request: PosterRequest,
+        decision: PosterDecision,
+    ) -> Image.Image:
+        hint_text = str(getattr(request.style, "background_color_hint", "")).strip()
+        if not hint_text:
+            return background
+
+        parsed = self._parse_hint_hsv(hint_text)
+        if parsed is None:
+            return background
+        hue, sat, val = parsed
+
+        tone = self._tone_hint(hint_text)
+        if tone == "light":
+            sat = max(0.20, min(0.58, sat * 0.84))
+            val = max(0.72, min(0.90, val + 0.06))
+            top_val = min(0.94, val + 0.06)
+            bottom_val = max(0.62, val - 0.08)
+        elif tone == "dark":
+            sat = max(0.24, min(0.64, sat * 1.06))
+            val = max(0.36, min(0.68, val - 0.08))
+            top_val = min(0.74, val + 0.04)
+            bottom_val = max(0.28, val - 0.10)
+        else:
+            sat = max(0.22, min(0.62, sat))
+            val = max(0.50, min(0.82, val))
+            top_val = min(0.88, val + 0.05)
+            bottom_val = max(0.42, val - 0.07)
+
+        hash_key = f"{hint_text}|{request.title}|{request.body}"
+        digest = hashlib.sha256(hash_key.encode("utf-8")).hexdigest()
+        sign = -1.0 if (int(digest[:2], 16) % 2 == 0) else 1.0
+        hue_shift = 0.018 * sign
+        top_h = (hue - hue_shift) % 1.0
+        bottom_h = (hue + hue_shift) % 1.0
+
+        top_rgb = self._hsv_to_rgb(top_h, sat, top_val)
+        bottom_rgb = self._hsv_to_rgb(bottom_h, sat, bottom_val)
+        overlay = self._vertical_gradient(background.size, top_rgb, bottom_rgb)
+
+        alpha = 0.24
+        if decision.image_source == ImageSource.USER_IMAGE:
+            alpha = 0.16
+        mode = str(getattr(request.style, "background_mode", "auto")).strip().lower()
+        if mode == "solid":
+            alpha += 0.04
+        if mode == "gradient":
+            alpha += 0.02
+        alpha = max(0.08, min(0.26, alpha))
+
+        base = background.convert("RGB")
+        return Image.blend(base, overlay, alpha=alpha)
+
+    def _vertical_gradient(
+        self,
+        size: tuple[int, int],
+        top: tuple[int, int, int],
+        bottom: tuple[int, int, int],
+    ) -> Image.Image:
+        width, height = size
+        out = Image.new("RGB", size)
+        draw = ImageDraw.Draw(out)
+        for y in range(height):
+            t = y / max(1, height - 1)
+            color = (
+                int(top[0] * (1.0 - t) + bottom[0] * t),
+                int(top[1] * (1.0 - t) + bottom[1] * t),
+                int(top[2] * (1.0 - t) + bottom[2] * t),
+            )
+            draw.line([(0, y), (width, y)], fill=color)
+        return out
+
+    def _parse_hint_hsv(self, hint_text: str) -> tuple[float, float, float] | None:
+        raw = (hint_text or "").strip().lower()
+        if not raw:
+            return None
+        if self._contains_mono_keyword(raw):
+            return 0.0, 0.02, 0.72
+        hue_map = {
+            "red": 0.00, "紅": 0.00, "红": 0.00,
+            "orange": 0.08, "橙": 0.08,
+            "yellow": 0.15, "黃": 0.15, "黄": 0.15,
+            "green": 0.33, "綠": 0.33, "绿": 0.33,
+            "teal": 0.46, "cyan": 0.50, "青": 0.50,
+            "blue": 0.62, "藍": 0.62, "蓝": 0.62,
+            "purple": 0.77, "violet": 0.80, "紫": 0.77,
+            "pink": 0.92, "粉": 0.92,
+            "brown": 0.08, "咖啡": 0.08, "棕": 0.08,
+            "gray": 0.0, "grey": 0.0, "灰": 0.0,
+        }
+        hue = None
+        for key, value in hue_map.items():
+            if key in raw:
+                hue = value
+                break
+        if hue is None:
+            return None
+
+        sat = 0.62
+        val = 0.72
+        if any(k in raw for k in ("pastel", "柔和", "低彩", "淡")):
+            sat = 0.42
+            val = 0.80
+        if any(k in raw for k in ("vivid", "高彩", "鮮", "亮彩")):
+            sat = 0.74
+            val = 0.74
+        return hue, sat, val
+
+    def _boost_saturation(self, rgb: tuple[int, int, int], lift: float, min_sat: float) -> tuple[int, int, int]:
+        h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+        boosted_s = max(min_sat, s + lift)
+        boosted_s = max(0.0, min(0.84, boosted_s))
+        r, g, b = colorsys.hsv_to_rgb(h, boosted_s, v)
+        return (
+            self._clamp_color(int(r * 255)),
+            self._clamp_color(int(g * 255)),
+            self._clamp_color(int(b * 255)),
+        )
+
+    def _contains_mono_keyword(self, text: str) -> bool:
+        raw = (text or "").strip().lower()
+        mono_keywords = ("black", "white", "gray", "grey", "黑", "白", "灰")
+        return any(k in raw for k in mono_keywords)
+
+    def _is_monochrome_intent(self, hint_text: str, colors: list[tuple[int, int, int]]) -> bool:
+        if self._contains_mono_keyword(hint_text):
+            return True
+        if not colors:
+            return False
+        sats: list[float] = []
+        for color in colors:
+            _h, s, _v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            sats.append(s)
+        return max(sats) <= 0.10
+
+    def _hsv_to_rgb(self, h: float, s: float, v: float) -> tuple[int, int, int]:
+        r, g, b = colorsys.hsv_to_rgb(h, max(0.0, min(1.0, s)), max(0.0, min(1.0, v)))
+        return (
+            self._clamp_color(int(r * 255)),
+            self._clamp_color(int(g * 255)),
+            self._clamp_color(int(b * 255)),
+        )
 
     def _planned_subject_box(self, bg_size: tuple[int, int], subject_path: str) -> tuple[int, int, int, int] | None:
         try:
