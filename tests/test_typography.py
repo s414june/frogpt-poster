@@ -13,7 +13,7 @@ class TypographyPriorityTests(unittest.TestCase):
     def test_prefers_static_cjk_over_variable_when_han_text(self) -> None:
         engine = TypographyEngine()
         sample = "讓小小生命，被好好愛著"
-        static_font = r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"
+        static_font = "assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"
         variable_font = r"assets\fonts\noto-sans-tc\NotoSansTC[wght].ttf"
         chosen = engine.select_font_by_role([variable_font, static_font], sample_text=sample, role="body")
         self.assertEqual(chosen, static_font)
@@ -33,7 +33,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=image,
             title="愛鼠協會",
             body="小小的牠，值得大大的愛\n認養代替購買・陪伴不離不棄",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_Style(),
         )
         self.assertEqual(info.get("layout_mode"), "both_focus_aware")
@@ -68,7 +68,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=img_a,
             title="主標題",
             body="副標題\n單位資訊",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_StyleA(),
         )
         img_b = Image.new("RGB", (1080, 1350), (226, 226, 226))
@@ -76,7 +76,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=img_b,
             title="主標題",
             body="副標題\n單位資訊",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_StyleB(),
         )
         self.assertNotEqual(info_a.get("layout_variant"), info_b.get("layout_variant"))
@@ -94,7 +94,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=image,
             title="讓小小生命，被好好愛著",
             body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_Style(),
         )
         self.assertEqual(info.get("layout_mode"), "default")
@@ -116,7 +116,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=image,
             title="讓小小生命，被好好愛著",
             body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_Style(),
         )
         focus_top = int(info.get("focus_box", [0, 0, 0, 0])[1])
@@ -141,7 +141,7 @@ class TypographyPriorityTests(unittest.TestCase):
             image=image,
             title="讓小小生命，被好好愛著",
             body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
-            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            font_paths=["assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf"],
             style=_Style(),
         )
         for key in ("title_start_y", "title_block_h", "body_start_y", "focus_clearance"):

@@ -1,4 +1,5 @@
 import json
+import hashlib
 import sys
 import unittest
 import base64
@@ -60,7 +61,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
         message = {
             "jsonrpc": "2.0",
             "id": 2,
@@ -90,7 +91,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
         message = {
             "jsonrpc": "2.0",
             "id": 1,
@@ -108,7 +109,9 @@ class MCPOutputOrderTests(unittest.TestCase):
                     }
                     ,
                     "generated_background_base64": bg_b64,
-                    "generated_background_text_free_confirmed": True
+                    "generated_background_text_free_confirmed": True,
+                    "typography_confirmed": True,
+                    "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                 },
             },
         }
@@ -283,7 +286,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
 
             second = {
                 "jsonrpc": "2.0",
@@ -299,6 +302,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "height": 1350,
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
+                        "typography_confirmed": True,
+                        "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                     },
                 },
             }
@@ -316,7 +321,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
 
             first = {
                 "jsonrpc": "2.0",
@@ -330,6 +335,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "body": "第一次",
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
+                        "typography_confirmed": True,
+                        "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                     },
                 },
             }
@@ -351,6 +358,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "variation_token": "stale-token",
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
+                        "typography_confirmed": True,
+                        "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                     },
                 },
             }
@@ -364,7 +373,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
             stale = "stale-token-123"
 
             message = {
@@ -381,6 +390,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "variation_token": stale,
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
+                        "typography_confirmed": True,
+                        "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                     },
                 },
             }
@@ -405,7 +416,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
 
             second = {
                 "jsonrpc": "2.0",
@@ -425,6 +436,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                         },
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
+                        "typography_confirmed": True,
+                        "approved_draft_sha256": hashlib.sha256(base64.b64decode(bg_b64.split(",", 1)[1])).hexdigest(),
                     },
                 },
             }

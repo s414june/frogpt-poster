@@ -90,8 +90,7 @@ class TypographyEngine:
             int(height * 0.35),
         )
         body_region = (margin, int(height * 0.70), width - margin, int(height * 0.97))
-        title_color = self._pick_text_color(image, title_region)
-        body_color = self._pick_text_color(image, body_region)
+        title_color = body_color = self._pick_shared_text_color(image, [title_region, body_region])
         style_focus_box = self._style_focus_box(style, image)
         focus_box = style_focus_box or self._estimate_focus_box(image)
         has_explicit_focus_box = style_focus_box is not None
@@ -272,8 +271,7 @@ class TypographyEngine:
             minor_shift=minor_shift,
         )
 
-        hero_color = self._pick_text_color(image, hero_region)
-        minor_color = self._pick_text_color(image, minor_region)
+        hero_color = minor_color = self._pick_shared_text_color(image, [hero_region, minor_region])
         hero_start_y = hero_region[1]
         for line in hero_lines:
             box = draw.textbbox((0, 0), line, font=hero_font)
@@ -667,6 +665,14 @@ class TypographyEngine:
         ):
             base = base.replace(token, "")
         return base
+
+    def _pick_shared_text_color(self, image: Image.Image, regions: list) -> tuple[int, int, int, int]:
+        """Choose one color maximizing the worst contrast across all text blocks."""
+        candidates = [(18, 18, 18, 240), (248, 248, 248, 240)]
+        luminances = [self._region_luma(image, region) for region in regions]
+        return max(candidates, key=lambda color: min(
+            self._contrast_ratio(luma, self._rgb_luma(color[:3])) for luma in luminances
+        ))
 
     def _pick_text_color(
         self, image: Image.Image, region: tuple[int, int, int, int]

@@ -12,6 +12,17 @@ OpenAI Tools plugin for an anti-`AI-look` poster workflow:
 pip install -e .
 ```
 
+## MCP AI 生圖兩階段流程（v0.3.0）
+
+1. 完成需求確認後，AI 先生成一張**背景與主體整合、完全無文字**的海報設計圖。主體包圍框置中於 `(50%, 50%)`，寬、高各不得超過畫布寬、高的 50%；上下留白。
+2. 測試預設 480×640。助理將圖片等比例縮小，以 JPEG quality 60–70 壓縮，base64 本體以 100,000 字元內為目標；不得截斷。實際圖片位元組編碼成 `data:image/jpeg;base64,...`，傳入 `generated_background_base64`，並確認 `generated_background_text_free_confirmed=true`。
+3. 未確認排字時，工具回傳 `awaiting_typography_confirmation`、無字預覽及 `draft_image_sha256`，**不渲染文案**。助理顯示圖片並問「無字海報已準備好，是否準備好加上文案？」後停止，等待下一則明確同意。`intake_confirmed` 與「全部交給你」都不能代替此確認。
+4. 收到同意後，傳回同一張圖、文案、`typography_confirmed=true`，以及 `approved_draft_sha256=<上一步 draft_image_sha256>`。未提供或圖片雜湊不同，仍回到無字預覽確認階段。確認狀態不依賴單一 serverless instance。
+5. 文案只由套件字型排版，標題、副標、內文、CTA 共用一個顏色，以所有文字區域的最低對比度選擇深色或淺色。已確認的 AI 圖使用 `both/reference`，不另加幾何或重組主體。
+6. 完成後以回傳 base64 解碼，驗證實際圖片並轉存 PNG，提供預覽與下載。若不是 base64，先取得 image content／附件／可讀取圖片資源的**實際圖片位元組**，再轉 base64、解碼並存 PNG。不能把 JSON、HTML、錯誤或路徑文字編碼冒充圖片；取不到圖片位元組時應明確回報。
+
+此確認閘門由 `/mcp` 的 `prepare_poster` 執行；`/api/poster` 保留為低階直接渲染 API。
+
 ## Tool contract
 
 Tool name: `generate_poster_with_real_image_priority`
@@ -104,7 +115,7 @@ Typography/layout policy:
 - sans-serif (黑體) is prioritized; heading default weight is reduced one step (prefers medium/semibold over black/bold), body keeps one consistent font/weight.
 - when no explicit palette is provided, colors are automatically extracted from user/GPT-provided images (subject/reference/background draft).
 - when `background_color_hint` is provided, palette selection first tries to match that hue from image colors; if no close same hue exists, it still uses image colors and adjusts saturation/lightness toward the hint.
-- text color is auto-switched between dark/light to keep luminance contrast against background.
+- all copy shares one dark/light text color, selected using minimum contrast across the text regions.
 - subject image uses one mask style at a time (`rounded` or `feather`) and preserves original aspect ratio.
 - border is optional and only applied when requested (`subject_border_px`, 8-20px).
 - image-role handling: in `auto`, the tool first asks via intake then infers role from prompt keywords and image traits; `both` means direct text-on-image mode and disables geometry.

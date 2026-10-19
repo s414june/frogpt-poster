@@ -978,6 +978,9 @@ def _build_background_generation_prompt(request: PosterRequest) -> str:
     return (
         f"Create a text-free presentation-style poster background, portrait {request.layout.width}x{request.layout.height}. "
         f"Foreground subject: {subject}, with optional simple habitat/supporting prop only when needed. "
+        "Generate both background and subject together as one text-free design. "
+        "Center the entire subject bounding box at canvas center (50%, 50%). "
+        "Subject width MUST NOT exceed 50% of canvas width; subject height MUST NOT exceed 50% of canvas height. "
         f"Palette: primary {request.style.primary_color}, secondary {request.style.secondary_color}, accent {request.style.accent_color}. "
         "Use mostly solid color or soft gradient background; avoid complex textures. "
         "Geometric elements should be minimal and only if composition needs balance. "
@@ -1058,7 +1061,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 },
                 "text_overlay_plan": {
                     "headline_box": {"x": 0.10, "y": 0.08, "w": 0.80, "h": 0.26},
-                    "subject_focus_box": {"x": 0.18, "y": 0.26, "w": 0.64, "h": 0.48},
+                    "subject_focus_box": {"x": 0.25, "y": 0.25, "w": 0.50, "h": 0.50},
                     "cta_box": {"x": 0.12, "y": 0.78, "w": 0.76, "h": 0.12},
                 },
                 "intake_questions": build_intake_questions(),

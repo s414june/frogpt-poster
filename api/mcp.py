@@ -1,5 +1,10 @@
 """Stateless Streamable HTTP MCP adapter for poster rendering."""
 import json
+import base64
+import io
+import hashlib
+
+from PIL import Image, UnidentifiedImageError
 import sys
 import time
 import uuid
@@ -7,7 +12,8 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from gpt_package.openai_tool import handle_tool_call
+from gpt_package.openai_tool import handle_tool_call, _get_generated_background_base64, _is_generated_background_text_free_confirmed
+from gpt_package.workflow import ASSISTANT_INSTRUCTIONS, assistant_execution_contract
 
 NAME = "prepare_poster"
 _INTAKE_SESSION_MAX = 512
@@ -21,6 +27,8 @@ SCHEMA = {
     "type": "object",
     "properties": {
         "intake_confirmed": {"type": "boolean"},
+        "typography_confirmed": {"type": "boolean", "description": "Only true after showing the text-free preview and receiving a NEW explicit user reply approving typography; intake approval is insufficient."},
+        "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
         "title": {"type": "string", "minLength": 1, "maxLength": 120},
@@ -67,7 +75,7 @@ SCHEMA = {
 }
 TOOL = {
     "name": NAME,
-    "description": "Mandatory first-round intake poster tool. Ask intake once, then reuse conversation context for follow-up renders.",
+    "description": ASSISTANT_INSTRUCTIONS,
     "inputSchema": SCHEMA,
     "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
@@ -106,22 +114,7 @@ def _image_input_contract_text() -> str:
 
 
 def _assistant_execution_contract() -> dict:
-    return {
-        "must_use_tool_for_final_poster": True,
-        "disallow_direct_model_generated_final_image": True,
-        "delegate_phrase_mapping": {
-            "phrase": "全部交給你",
-            "meaning": "tool_orchestrated_workflow_only",
-        },
-        "required_workflow_when_no_visual_assets": [
-            "generate_text_free_background_image",
-            "call_tool_with_generated_background_base64",
-            "wait_until_status_completed_rendered_true",
-        ],
-        "when_status_not_completed": "assistant_must_call_tool_again",
-        "required_final_status_code": "completed",
-        "required_final_rendered": True,
-    }
+    return assistant_execution_contract()
 
 
 def _compact_output(output: dict) -> dict:
@@ -358,6 +351,66 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
     return rewritten
 
 
+def _run_staged_call(args: dict, intake_completed: bool) -> dict:
+    if not intake_completed:
+        return handle_tool_call(args)
+    args = dict(args)
+    payload = args.get("poster_request") or {}
+    confirmed = args.get("typography_confirmed", payload.get("typography_confirmed", False))
+    if not isinstance(confirmed, bool):
+        return {"ok": False, "rendered": False, "status": {"code": "failed", "message": "typography_confirmed_must_be_boolean"}}
+    # Mobile test defaults, while preserving explicit dimensions and aspect ratios.
+    layout = payload.get("layout") or {}
+    args.setdefault("width", layout.get("width", 480))
+    args.setdefault("height", layout.get("height", 640))
+    generated = _get_generated_background_base64(args)
+    if generated:
+        if not _is_generated_background_text_free_confirmed(args):
+            return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "confirm_text_free_image_first"}, "next_action": "inspect_image_and_confirm_no_text_logo_watermark"}
+        try:
+            if not generated.startswith(("data:image/jpeg;base64,", "data:image/png;base64,")):
+                raise ValueError("expected JPEG/PNG base64 data URL")
+            raw = base64.b64decode(generated.split(",", 1)[1], validate=True)
+            with Image.open(io.BytesIO(raw)) as source:
+                source.load()
+                draft = source.convert("RGB")
+            draft.thumbnail((640, 640), Image.Resampling.LANCZOS)
+            buffer = io.BytesIO()
+            draft.save(buffer, format="JPEG", quality=65, optimize=True)
+            preview = base64.b64encode(buffer.getvalue()).decode("ascii")
+        except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError):
+            return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "invalid_generated_image_base64"}, "next_action": "reencode_actual_image_bytes_as_jpeg_or_png_data_url"}
+        draft_sha = hashlib.sha256(raw).hexdigest()
+        approved_sha = args.get("approved_draft_sha256", payload.get("approved_draft_sha256"))
+        if not confirmed or approved_sha != draft_sha:
+            return {
+                "ok": True, "rendered": False, "pipeline_stage": "awaiting_typography_confirmation",
+                "status": {"code": "awaiting_typography_confirmation", "message": "text_free_draft_ready_wait_for_user"},
+                "next_action": "show_draft_ask_ready_for_copy_then_stop",
+                "confirmation_question": "無字海報已準備好，是否準備好加上文案？",
+                "draft_image_sha256": draft_sha,
+                "output_preview_base64": preview, "output_preview_mime_type": "image/jpeg",
+                "retry_arguments_hint": {"typography_confirmed": True, "generated_background_text_free_confirmed": True, "reuse_same_generated_background_base64": True, "approved_draft_sha256": draft_sha},
+            }
+        if not _has_render_brief(args):
+            return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "copy_required"}, "next_action": "ask_user_for_copy"}
+        # Use the complete approved composition unchanged; typography is the only overlay.
+        args.update(image_role_mode="both", background_mode="reference", geometry_enabled=False)
+    elif confirmed and not _has_render_brief(args):
+        return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "copy_required"}, "next_action": "ask_user_for_copy"}
+    assets = payload.get("assets") or {}
+    if not _has_render_brief(args) and any(args.get(key) or assets.get(key) for key in (
+        "user_image_base64", "subject_image_base64", "reference_image_base64", "user_image_paths", "subject_image_paths"
+    )):
+        return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "copy_required"}, "next_action": "ask_user_for_copy"}
+    if not _has_render_brief(args) and not confirmed:
+        # Internal placeholders allow generating a visual brief before any copy exists.
+        # These never reach the renderer: no-image requests return a generation prompt.
+        args.setdefault("title", str(args.get("subject") or "無字海報設計"))
+        args.setdefault("body", "文案待使用者確認後加入")
+    return handle_tool_call(args)
+
+
 def dispatch(message):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
@@ -372,7 +425,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse the same conversation context across calls; once brief is provided after intake, the context is remembered and follow-up renders no longer need intake_confirmed=true. If user says '全部交給你', treat it as tool-orchestrated mode only: do not output a direct final image; when no visual assets exist, first generate a text-free background image, then call this tool again with generated_background_base64 and generated_background_text_free_confirmed=true, and continue tool-calls until status.code=completed and rendered=true."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.0"}, "instructions": ASSISTANT_INSTRUCTIONS}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -400,7 +453,7 @@ def dispatch(message):
                             "目前只接受 base64 圖片（data URL）。\n"
                             "請改用圖片上傳（base64）後重試，不要使用 paths 或 URLs。\n"
                             + _image_input_contract_text()
-                            + "\n\n禁止直接用 GPT 產生最終海報回覆；請改用工具重試直到完成渲染。"
+                            + "\n\n禁止直接用 GPT 產生有字成品；修正圖片格式後依分段流程繼續。"
                         ),
                     },
                     {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
@@ -421,7 +474,7 @@ def dispatch(message):
             if not intake_confirmed_effective:
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
-            output = handle_tool_call(call_args)
+            output = _run_staged_call(call_args, intake_confirmed_effective)
             output = _rewrite_failed_output_for_retry(output)
             output["image_input_contract"] = _image_input_contract()
             output["assistant_execution_contract"] = _assistant_execution_contract()
@@ -461,7 +514,7 @@ def dispatch(message):
                             + "\n".join(question_lines)
                             + "\n\n"
                             + _image_input_contract_text()
-                            + "\n\n禁止直接用 GPT 產生最終海報回覆；請繼續呼叫工具直到 status.code=completed。"
+                            + "\n\n禁止直接用 GPT 產生有字成品。無字預覽後必須停止並等使用者同意加文案。"
                         ),
                     }
                 )
@@ -473,15 +526,18 @@ def dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "目前需要『無字背景海報』才能繼續。請先用 GPT 生成無文字背景，並確認沒有字母/數字/logo/浮水印。\n"
+                            "目前需要完整無字海報設計圖，背景與主體皆由 AI 生成；主體置中、寬高各不超過畫布的 50%，禁止文字/logo/浮水印。\n"
                             "若使用者說「全部交給你」，代表必須走這個工具流程，不能直接回最終海報。\n"
                             f"重呼叫時請同時帶入: {required_flag}\n"
                             f"建議提示詞：{prompt}\n\n"
                             + _image_input_contract_text()
-                            + "\n\n注意：這一步只是在準備背景，不是最終海報。請務必回呼工具完成最終渲染。"
+                            + "\n\n注意：只生成無字設計圖。縮小壓縮後轉成 base64 傳回套件，收到預覽後詢問是否準備好加文案並停止。"
                         ),
                     }
                 )
+            if status_code == "awaiting_typography_confirmation":
+                content.append({"type": "image", "data": output["output_preview_base64"], "mimeType": "image/jpeg"})
+                content.append({"type": "text", "text": "無字海報已準備好，是否準備好加上文案？\n停止本輪工具呼叫，等待使用者下一則明確同意後才可設定 typography_confirmed=true。"})
             preview_b64 = output.get("output_preview_base64") or output.get("output_image_base64")
             preview_mime = output.get("output_preview_mime_type", output.get("output_mime_type", "image/png"))
             if output.get("ok") and output.get("rendered") and preview_b64:
@@ -619,7 +675,7 @@ class handler(BaseHTTPRequestHandler):
                         {
                             "error": "payload_too_large",
                             "max_bytes": _MAX_REQUEST_BYTES,
-                            "hint": "Use image URLs or smaller/compressed base64 images.",
+                            "hint": "Use smaller/compressed base64 data URL images only; never paths or URLs.",
                         },
                     )
                 else:
