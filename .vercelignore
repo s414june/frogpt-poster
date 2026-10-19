@@ -15,3 +15,17 @@ assets/fonts/**
 !assets/fonts/Noto_Sans_TC/**
 !assets/fonts/noto-sans-sc/
 !assets/fonts/noto-sans-sc/**
+
+# Explicit selectable Traditional Chinese families (include license files).
+!assets/fonts/Noto_Serif_TC/
+!assets/fonts/Noto_Serif_TC/OFL.txt
+!assets/fonts/Noto_Serif_TC/static/
+!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Regular.ttf
+!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Medium.ttf
+!assets/fonts/LXGW_WenKai_TC/
+!assets/fonts/LXGW_WenKai_TC/OFL.txt
+!assets/fonts/LXGW_WenKai_TC/LXGWWenKaiTC-Regular.ttf
+!assets/fonts/Chiron_GoRound_TC/
+!assets/fonts/Chiron_GoRound_TC/OFL.txt
+!assets/fonts/Chiron_GoRound_TC/static/
+!assets/fonts/Chiron_GoRound_TC/static/ChironGoRoundTC-Regular.ttf

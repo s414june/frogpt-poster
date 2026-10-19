@@ -22,6 +22,7 @@ ASSISTANT_INSTRUCTIONS = """先完成一次需求確認，重用 intake_session_
 不要傳本機路徑或網址。此時 typography_confirmed 必須省略或為 false，套件只能回傳無字預覽。
 顯示無字圖後詢問「無字海報已準備好，是否準備好加上文案？」並停止本輪工具呼叫，等待使用者下一則明確同意；「全部交給你」、intake_confirmed 或無字確認不等於同意排字。
 第二階段：只有在無字預覽之後收到明確同意，才設 typography_confirmed=true，重新傳入同一張 generated_background_base64 與文案，並將預覽回傳的 draft_image_sha256 放入 approved_draft_sha256；換圖必須重新預覽及確認。
+字型預設黑體 font_family=sans；使用者要求明體/宋體時設 font_family=serif，楷體設 kai，圓體設 rounded。不可忽略指定字型或假稱已切換；其他字型必須是已部署且驗證過的字型檔，不支援時清楚列出可用選項。
 所有文案必須交給套件以字型排版，整張海報的標題、副標、內文、CTA 必須使用同一個文字顏色。禁止 AI 直接生成有字成品。
 套件回傳 base64 時，解碼實際圖片位元組並轉存為 PNG，驗證可開啟後提供預覽和 PNG 下載。
 若回傳不是 base64，先取得實際圖片位元組（image content、二進位附件或可讀取的圖片資源），再編碼 base64、解碼並轉成 PNG。

@@ -35,6 +35,7 @@ class PosterStyle:
     accent_color: str = "#6D8A72"
     subject: str = ""
     panel_ratio: float = 0.24
+    font_family: str = "sans"
     text_align: str = "center"
     headline_source: str = "body_first"
     body_y_ratio: float | None = None

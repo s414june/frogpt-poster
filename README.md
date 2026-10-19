@@ -294,3 +294,7 @@ Before rendering, the assistant must obtain and successfully decode the current 
 ## Conversation-mode fallback
 
 If the host cannot reacquire a missing attachment, stop before rendering and recommend「工作」instead of「對話」, with the original image reattached in the new work. For unknown tool/transport errors, allow at most one extra retry after a concrete input correction or successful byte recovery; unchanged failures stop immediately. Do not guarantee that switching modes fixes server errors. If already in Work, report the failure stage and retain diagnostics instead of looping on mode-switch advice. The MCP server cannot recreate chat-host files or automatically switch user modes.
+
+## Font selection
+
+Default `font_family=sans` uses Noto Sans TC (黑體). Set `font_family` at MCP/API top-level or in `poster_request.style` to `serif` (明體／宋體, Noto Serif TC), `kai` (楷體, LXGW WenKai TC), or `rounded` (圓體, Chiron GoRound TC). Chinese aliases are accepted. Explicit family choice filters font files before typography ranking. Unknown or undeployed families return a validation error rather than silently substituting sans. Direct API callers may supply validated server-local `assets.open_source_font_paths` for other deployed fonts when no family is selected. Runtime fonts retain their OFL licenses.
