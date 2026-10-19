@@ -13,7 +13,7 @@ NAME = "prepare_poster"
 _INTAKE_SESSION_MAX = 512
 _INTAKE_SESSION_TTL_SECONDS = 60 * 60 * 12
 _INTAKE_SESSIONS: dict[str, dict] = {}
-_MAX_REQUEST_BYTES = 8 * 1024 * 1024
+_MAX_REQUEST_BYTES = 16 * 1024 * 1024
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -186,6 +186,8 @@ def dispatch(message):
             call_args = dict(args)
             if intake_confirmed_effective and "regenerate_variant" not in call_args:
                 call_args["regenerate_variant"] = True
+                call_args.pop("variation_token", None)
+            if intake_confirmed_effective and bool(call_args.get("regenerate_variant", False)):
                 call_args.pop("variation_token", None)
             if not intake_confirmed_effective:
                 call_args["request_intake_only"] = True

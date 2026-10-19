@@ -222,6 +222,36 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(isinstance(second_token, str) and len(second_token) > 0)
         self.assertNotEqual(first_token, second_token)
 
+    def test_mcp_regenerate_true_also_overrides_stale_variation_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bg_path = Path(tmp_dir) / "bg.png"
+            Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
+            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+            stale = "stale-token-123"
+
+            message = {
+                "jsonrpc": "2.0",
+                "id": 10,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "intake_confirmed": True,
+                        "title": "變體測試",
+                        "body": "第三次",
+                        "regenerate_variant": True,
+                        "variation_token": stale,
+                        "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
+                    },
+                },
+            }
+            response = dispatch(message)
+        structured = response["result"].get("structuredContent", {})
+        token = structured.get("request", {}).get("style", {}).get("variation_token")
+        self.assertTrue(isinstance(token, str) and len(token) > 0)
+        self.assertNotEqual(token, stale)
+
     def test_tools_call_accepts_intake_fields_inside_poster_request(self) -> None:
         first = {
             "jsonrpc": "2.0",

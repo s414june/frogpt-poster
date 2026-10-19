@@ -249,6 +249,31 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
+    def test_generated_background_base64_inside_poster_request_is_used(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                image_path = Path(tmp_dir) / "bg-nested.png"
+                img = Image.new("RGB", (540, 720), (228, 236, 245))
+                img.save(image_path)
+                bg_b64 = base64.b64encode(image_path.read_bytes()).decode("ascii")
+                result = handle_tool_call(
+                    {
+                        "poster_request": {
+                            "title": "Nested bg",
+                            "body": "Using nested generated background",
+                            "generated_background_base64": bg_b64,
+                            "generated_background_text_free_confirmed": True,
+                        }
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertTrue(result["reference_images_used"])
+                self.assertEqual(result["decision"]["image_source"], "user_image")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
     def test_generated_background_requires_text_free_confirmation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
