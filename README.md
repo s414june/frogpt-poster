@@ -101,6 +101,12 @@ Place your downloaded open-source fonts in:
 
 They will be picked up automatically when `open_source_font_paths` is not provided.
 
+Batch download (Google Fonts, CJK-first):
+
+```bash
+python scripts\download_google_fonts.py
+```
+
 ## Render output directory
 
 Generated posters are written to:
