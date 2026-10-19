@@ -34,6 +34,7 @@ Key arguments:
 - `reference_image_base64`: style reference images (base64)
 - `generated_background_base64`: a GPT-generated background draft to use as top-priority reference
 - `generated_background_text_free_confirmed`: set `true` only after confirming generated background has no text/logo/watermark
+  - both fields are accepted at top-level arguments or inside `poster_request`
 - `pexels_query`, `pexels_orientation`, `pexels_per_page`: fetch references from Pexels API
 - `auto_pexels_fallback`: opt-in automatic Pexels query when no image/reference is provided (default: off)
 - `use_reference_as_fallback`: if no user photo, allow reference image to be used directly

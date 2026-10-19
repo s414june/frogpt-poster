@@ -356,7 +356,7 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
     references = arguments.get("reference_image_urls", [])
     reference_paths = arguments.get("reference_image_paths", [])
     reference_b64 = arguments.get("reference_image_base64", [])
-    generated_background_b64 = arguments.get("generated_background_base64", "")
+    generated_background_b64 = _get_generated_background_base64(arguments)
     if references and not isinstance(references, list):
         raise ValidationError("reference_image_urls must be an array of strings")
     if reference_paths and not isinstance(reference_paths, list):
@@ -718,12 +718,33 @@ def _validate_pre_render_request(request: PosterRequest) -> None:
 
 
 def _needs_text_free_background_confirmation(arguments: dict, request: PosterRequest) -> bool:
-    generated_background = str(arguments.get("generated_background_base64", "")).strip()
+    generated_background = str(_get_generated_background_base64(arguments)).strip()
     if not generated_background:
         return False
-    if bool(arguments.get("generated_background_text_free_confirmed", False)):
+    if _is_generated_background_text_free_confirmed(arguments):
         return False
     return True
+
+
+def _get_generated_background_base64(arguments: dict) -> str:
+    top = arguments.get("generated_background_base64", "")
+    if isinstance(top, str) and top.strip():
+        return top
+    payload = arguments.get("poster_request")
+    if isinstance(payload, dict):
+        nested = payload.get("generated_background_base64", "")
+        if isinstance(nested, str) and nested.strip():
+            return nested
+    return str(top or "")
+
+
+def _is_generated_background_text_free_confirmed(arguments: dict) -> bool:
+    if bool(arguments.get("generated_background_text_free_confirmed", False)):
+        return True
+    payload = arguments.get("poster_request")
+    if isinstance(payload, dict):
+        return bool(payload.get("generated_background_text_free_confirmed", False))
+    return False
 
 
 def _build_background_generation_prompt(request: PosterRequest) -> str:

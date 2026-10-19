@@ -27,7 +27,10 @@ class TypographyEngine:
         width, height = image.size
         margin = max(36, int(width * 0.06))
         sample_text = f"{title}\n{body}"
-        variant_index = self._variant_index(str(getattr(style, "variation_token", "")), modulo=4)
+        variant_token = str(getattr(style, "variation_token", ""))
+        variant_index = self._variant_index(variant_token, modulo=17)
+        title_jitter = self._variant_jitter(variant_token, salt="title", max_abs=0.028)
+        body_jitter = self._variant_jitter(variant_token, salt="body", max_abs=0.032)
         body_font_path = self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
         heading_font_path = self._find_heading_font_from_body_family(
             font_paths=font_paths,
@@ -70,7 +73,11 @@ class TypographyEngine:
 
         title_y_candidates = [0.10, 0.12, 0.14, 0.16]
         body_y_candidates = [0.70, 0.72, 0.74, 0.76]
-        y = max(24, int(height * title_y_candidates[variant_index]))
+        title_base = title_y_candidates[variant_index % len(title_y_candidates)]
+        body_base = body_y_candidates[variant_index % len(body_y_candidates)]
+        title_ratio = max(0.06, min(0.22, title_base + title_jitter))
+        body_ratio = max(0.66, min(0.84, body_base + body_jitter))
+        y = max(24, int(height * title_ratio))
         for line in title_lines[:title_max_lines]:
             box = draw.textbbox((0, 0), line, font=title_font)
             line_w = box[2] - box[0]
@@ -78,7 +85,7 @@ class TypographyEngine:
             draw.text((x, y), line, fill=title_color, font=title_font)
             y += int(title_font.size * 1.22)
 
-        y = int(height * body_y_candidates[variant_index])
+        y = int(height * body_ratio)
         subtitle_line = body_lines[0] if body_lines else ""
         rest_lines = body_lines[1:] if len(body_lines) > 1 else []
         if subtitle_line:
@@ -152,7 +159,10 @@ class TypographyEngine:
         hero_height = self._lines_height(hero_font.size, len(hero_lines), 1.20)
         minor_height = self._lines_height(minor_font.size, len(minor_lines), 1.30)
         focus_box = self._estimate_focus_box(image)
-        variant_index = self._variant_index(str(getattr(style, "variation_token", "")), modulo=5)
+        variant_token = str(getattr(style, "variation_token", ""))
+        variant_index = self._variant_index(variant_token, modulo=29)
+        hero_shift = self._variant_jitter(variant_token, salt="hero", max_abs=0.05)
+        minor_shift = self._variant_jitter(variant_token, salt="minor", max_abs=0.05)
         hero_region, minor_region = self._pick_two_block_regions(
             image=image,
             margin=margin,
@@ -160,6 +170,8 @@ class TypographyEngine:
             minor_height=minor_height,
             focus_box=focus_box,
             variant_index=variant_index,
+            hero_shift=hero_shift,
+            minor_shift=minor_shift,
         )
 
         hero_color = self._pick_text_color(image, hero_region)
@@ -362,6 +374,8 @@ class TypographyEngine:
         minor_height: int,
         focus_box: tuple[int, int, int, int],
         variant_index: int = 0,
+        hero_shift: float = 0.0,
+        minor_shift: float = 0.0,
     ) -> tuple[tuple[int, int, int, int], tuple[int, int, int, int]]:
         width, height = image.size
         candidates = [
@@ -377,8 +391,8 @@ class TypographyEngine:
         best: tuple[tuple[int, int, int, int], tuple[int, int, int, int]] | None = None
         best_score = float("inf")
         for hero_r, minor_r in candidates:
-            hero_y = int(height * hero_r)
-            minor_y = int(height * minor_r)
+            hero_y = int(height * max(0.06, min(0.86, hero_r + hero_shift)))
+            minor_y = int(height * max(0.06, min(0.90, minor_r + minor_shift)))
             hero_region = (margin, hero_y, width - margin, hero_y + hero_height)
             minor_region = (margin, minor_y, width - margin, minor_y + minor_height)
             score = 0.0
@@ -424,6 +438,15 @@ class TypographyEngine:
             return 0
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
         return int(digest[:8], 16) % modulo
+
+    def _variant_jitter(self, token: str, salt: str, max_abs: float) -> float:
+        text = (token or "").strip()
+        if not text or max_abs <= 0:
+            return 0.0
+        digest = hashlib.sha256(f"{text}|{salt}".encode("utf-8")).hexdigest()
+        raw = int(digest[:8], 16) / 0xFFFFFFFF
+        centered = (raw * 2.0) - 1.0
+        return centered * max_abs
 
     def _font_family_key(self, path: str) -> str:
         stem = path.lower().replace("\\", "/").split("/")[-1]
