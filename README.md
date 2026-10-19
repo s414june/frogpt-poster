@@ -32,6 +32,7 @@ Key arguments:
 - `reference_image_paths`: local reference images (e.g. downloaded library files)
 - `reference_image_base64`: style reference images (base64)
 - `generated_background_base64`: a GPT-generated background draft to use as top-priority reference
+- `generated_background_text_free_confirmed`: set `true` only after confirming generated background has no text/logo/watermark
 - `pexels_query`, `pexels_orientation`, `pexels_per_page`: fetch references from Pexels API
 - `auto_pexels_fallback`: opt-in automatic Pexels query when no image/reference is provided (default: off)
 - `use_reference_as_fallback`: if no user photo, allow reference image to be used directly
@@ -96,11 +97,14 @@ Typography/layout policy:
 - subject image uses one mask style at a time (`rounded` or `feather`) and preserves original aspect ratio.
 - border is optional and only applied when requested (`subject_border_px`, 8-20px).
 - for solid/gradient background with a single subject, geometric accents are added by default (unless `geometry_enabled=false`) and are distributed from subject-side or edge-side anchors (wider spread allowed, but not fully random scattering).
-- geometry colors are sampled from subject and tuned to similar luminance as background while keeping enough chroma/hue distinction; text uses opposite luminance for readability.
+- geometric colors use one shared logic for all shapes: hue families are capped at 3, and default harmony stays close to background (hue-near and/or saturation-near). Contrast/complementary jump colors are only enabled when user prompt explicitly asks for it (e.g. 跳色/撞色/contrast).
+- geometric color still enforces a minimum color distance from background (avoid “too similar to notice”).
+- ellipse/oval geometry is disabled; only perfect circles are used when circular motifs are rendered.
 
 No-image flow:
 - if no user image/reference is provided, tool returns `status.code = needs_background_generation`
 - it includes `background_generation_prompt`; generate a **text-free** background first, then retry with `generated_background_base64`.
+- retry must include `generated_background_text_free_confirmed=true`; otherwise tool keeps `needs_background_generation` to prevent accidental text-in-background output.
 - prompt policy defaults to presentation style: mostly solid/soft-gradient background, minimal geometry, clear foreground subject.
 
 Reference image citation flow (non-regenerated background):

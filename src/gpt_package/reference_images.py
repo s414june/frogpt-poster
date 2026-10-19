@@ -166,8 +166,14 @@ def _select_base_color_from_hint(palette: list[tuple[int, int, int]], hint_text:
     if matched:
         return _adjust_sv(best, s_scale=sat_bias, v_shift=val_bias)
 
-    # No close hue in image: keep nearest image hue, then tune saturation/value.
-    return _adjust_sv(best, s_scale=sat_bias, v_shift=val_bias)
+    # No close hue in image: keep image-derived saturation/value, but steer hue toward requested hue.
+    steered = _retarget_hue(best, target_h)
+    tuned = _adjust_sv(steered, s_scale=sat_bias, v_shift=val_bias)
+    if _is_light_tone(hint_text):
+        return _enforce_luma_floor(tuned, 156)
+    if _is_dark_tone(hint_text):
+        return _enforce_luma_ceiling(tuned, 122)
+    return tuned
 
 
 def _parse_color_hint(text: str) -> tuple[float, float, float] | None:
@@ -254,6 +260,13 @@ def _hsv_to_rgb(hsv: tuple[float, float, float]) -> tuple[int, int, int]:
 def _hue_distance(a: float, b: float) -> float:
     d = abs(a - b)
     return min(d, 1.0 - d)
+
+
+def _retarget_hue(rgb: tuple[int, int, int], hue: float) -> tuple[int, int, int]:
+    _h, s, v = _rgb_to_hsv(rgb)
+    s = max(0.16, min(0.86, s))
+    v = max(0.24, min(0.88, v))
+    return _hsv_to_rgb((hue, s, v))
 
 
 def _is_light_tone(text: str) -> bool:

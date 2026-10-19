@@ -71,6 +71,10 @@ def build_tool_definition() -> dict:
                 "reference_image_paths": {"type": "array", "items": {"type": "string"}},
                 "reference_image_base64": {"type": "array", "items": {"type": "string"}},
                 "generated_background_base64": {"type": "string"},
+                "generated_background_text_free_confirmed": {
+                    "type": "boolean",
+                    "description": "Set true only when the generated background is confirmed text-free (no letters/numbers/logo/watermark).",
+                },
                 "pexels_query": {"type": "string"},
                 "pexels_orientation": {"type": "string"},
                 "pexels_per_page": {"type": "integer", "minimum": 1, "maximum": 10},
@@ -612,6 +616,15 @@ def _needs_background_generation(arguments: dict, request: PosterRequest, refere
     return True
 
 
+def _needs_text_free_background_confirmation(arguments: dict, request: PosterRequest) -> bool:
+    generated_background = str(arguments.get("generated_background_base64", "")).strip()
+    if not generated_background:
+        return False
+    if bool(arguments.get("generated_background_text_free_confirmed", False)):
+        return False
+    return True
+
+
 def _build_background_generation_prompt(request: PosterRequest) -> str:
     subject = request.style.subject.strip() if request.style.subject else "main subject"
     return (
@@ -674,14 +687,45 @@ def handle_tool_call(arguments: dict) -> dict:
                 "next_action": "generate_background_then_retry",
                 "rendered": False,
                 "background_generation_prompt": _build_background_generation_prompt(request),
+                "background_generation_requirements": {
+                    "must_be_text_free": True,
+                    "forbidden_elements": ["letters", "numbers", "logo", "watermark", "existing slogan"],
+                    "required_flag_on_retry": "generated_background_text_free_confirmed=true",
+                },
                 "retry_arguments_hint": {
                     "generated_background_base64": "data:image/png;base64,...",
+                    "generated_background_text_free_confirmed": True,
                     "poster_request": request.to_dict(),
                 },
                 "text_overlay_plan": {
                     "headline_box": {"x": 0.10, "y": 0.08, "w": 0.80, "h": 0.26},
                     "subject_focus_box": {"x": 0.18, "y": 0.26, "w": 0.64, "h": 0.48},
                     "cta_box": {"x": 0.12, "y": 0.78, "w": 0.76, "h": 0.12},
+                },
+                "intake_questions": build_intake_questions(),
+                "palette_from_assets_applied": palette_from_assets_applied,
+                "palette_source_path": palette_source_path,
+            }
+        if _needs_text_free_background_confirmation(arguments, request):
+            return {
+                "ok": True,
+                "tool_name": TOOL_NAME,
+                "status": {
+                    "code": "needs_background_generation",
+                    "message": "generated_background_requires_text_free_confirmation",
+                },
+                "next_action": "regenerate_or_confirm_text_free_background",
+                "rendered": False,
+                "background_generation_prompt": _build_background_generation_prompt(request),
+                "background_generation_requirements": {
+                    "must_be_text_free": True,
+                    "forbidden_elements": ["letters", "numbers", "logo", "watermark", "existing slogan"],
+                    "required_flag_on_retry": "generated_background_text_free_confirmed=true",
+                },
+                "retry_arguments_hint": {
+                    "generated_background_base64": "data:image/png;base64,...",
+                    "generated_background_text_free_confirmed": True,
+                    "poster_request": request.to_dict(),
                 },
                 "intake_questions": build_intake_questions(),
                 "palette_from_assets_applied": palette_from_assets_applied,
