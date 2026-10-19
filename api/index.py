@@ -27,21 +27,20 @@ class handler(MCPHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _redirect(self, status: int, location: str) -> None:
+        self.send_response(status)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def _path(self) -> str:
         return urlparse(self.path).path.rstrip("/")
 
     def do_GET(self) -> None:
         path = self._path()
         if path in ("", "/"):
-            self._json(
-                200,
-                {
-                    "ok": True,
-                    "service": "poster-tool-api",
-                    "mcp_endpoint": "/mcp",
-                    "note": "Use POST JSON-RPC for MCP calls.",
-                },
-            )
+            self._redirect(307, "/mcp")
             return
         if path in ("/mcp", "/api/mcp", "/api/mcp.py"):
             self.reply(405)

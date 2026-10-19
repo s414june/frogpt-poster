@@ -240,8 +240,9 @@ class ImagePipeline:
         raw = (hint_text or "").strip().lower()
         if not raw:
             return None
-        if self._contains_mono_keyword(raw):
-            return 0.0, 0.02, 0.72
+        mono_hsv = self._parse_mono_hint_hsv(raw)
+        if mono_hsv is not None:
+            return mono_hsv
         hue_map = {
             "red": 0.00, "紅": 0.00, "红": 0.00,
             "orange": 0.08, "橙": 0.08,
@@ -271,6 +272,18 @@ class ImagePipeline:
             sat = 0.74
             val = 0.74
         return hue, sat, val
+
+    def _parse_mono_hint_hsv(self, raw: str) -> tuple[float, float, float] | None:
+        text = (raw or "").strip().lower()
+        if not text:
+            return None
+        if "white" in text or "白" in text:
+            return (0.0, 0.0, 0.97)
+        if "black" in text or "黑" in text:
+            return (0.0, 0.0, 0.20)
+        if "gray" in text or "grey" in text or "灰" in text:
+            return (0.0, 0.0, 0.78)
+        return None
 
     def _boost_saturation(self, rgb: tuple[int, int, int], lift: float, min_sat: float) -> tuple[int, int, int]:
         h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
@@ -553,12 +566,12 @@ class ImagePipeline:
             uniq_hues = [bh]
 
         pool: list[tuple[int, int, int]] = []
-        base_sat = max(0.18, min(0.70, bs))
+        base_sat = max(0.24, min(0.78, bs + 0.06))
         for h in uniq_hues[:3]:
             if wants_contrast and self._hue_delta(h, (bh + 0.5) % 1.0) < 0.08:
-                sat = max(0.32, min(0.78, base_sat + 0.14))
+                sat = max(0.42, min(0.88, base_sat + 0.18))
             else:
-                sat = max(0.16, min(0.74, (base_sat * 0.72) + (ss * 0.28) + rng.uniform(-0.04, 0.04)))
+                sat = max(0.28, min(0.82, (base_sat * 0.62) + (ss * 0.38) + rng.uniform(-0.03, 0.05)))
             val = max(0.34, min(0.82, bv + rng.uniform(-0.06, 0.06)))
             r, g, b = colorsys.hsv_to_rgb(h, sat, val)
             pool.append((self._clamp_color(int(r * 255)), self._clamp_color(int(g * 255)), self._clamp_color(int(b * 255))))
@@ -687,8 +700,9 @@ class ImagePipeline:
     ) -> tuple[int, int, int]:
         ch, cs, cv = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
         _bh, bs, _bv = colorsys.rgb_to_hsv(background[0] / 255.0, background[1] / 255.0, background[2] / 255.0)
-        target_s = max(0.18, min(0.72, bs + rng.uniform(-0.06, 0.06)))
-        mixed_s = (cs * 0.30) + (target_s * 0.70)
+        target_s = max(0.30, min(0.84, bs + rng.uniform(0.04, 0.14)))
+        mixed_s = (cs * 0.58) + (target_s * 0.42)
+        mixed_s = max(0.34, min(0.88, mixed_s + 0.04))
         r, g, b = colorsys.hsv_to_rgb(ch, max(0.0, min(1.0, mixed_s)), cv)
         return (
             self._clamp_color(int(r * 255)),
