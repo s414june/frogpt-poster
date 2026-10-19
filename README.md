@@ -59,7 +59,7 @@ This repo now provides the tool schema + handler, local UAT scripts, and an HTTP
 ## HTTP API (Vercel-ready)
 
 Files:
-- `api\index.py` (Vercel FastAPI entrypoint)
+- `api\index.py` (Vercel Python serverless entrypoint)
 - `requirements.txt`
 
 Endpoints:
@@ -78,7 +78,7 @@ curl -X POST "http://127.0.0.1:8000/api/poster" ^
 Local run:
 
 ```bash
-python -m uvicorn api.index:app --reload
+vercel dev
 ```
 
 ## Font storage folder
