@@ -48,6 +48,8 @@ SCHEMA = {
         "subject_image_base64": {"type": "array", "items": {"type": "string"}},
         "subject_image_urls": {"type": "array", "items": {"type": "string"}},
         "subject_image_paths": {"type": "array", "items": {"type": "string"}},
+        "regenerate_variant": {"type": "boolean"},
+        "variation_token": {"type": "string"},
         "show_design_guide": {"type": "boolean"},
     },
     "required": [],
@@ -182,6 +184,8 @@ def dispatch(message):
             auto_confirmed = token_from_request and _has_render_brief(args)
             intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
             call_args = dict(args)
+            if intake_confirmed_effective and "regenerate_variant" not in call_args and "variation_token" not in call_args:
+                call_args["regenerate_variant"] = True
             if not intake_confirmed_effective:
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
