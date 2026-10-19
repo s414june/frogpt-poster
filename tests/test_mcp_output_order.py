@@ -170,6 +170,51 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(second_structured.get("intake_session_token"), token)
         self.assertTrue(second_structured.get("intake_session_state", {}).get("intake_completed"))
 
+    def test_tools_call_accepts_intake_fields_inside_poster_request(self) -> None:
+        first = {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {"name": "prepare_poster", "arguments": {}},
+        }
+        first_response = dispatch(first)
+        self.assertIsNotNone(first_response)
+        token = first_response["result"].get("structuredContent", {}).get("intake_session_token")
+        self.assertTrue(isinstance(token, str) and token.startswith("intake_"))
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            bg_path = Path(tmp_dir) / "bg.png"
+            Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
+            bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+
+            second = {
+                "jsonrpc": "2.0",
+                "id": 7,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "poster_request": {
+                            "intake_session_token": token,
+                            "intake_confirmed": True,
+                            "title": "讓小小生命，被好好愛著",
+                            "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+                            "layout": {"width": 1080, "height": 1350},
+                            "allow_ai_fallback": True,
+                            "assets": {"open_source_font_paths": []},
+                        },
+                        "generated_background_base64": bg_b64,
+                    },
+                },
+            }
+            second_response = dispatch(second)
+
+        self.assertIsNotNone(second_response)
+        second_structured = second_response["result"].get("structuredContent", {})
+        self.assertEqual(second_structured.get("status", {}).get("code"), "completed")
+        self.assertTrue(second_structured.get("rendered"))
+        self.assertEqual(second_structured.get("intake_session_token"), token)
+
 
 if __name__ == "__main__":
     unittest.main()

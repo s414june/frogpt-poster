@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 import hashlib
 import math
 import random
@@ -325,6 +326,7 @@ class ImagePipeline:
             self._clamp_color(subject_color[1] + rng.randint(-28, 28)),
             self._clamp_color(subject_color[2] + rng.randint(-28, 28)),
         )
+        color = self._match_saturation_to_background(color, bg, rng)
         bg_luma = self._luma(bg)
         target_luma = max(72, min(196, bg_luma + rng.randint(-14, 14)))
         color = self._with_target_luma(color, target_luma)
@@ -337,8 +339,10 @@ class ImagePipeline:
                 self._clamp_color(color[1] - 24),
                 self._clamp_color(color[2] + 20),
             )
+            color = self._match_saturation_to_background(color, bg, rng)
             color = self._with_target_luma(color, target_luma)
-        return self._normalize_moderate_tone(color)
+        color = self._normalize_moderate_tone(color)
+        return self._match_saturation_to_background(color, bg, rng)
 
     def _shape_types(self) -> list[str]:
         return [
@@ -475,6 +479,23 @@ class ImagePipeline:
 
     def _clamp_color(self, value: int) -> int:
         return max(0, min(255, value))
+
+    def _match_saturation_to_background(
+        self,
+        color: tuple[int, int, int],
+        background: tuple[int, int, int],
+        rng: random.Random,
+    ) -> tuple[int, int, int]:
+        ch, cs, cv = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+        _bh, bs, _bv = colorsys.rgb_to_hsv(background[0] / 255.0, background[1] / 255.0, background[2] / 255.0)
+        target_s = max(0.18, min(0.72, bs + rng.uniform(-0.06, 0.06)))
+        mixed_s = (cs * 0.30) + (target_s * 0.70)
+        r, g, b = colorsys.hsv_to_rgb(ch, max(0.0, min(1.0, mixed_s)), cv)
+        return (
+            self._clamp_color(int(r * 255)),
+            self._clamp_color(int(g * 255)),
+            self._clamp_color(int(b * 255)),
+        )
 
     def _tone_hint(self, raw: str) -> str:
         text = (raw or "").strip().lower()
