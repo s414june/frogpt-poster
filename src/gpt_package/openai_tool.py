@@ -83,6 +83,13 @@ def build_tool_definition() -> dict:
                     "type": "string",
                     "enum": ["auto", "solid", "gradient", "reference"],
                 },
+                "geometry_enabled": {"type": "boolean"},
+                "subject_mask_mode": {
+                    "type": "string",
+                    "enum": ["rounded", "feather"],
+                },
+                "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
+                "background_color_hint": {"type": "string"},
                 "variation_token": {"type": "string"},
                 "regenerate_variant": {
                     "type": "boolean",
@@ -154,6 +161,18 @@ def _build_request(arguments: dict) -> PosterRequest:
         request.style.subject = str(arguments["subject"])
     if "background_mode" in arguments:
         request.style.background_mode = _normalize_background_mode(arguments["background_mode"])
+    if "geometry_enabled" in arguments:
+        if not isinstance(arguments["geometry_enabled"], bool):
+            raise ValidationError("geometry_enabled must be a boolean")
+        request.style.geometry_enabled = arguments["geometry_enabled"]
+    if "subject_mask_mode" in arguments:
+        request.style.subject_mask_mode = _normalize_subject_mask_mode(arguments["subject_mask_mode"])
+    if "subject_border_px" in arguments:
+        if not isinstance(arguments["subject_border_px"], int):
+            raise ValidationError("subject_border_px must be an integer")
+        request.style.subject_border_px = arguments["subject_border_px"]
+    if "background_color_hint" in arguments:
+        request.style.background_color_hint = str(arguments["background_color_hint"]).strip()
     if "variation_token" in arguments:
         request.style.variation_token = str(arguments["variation_token"])
     if "primary_color" in arguments:
@@ -204,6 +223,14 @@ def _from_inline_request(payload: dict) -> PosterRequest:
             background_mode=_normalize_background_mode(
                 style.get("background_mode", payload.get("background_mode", "auto"))
             ),
+            geometry_enabled=bool(style.get("geometry_enabled", payload.get("geometry_enabled", True))),
+            subject_mask_mode=_normalize_subject_mask_mode(
+                style.get("subject_mask_mode", payload.get("subject_mask_mode", "rounded"))
+            ),
+            subject_border_px=int(style.get("subject_border_px", payload.get("subject_border_px", 0))),
+            background_color_hint=str(
+                style.get("background_color_hint", payload.get("background_color_hint", ""))
+            ).strip(),
             primary_color=str(style.get("primary_color", payload.get("primary_color", _DEFAULT_PRIMARY_COLOR))),
             secondary_color=str(style.get("secondary_color", payload.get("secondary_color", _DEFAULT_SECONDARY_COLOR))),
             accent_color=str(style.get("accent_color", payload.get("accent_color", _DEFAULT_ACCENT_COLOR))),
@@ -446,6 +473,13 @@ def _normalize_background_mode(value: object) -> str:
     return mode
 
 
+def _normalize_subject_mask_mode(value: object) -> str:
+    mode = str(value or "rounded").strip().lower()
+    if mode not in {"rounded", "feather"}:
+        raise ValidationError("subject_mask_mode must be one of: rounded, feather")
+    return mode
+
+
 def _has_explicit_palette(arguments: dict, request: PosterRequest) -> bool:
     if any(key in arguments for key in ("primary_color", "secondary_color", "accent_color")):
         return True
@@ -468,6 +502,7 @@ def _has_explicit_palette(arguments: dict, request: PosterRequest) -> bool:
 def _apply_palette_from_assets(arguments: dict, request: PosterRequest, reference_context: dict) -> tuple[bool, str | None]:
     if _has_explicit_palette(arguments, request):
         return False, None
+    color_hint = _resolve_background_color_hint(request)
     candidates: list[str] = []
     candidates.extend(request.assets.user_image_paths)
     candidates.extend(request.assets.subject_image_paths)
@@ -477,9 +512,23 @@ def _apply_palette_from_assets(arguments: dict, request: PosterRequest, referenc
         if path in seen:
             continue
         seen.add(path)
-        if apply_style_from_reference(request, path):
+        if apply_style_from_reference(request, path, color_hint=color_hint):
             return True, path
     return False, None
+
+
+def _resolve_background_color_hint(request: PosterRequest) -> str:
+    explicit = (request.style.background_color_hint or "").strip()
+    if explicit:
+        return explicit
+    text = f"{request.title} {request.body}".lower()
+    keywords = [
+        "紅", "橙", "黃", "綠", "青", "藍", "紫", "粉", "棕", "咖啡", "灰",
+        "red", "orange", "yellow", "green", "teal", "cyan", "blue", "purple", "pink", "brown", "gray", "grey",
+        "深", "淺", "暗", "亮", "pastel", "vivid", "light", "dark",
+    ]
+    hints = [k for k in keywords if k in text]
+    return " ".join(hints[:4])
 
 
 def _lookup_local_reference_credit(path: Path) -> dict | None:

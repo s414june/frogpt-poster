@@ -22,6 +22,10 @@ Key arguments:
 - `title`, `body`: optional overrides
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
 - `background_mode`: `auto` | `solid` | `gradient` | `reference`
+- `geometry_enabled`: `true/false` (solid/gradient + single subject 時預設會加幾何裝飾)
+- `subject_mask_mode`: `rounded` | `feather`
+- `subject_border_px`: `0` or `8..20` (僅使用者明確要求時加粗邊框)
+- `background_color_hint`: 使用者想要的背景色提示詞（例如 `blue light`, `暖橘`, `深綠`）。也支援只有明度語意（如 `light`、`dark`）來調整背景亮暗。
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
 - `subject_image_paths`, `subject_image_urls`, `subject_image_base64` (可疊加為前景主體，建議透明背景 PNG)
 - `reference_image_urls`: style reference images (URL)
@@ -82,13 +86,16 @@ For cleaner copy control, prefer:
 
 Typography/layout policy:
 - no solid background box behind slogan/body text.
-- title is placed in upper area; body/campaign copy is placed in lower area.
+- title/subtitle are center-aligned and kept near visual center (not tied to subject edges), with larger default sizes.
+- body/campaign copy is center-aligned in lower area.
 - sans-serif (黑體) is prioritized; heading prefers heavier weight, body keeps one consistent font/weight.
 - when no explicit palette is provided, colors are automatically extracted from user/GPT-provided images (subject/reference/background draft).
+- when `background_color_hint` is provided, palette selection first tries to match that hue from image colors; if no close same hue exists, it still uses image colors and adjusts saturation/lightness toward the hint.
 - text color is auto-switched between dark/light to keep luminance contrast against background.
-- subject image can receive one CSS-like masking style only (soft edge fade, rounded corner, border, or folded corner), while preserving aspect ratio.
-- if layout is solid background + single subject, geometric accents are added either behind subject or near edges (choose one strategy), distributed within about 50% width from center/edge.
-- decorative geometry and subject-mask decoration avoid semi-transparency (no 1%-99% alpha); colors are sampled from subject and adjusted away from background-similar tones.
+- subject image uses one mask style at a time (`rounded` or `feather`) and preserves original aspect ratio.
+- border is optional and only applied when requested (`subject_border_px`, 8-20px).
+- for solid/gradient background with a single subject, geometric accents are added by default (unless `geometry_enabled=false`) and are distributed from subject-side or edge-side anchors (wider spread allowed, but not fully random scattering).
+- geometry colors are sampled from subject and tuned to similar luminance as background while keeping enough chroma/hue distinction; text uses opposite luminance for readability.
 
 No-image flow:
 - if no user image/reference is provided, tool returns `status.code = needs_background_generation`
@@ -202,6 +209,11 @@ Local run:
 ```bash
 vercel dev
 ```
+
+Deployment notes:
+- MCP endpoint request body limit is **8 MB**. Prefer `subject_image_urls` / `user_image_urls`; only use base64 for smaller images.
+- Keep serverless bundle slim via `.vercelignore`. This project excludes most `assets\fonts` and keeps lightweight runtime families.
+- If deploy still nears platform limits, remove extra local assets (docs/examples/test data/fonts) from runtime bundle.
 
 ## Font storage folder
 

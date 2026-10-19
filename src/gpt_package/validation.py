@@ -11,6 +11,7 @@ _MIN_SIZE = 256
 _MAX_SIZE = 4096
 _FONT_EXTS = {".ttf", ".otf", ".ttc", ".woff2"}
 _BACKGROUND_MODES = {"auto", "solid", "gradient", "reference"}
+_SUBJECT_MASK_MODES = {"rounded", "feather"}
 
 
 def validate_request(request: PosterRequest) -> None:
@@ -39,6 +40,13 @@ def validate_request(request: PosterRequest) -> None:
     mode = (request.style.background_mode or "").strip().lower()
     if mode not in _BACKGROUND_MODES:
         raise ValidationError("background_mode must be one of: auto, solid, gradient, reference")
+    mask_mode = (request.style.subject_mask_mode or "").strip().lower()
+    if mask_mode not in _SUBJECT_MASK_MODES:
+        raise ValidationError("subject_mask_mode must be one of: rounded, feather")
+    if request.style.subject_border_px < 0 or request.style.subject_border_px > 20:
+        raise ValidationError("subject_border_px must be between 0 and 20")
+    if request.style.subject_border_px not in (0,) and request.style.subject_border_px < 8:
+        raise ValidationError("subject_border_px must be 0 or between 8 and 20")
 
     for path in request.assets.user_image_paths:
         if not Path(path).is_file():

@@ -25,6 +25,10 @@ class PosterLayout:
 @dataclass(slots=True)
 class PosterStyle:
     background_mode: str = "auto"
+    geometry_enabled: bool = True
+    subject_mask_mode: str = "rounded"
+    subject_border_px: int = 0
+    background_color_hint: str = ""
     primary_color: str = "#F6F1E8"
     secondary_color: str = "#A8BFA8"
     accent_color: str = "#6D8A72"

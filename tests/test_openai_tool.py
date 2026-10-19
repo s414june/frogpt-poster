@@ -301,12 +301,81 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertIn("Decorative geometry applied: True", notes_text)
                 self.assertRegex(
                     notes_text,
-                    r"Subject mask style: (feather|rounded|border|fold)",
+                    r"Subject mask style: (feather|rounded)",
                 )
                 self.assertRegex(
                     notes_text,
                     r"Decorative geometry strategy: (subject_near|edge_near)",
                 )
+                self.assertRegex(
+                    notes_text,
+                    r"Decorative geometry shapes: [1-9][0-9]*",
+                )
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_gradient_single_subject_adds_geometry_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                rgba = Image.new("RGBA", (420, 420), (0, 0, 0, 0))
+                for x in range(80, 340):
+                    for y in range(70, 360):
+                        rgba.putpixel((x, y), (120, 170, 210, 255))
+                rgba.save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "Gradient geometry",
+                        "body": "default geometry on",
+                        "background_mode": "gradient",
+                        "subject_image_paths": [str(subject)],
+                    }
+                )
+                self.assertTrue(result["ok"])
+                notes_text = "\n".join(result.get("notes", []))
+                self.assertIn("Decorative geometry applied: True", notes_text)
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_can_disable_geometry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                Image.new("RGBA", (320, 320), (220, 150, 150, 255)).save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "No geometry",
+                        "body": "disabled",
+                        "background_mode": "gradient",
+                        "geometry_enabled": False,
+                        "subject_image_paths": [str(subject)],
+                    }
+                )
+                self.assertTrue(result["ok"])
+                notes_text = "\n".join(result.get("notes", []))
+                self.assertIn("Decorative geometry applied: False", notes_text)
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_subject_border_px_validation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                Image.new("RGBA", (320, 320), (220, 150, 150, 255)).save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "Border too small",
+                        "body": "should fail",
+                        "background_mode": "gradient",
+                        "subject_image_paths": [str(subject)],
+                        "subject_border_px": 4,
+                    }
+                )
+                self.assertFalse(result["ok"])
+                self.assertEqual(result["error_type"], "ValidationError")
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
@@ -375,6 +444,62 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertFalse(result["style_from_reference_applied"])
                 self.assertIsNone(result["palette_source_path"])
                 self.assertEqual(result["request"]["style"]["primary_color"], "#101010")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_background_color_hint_prefers_requested_hue_from_image(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                ref = Path(tmp_dir) / "ref.png"
+                img = Image.new("RGB", (300, 300), (90, 160, 95))
+                for x in range(180, 300):
+                    for y in range(300):
+                        img.putpixel((x, y), (70, 110, 200))
+                img.save(ref)
+                result = handle_tool_call(
+                    {
+                        "title": "Color hinted",
+                        "body": "希望藍色系",
+                        "background_mode": "gradient",
+                        "reference_image_paths": [str(ref)],
+                        "use_reference_as_fallback": False,
+                        "background_color_hint": "blue light",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                primary = result["request"]["style"]["primary_color"].lstrip("#")
+                r = int(primary[0:2], 16)
+                g = int(primary[2:4], 16)
+                b = int(primary[4:6], 16)
+                self.assertGreater(b, r)
+                self.assertGreater(b, g)
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_background_color_hint_light_without_hue_still_brightens_palette(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                ref = Path(tmp_dir) / "ref-dark.png"
+                Image.new("RGB", (280, 280), (56, 74, 92)).save(ref)
+                result = handle_tool_call(
+                    {
+                        "title": "Tone hinted",
+                        "body": "整體偏亮",
+                        "background_mode": "gradient",
+                        "reference_image_paths": [str(ref)],
+                        "use_reference_as_fallback": False,
+                        "background_color_hint": "light",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                primary = result["request"]["style"]["primary_color"].lstrip("#")
+                r = int(primary[0:2], 16)
+                g = int(primary[2:4], 16)
+                b = int(primary[4:6], 16)
+                luma = r * 0.2126 + g * 0.7152 + b * 0.0722
+                self.assertGreater(luma, 138.0)
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 

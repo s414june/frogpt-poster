@@ -13,6 +13,7 @@ NAME = "prepare_poster"
 _INTAKE_SESSION_MAX = 512
 _INTAKE_SESSION_TTL_SECONDS = 60 * 60 * 12
 _INTAKE_SESSIONS: dict[str, dict] = {}
+_MAX_REQUEST_BYTES = 8 * 1024 * 1024
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -28,6 +29,10 @@ SCHEMA = {
         "accent_color": {"type": "string"},
         "subject": {"type": "string"},
         "background_mode": {"type": "string", "enum": ["auto", "solid", "gradient", "reference"]},
+        "geometry_enabled": {"type": "boolean"},
+        "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
+        "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
+        "background_color_hint": {"type": "string"},
         "reference_image_urls": {"type": "array", "items": {"type": "string"}},
         "reference_image_paths": {"type": "array", "items": {"type": "string"}},
         "reference_image_base64": {"type": "array", "items": {"type": "string"}},
@@ -275,8 +280,18 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if size <= 0 or size > 65536:
-                self.reply(413 if size > 65536 else 400)
+            if size <= 0 or size > _MAX_REQUEST_BYTES:
+                if size > _MAX_REQUEST_BYTES:
+                    self.reply(
+                        413,
+                        {
+                            "error": "payload_too_large",
+                            "max_bytes": _MAX_REQUEST_BYTES,
+                            "hint": "Use image URLs or smaller/compressed base64 images.",
+                        },
+                    )
+                else:
+                    self.reply(400)
                 return
             message = json.loads(self.rfile.read(size))
         except (ValueError, UnicodeDecodeError):

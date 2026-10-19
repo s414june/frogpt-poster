@@ -1,1 +1,12 @@
 outputs/
+docs/
+examples/
+tests/
+scripts/
+
+# Exclude large local-only font library from serverless bundle.
+assets/fonts/**
+
+# Keep only lightweight runtime CJK sans families for deployment.
+!assets/fonts/noto-sans-tc/**
+!assets/fonts/noto-sans-sc/**

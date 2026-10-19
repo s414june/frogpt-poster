@@ -29,7 +29,13 @@ class TypographyEngine:
         )
         title_font = self._load_font(
             [heading_font_path] if heading_font_path else font_paths,
-            size=max(38, int(width * 0.06)),
+            size=max(48, int(width * 0.078)),
+            sample_text=sample_text,
+            role="heading",
+        )
+        subtitle_font = self._load_font(
+            [heading_font_path] if heading_font_path else font_paths,
+            size=max(32, int(width * 0.046)),
             sample_text=sample_text,
             role="heading",
         )
@@ -55,15 +61,29 @@ class TypographyEngine:
         title_color = self._pick_text_color(image, title_region)
         body_color = self._pick_text_color(image, body_region)
 
-        y = max(24, int(height * 0.08))
+        y = max(24, int(height * 0.12))
         for line in title_lines[:title_max_lines]:
-            draw.text((margin, y), line, fill=title_color, font=title_font)
+            box = draw.textbbox((0, 0), line, font=title_font)
+            line_w = box[2] - box[0]
+            x = max(margin, (width - line_w) // 2)
+            draw.text((x, y), line, fill=title_color, font=title_font)
             y += int(title_font.size * 1.22)
 
-        y = int(height * 0.76)
-        for line in body_lines[:body_max_lines]:
-            draw.text((margin, y), line, fill=body_color, font=body_font)
-            y += int(body_font.size * 1.35)
+        y = int(height * 0.74)
+        subtitle_line = body_lines[0] if body_lines else ""
+        rest_lines = body_lines[1:] if len(body_lines) > 1 else []
+        if subtitle_line:
+            box = draw.textbbox((0, 0), subtitle_line, font=subtitle_font)
+            line_w = box[2] - box[0]
+            x = max(margin, (width - line_w) // 2)
+            draw.text((x, y), subtitle_line, fill=body_color, font=subtitle_font)
+            y += int(subtitle_font.size * 1.30)
+        for line in rest_lines[: max(1, body_max_lines - 1)]:
+            box = draw.textbbox((0, 0), line, font=body_font)
+            line_w = box[2] - box[0]
+            x = max(margin, (width - line_w) // 2)
+            draw.text((x, y), line, fill=body_color, font=body_font)
+            y += int(body_font.size * 1.32)
 
         credit_text = str(getattr(style, "source_credit_text", "")).strip() if style else ""
         if credit_text:

@@ -21,6 +21,7 @@ class ImagePipeline:
             "subject_mask_style": None,
             "decorative_geometry_applied": False,
             "decorative_geometry_strategy": None,
+            "decorative_geometry_shapes": 0,
         }
 
     def get_last_effects(self) -> dict:
@@ -47,8 +48,19 @@ class ImagePipeline:
         seed = int(digest[:8], 16)
         rng = random.Random(seed)
 
-        top = self._parse_color(getattr(getattr(self, "_style", None), "primary_color", "#F6F1E8"))
-        bottom = self._parse_color(getattr(getattr(self, "_style", None), "secondary_color", "#A8BFA8"))
+        top = self._normalize_moderate_tone(
+            self._parse_color(getattr(getattr(self, "_style", None), "primary_color", "#F6F1E8"))
+        )
+        bottom = self._normalize_moderate_tone(
+            self._parse_color(getattr(getattr(self, "_style", None), "secondary_color", "#A8BFA8"))
+        )
+        tone = self._tone_hint(getattr(getattr(self, "_style", None), "background_color_hint", ""))
+        if tone == "light":
+            top = self._enforce_luma_floor(top, 162)
+            bottom = self._enforce_luma_floor(bottom, 156)
+        elif tone == "dark":
+            top = self._enforce_luma_ceiling(top, 112)
+            bottom = self._enforce_luma_ceiling(bottom, 126)
         accent = self._parse_color(getattr(getattr(self, "_style", None), "accent_color", "#6D8A72"))
         mode = str(getattr(getattr(self, "_style", None), "background_mode", "auto")).strip().lower()
         if mode == "solid":
@@ -94,6 +106,7 @@ class ImagePipeline:
             "subject_mask_style": None,
             "decorative_geometry_applied": False,
             "decorative_geometry_strategy": None,
+            "decorative_geometry_shapes": 0,
         }
         size = (request.layout.width, request.layout.height)
         if decision.image_source == ImageSource.USER_IMAGE:
@@ -114,14 +127,17 @@ class ImagePipeline:
             planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
 
         if self._should_add_geometry(request, decision):
-            strategy = self._add_decorative_geometry(
+            geo_result = self._add_decorative_geometry(
                 background=background,
                 subject_box=planned_box,
                 subject_path=request.assets.subject_image_paths[0] if request.assets.subject_image_paths else None,
                 request=request,
             )
-            self._last_effects["decorative_geometry_applied"] = strategy is not None
-            self._last_effects["decorative_geometry_strategy"] = strategy
+            if geo_result is not None:
+                strategy, shape_count = geo_result
+                self._last_effects["decorative_geometry_applied"] = True
+                self._last_effects["decorative_geometry_strategy"] = strategy
+                self._last_effects["decorative_geometry_shapes"] = shape_count
 
         if request.assets.subject_image_paths:
             mask_style = self._overlay_subject_with_single_mask(background, request.assets.subject_image_paths[0], request)
@@ -176,16 +192,15 @@ class ImagePipeline:
         layer = Image.new("RGBA", (card_w, card_h), (0, 0, 0, 0))
         layer.alpha_composite(subject, (pad, pad))
 
-        seed_text = f"{request.title}|{request.body}|{request.style.variation_token}|mask"
-        seed = int(hashlib.sha256(seed_text.encode("utf-8")).hexdigest()[:8], 16)
-        rng = random.Random(seed)
-        mask_style = rng.choice(["feather", "rounded", "border", "fold"])
+        mask_style = str(getattr(request.style, "subject_mask_mode", "rounded")).strip().lower()
+        if mask_style not in ("rounded", "feather"):
+            mask_style = "rounded"
 
         if mask_style == "feather":
             alpha = layer.getchannel("A").filter(ImageFilter.GaussianBlur(radius=max(2, pad // 2)))
             alpha = alpha.point(lambda a: 255 if a >= 128 else 0)
             layer.putalpha(alpha)
-        elif mask_style == "rounded":
+        else:
             rounded = Image.new("L", (card_w, card_h), 0)
             mdraw = ImageDraw.Draw(rounded)
             mdraw.rounded_rectangle([(0, 0), (card_w - 1, card_h - 1)], radius=radius, fill=255)
@@ -201,28 +216,23 @@ class ImagePipeline:
         base.alpha_composite(layer, (x, y))
 
         draw = ImageDraw.Draw(base)
-        if mask_style == "border":
+        border_px = int(getattr(request.style, "subject_border_px", 0))
+        if border_px >= 8:
             draw.rounded_rectangle(
                 [(x, y), (x + card_w - 1, y + card_h - 1)],
                 radius=radius,
                 outline=(255, 255, 255, 255),
-                width=max(2, pad // 3),
+                width=border_px,
             )
-        elif mask_style == "fold":
-            fold_size = max(18, int(min(card_w, card_h) * 0.12))
-            fold = [
-                (x + card_w - fold_size, y),
-                (x + card_w - 1, y),
-                (x + card_w - 1, y + fold_size),
-            ]
-            draw.polygon(fold, fill=(255, 255, 255, 255))
 
         background.paste(base.convert("RGB"))
         return mask_style
 
     def _should_add_geometry(self, request: PosterRequest, decision: PosterDecision) -> bool:
+        if not bool(getattr(request.style, "geometry_enabled", True)):
+            return False
         mode = str(getattr(request.style, "background_mode", "auto")).strip().lower()
-        if mode != "solid":
+        if mode not in ("solid", "gradient"):
             return False
         if len(request.assets.subject_image_paths) != 1:
             return False
@@ -236,35 +246,49 @@ class ImagePipeline:
         subject_box: tuple[int, int, int, int] | None,
         subject_path: str | None,
         request: PosterRequest,
-    ) -> str | None:
+    ) -> tuple[str, int] | None:
         width, height = background.size
         seed = int(hashlib.sha256(f"{request.title}|{request.body}|geo".encode("utf-8")).hexdigest()[:8], 16)
         rng = random.Random(seed)
         strategy = "subject_near" if (subject_box and rng.random() < 0.65) else "edge_near"
-        span = int(width * 0.5)
+        span = int(width * 0.82)
         subject_color = self._extract_subject_color(subject_path) if subject_path else None
         if subject_color is None:
             subject_color = self._parse_color(request.style.accent_color)
 
         draw = ImageDraw.Draw(background)
+        shape_count = 0
         if strategy == "subject_near" and subject_box:
-            cx = (subject_box[0] + subject_box[2]) // 2
-            cy = (subject_box[1] + subject_box[3]) // 2
-            for _ in range(2):
-                px = cx + rng.randint(-span // 2, span // 2)
-                py = cy + rng.randint(-span // 3, span // 3)
-                size = int(min(width, height) * rng.uniform(0.10, 0.18))
+            x1, y1, x2, y2 = subject_box
+            anchors = [
+                (x1 - int(span * 0.18), (y1 + y2) // 2),
+                (x2 + int(span * 0.18), (y1 + y2) // 2),
+                ((x1 + x2) // 2, y1 - int(span * 0.14)),
+                ((x1 + x2) // 2, y2 + int(span * 0.14)),
+            ]
+            for ax, ay in anchors:
+                px = ax + rng.randint(-span // 5, span // 5)
+                py = ay + rng.randint(-span // 6, span // 6)
+                px = max(0, min(width - 1, px))
+                py = max(0, min(height - 1, py))
+                size = int(min(width, height) * rng.uniform(0.12, 0.22))
                 color = self._geometry_color(background, (px, py), subject_color, rng)
                 self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
-            return strategy
+                shape_count += 1
+            return (strategy, shape_count)
 
-        edge = rng.choice(("left", "right", "top", "bottom"))
-        for _ in range(2):
-            px, py = self._edge_anchor(edge, width, height, span, rng)
-            size = int(min(width, height) * rng.uniform(0.10, 0.18))
-            color = self._geometry_color(background, (px, py), subject_color, rng)
-            self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
-        return strategy
+        edges = ["left", "right", "top", "bottom"]
+        rng.shuffle(edges)
+        for edge in edges[:2]:
+            for _ in range(2):
+                px, py = self._edge_anchor(edge, width, height, span, rng)
+                size = int(min(width, height) * rng.uniform(0.12, 0.22))
+                color = self._geometry_color(background, (px, py), subject_color, rng)
+                self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
+                shape_count += 1
+        if shape_count == 0:
+            return None
+        return (strategy, shape_count)
 
     def _extract_subject_color(self, subject_path: str | None) -> tuple[int, int, int] | None:
         if not subject_path:
@@ -301,16 +325,20 @@ class ImagePipeline:
             self._clamp_color(subject_color[1] + rng.randint(-28, 28)),
             self._clamp_color(subject_color[2] + rng.randint(-28, 28)),
         )
-        if self._rgb_distance(color, bg) < 70:
-            color = (255 - color[0], 255 - color[1], 255 - color[2])
-        if self._rgb_distance(color, bg) < 70:
-            delta = 90 if self._luma(bg) < 128 else -90
+        bg_luma = self._luma(bg)
+        target_luma = max(72, min(196, bg_luma + rng.randint(-14, 14)))
+        color = self._with_target_luma(color, target_luma)
+        if self._rgb_distance(color, bg) < 28:
+            color = (color[1], color[2], color[0])
+            color = self._with_target_luma(color, target_luma)
+        if self._rgb_distance(color, bg) < 28:
             color = (
-                self._clamp_color(color[0] + delta),
-                self._clamp_color(color[1] + delta),
-                self._clamp_color(color[2] + delta),
+                self._clamp_color(color[0] + 36),
+                self._clamp_color(color[1] - 24),
+                self._clamp_color(color[2] + 20),
             )
-        return color
+            color = self._with_target_luma(color, target_luma)
+        return self._normalize_moderate_tone(color)
 
     def _shape_types(self) -> list[str]:
         return [
@@ -328,12 +356,12 @@ class ImagePipeline:
         self, edge: str, width: int, height: int, span: int, rng: random.Random
     ) -> tuple[int, int]:
         if edge == "left":
-            return (rng.randint(0, max(1, span)), rng.randint(int(height * 0.15), int(height * 0.85)))
+            return (rng.randint(0, max(1, span)), rng.randint(int(height * 0.10), int(height * 0.90)))
         if edge == "right":
-            return (rng.randint(max(0, width - span), width - 1), rng.randint(int(height * 0.15), int(height * 0.85)))
+            return (rng.randint(max(0, width - span), width - 1), rng.randint(int(height * 0.10), int(height * 0.90)))
         if edge == "top":
-            return (rng.randint(int(width * 0.15), int(width * 0.85)), rng.randint(0, max(1, span)))
-        return (rng.randint(int(width * 0.15), int(width * 0.85)), rng.randint(max(0, height - span), height - 1))
+            return (rng.randint(int(width * 0.10), int(width * 0.90)), rng.randint(0, max(1, int(span * 0.65))))
+        return (rng.randint(int(width * 0.10), int(width * 0.90)), rng.randint(max(0, height - int(span * 0.65)), height - 1))
 
     def _draw_shape(
         self,
@@ -419,6 +447,23 @@ class ImagePipeline:
             self._clamp_color(rgb[2] + delta),
         )
 
+    def _with_target_luma(self, rgb: tuple[int, int, int], target_luma: float) -> tuple[int, int, int]:
+        current = max(1.0, self._luma(rgb))
+        scale = target_luma / current
+        return (
+            self._clamp_color(int(rgb[0] * scale)),
+            self._clamp_color(int(rgb[1] * scale)),
+            self._clamp_color(int(rgb[2] * scale)),
+        )
+
+    def _normalize_moderate_tone(self, rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+        l = self._luma(rgb)
+        if l < 72:
+            return self._with_target_luma(rgb, 86)
+        if l > 196:
+            return self._with_target_luma(rgb, 182)
+        return rgb
+
     def _parse_color(self, raw: str) -> tuple[int, int, int]:
         text = (raw or "").strip().lstrip("#")
         if len(text) == 6:
@@ -430,3 +475,23 @@ class ImagePipeline:
 
     def _clamp_color(self, value: int) -> int:
         return max(0, min(255, value))
+
+    def _tone_hint(self, raw: str) -> str:
+        text = (raw or "").strip().lower()
+        if any(k in text for k in ("light", "淺", "亮", "pastel", "柔和", "淡")):
+            return "light"
+        if any(k in text for k in ("dark", "深", "暗")):
+            return "dark"
+        return ""
+
+    def _enforce_luma_floor(self, rgb: tuple[int, int, int], floor: float) -> tuple[int, int, int]:
+        l = self._luma(rgb)
+        if l >= floor:
+            return rgb
+        return self._with_target_luma(rgb, floor)
+
+    def _enforce_luma_ceiling(self, rgb: tuple[int, int, int], ceiling: float) -> tuple[int, int, int]:
+        l = self._luma(rgb)
+        if l <= ceiling:
+            return rgb
+        return self._with_target_luma(rgb, ceiling)

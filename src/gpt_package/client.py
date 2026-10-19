@@ -57,6 +57,7 @@ class PosterGenerator:
                 f"Subject mask style: {image_effects.get('subject_mask_style')}",
                 f"Decorative geometry applied: {image_effects.get('decorative_geometry_applied', False)}",
                 f"Decorative geometry strategy: {image_effects.get('decorative_geometry_strategy')}",
+                f"Decorative geometry shapes: {image_effects.get('decorative_geometry_shapes', 0)}",
             ],
         )
 
