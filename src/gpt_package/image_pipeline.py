@@ -250,7 +250,15 @@ class ImagePipeline:
         request: PosterRequest,
     ) -> tuple[str, int] | None:
         width, height = background.size
-        seed = int(hashlib.sha256(f"{request.title}|{request.body}|geo".encode("utf-8")).hexdigest()[:8], 16)
+        seed = int(
+            hashlib.sha256(
+                (
+                    f"{request.title}|{request.body}|geo|"
+                    f"{getattr(request.style, 'variation_token', '')}"
+                ).encode("utf-8")
+            ).hexdigest()[:8],
+            16,
+        )
         rng = random.Random(seed)
         strategy = "subject_near" if (subject_box and rng.random() < 0.65) else "edge_near"
         span = int(width * 0.82)

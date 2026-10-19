@@ -29,6 +29,7 @@ SCHEMA = {
         "accent_color": {"type": "string"},
         "subject": {"type": "string"},
         "background_mode": {"type": "string", "enum": ["auto", "solid", "gradient", "reference"]},
+        "image_role_mode": {"type": "string", "enum": ["auto", "subject", "background", "both"]},
         "geometry_enabled": {"type": "boolean"},
         "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
         "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},

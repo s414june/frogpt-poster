@@ -82,6 +82,7 @@ class OpenAIToolTests(unittest.TestCase):
         self.assertIn("intake_questions", result)
         self.assertGreaterEqual(len(result["intake_questions"]), 4)
         self.assertTrue(any(q.get("id") == "background_mode" for q in result["intake_questions"]))
+        self.assertTrue(any(q.get("id") == "image_role_mode" for q in result["intake_questions"]))
 
     def test_handle_tool_call_returns_design_guide_when_requested(self) -> None:
         result = handle_tool_call({"request_intake_only": True, "show_design_guide": True})
@@ -103,6 +104,7 @@ class OpenAIToolTests(unittest.TestCase):
                             "title": "Inline Request",
                             "body": "Body from inline payload",
                             "layout": {"width": 800, "height": 1000},
+                            "image_role_mode": "background",
                             "allow_ai_fallback": True,
                             "assets": {"open_source_font_paths": []},
                         },
@@ -135,6 +137,29 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertTrue(result["ok"])
                 self.assertEqual(result["decision"]["image_source"], "user_image")
                 self.assertTrue(Path(result["output_path"]).is_file())
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_image_role_mode_both_disables_geometry_and_overlays_text_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                image_path = Path(tmp_dir) / "source.png"
+                Image.new("RGB", (1080, 1350), (214, 168, 178)).save(image_path)
+                result = handle_tool_call(
+                    {
+                        "title": "Both mode",
+                        "body": "Use image as both",
+                        "user_image_paths": [str(image_path)],
+                        "image_role_mode": "both",
+                        "allow_ai_fallback": True,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertEqual(result["resolved_image_role_mode"], "both")
+                self.assertFalse(result["request"]["style"]["geometry_enabled"])
+                self.assertEqual(result["request"]["assets"]["subject_image_paths"], [])
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 

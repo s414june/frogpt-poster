@@ -22,6 +22,7 @@ Key arguments:
 - `title`, `body`: optional overrides
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
 - `background_mode`: `auto` | `solid` | `gradient` | `reference`
+- `image_role_mode`: `auto` | `subject` | `background` | `both`
 - `geometry_enabled`: `true/false` (solid/gradient + single subject 時預設會加幾何裝飾)
 - `subject_mask_mode`: `rounded` | `feather`
 - `subject_border_px`: `0` or `8..20` (僅使用者明確要求時加粗邊框)
@@ -40,6 +41,7 @@ Key arguments:
 - `width`, `height`, `allow_ai_fallback`
 - `request_intake_only` (只回前置提問，不渲染)
 - `show_design_guide` (回傳簡易設計指南)
+- `regenerate_variant`: `true` 時每次呼叫自動產生新的 `variation_token`，可在同文案下得到不同幾何圖案/對應色分布
 - `intake_confirmed`（MCP 流程：第一次問卷完成後請設為 `true`）
 - `intake_session_token`（MCP 會話記憶鍵；第一次回傳，後續重用可免手動維護 intake flag）
 
@@ -75,6 +77,7 @@ MCP intake behavior (強制一次)：
 - `intake_session_token` / `intake_confirmed` 可放在頂層 arguments，或放在 `poster_request` 內（兩者都會被接收）。
 - 你仍可顯式傳 `intake_confirmed=true`，但不是必填。
 - 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
+- 首輪問卷也會詢問圖片角色：`auto / subject / background / both`。
 
 When first interaction enters intake mode, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)
@@ -96,6 +99,8 @@ Typography/layout policy:
 - text color is auto-switched between dark/light to keep luminance contrast against background.
 - subject image uses one mask style at a time (`rounded` or `feather`) and preserves original aspect ratio.
 - border is optional and only applied when requested (`subject_border_px`, 8-20px).
+- image-role handling: in `auto`, the tool first asks via intake then infers role from prompt keywords and image traits; `both` means direct text-on-image mode and disables geometry.
+- in `image_role_mode=both`, text placement uses a small focus-avoid algorithm to move text blocks away from visual focal area; typography is constrained to two sizes (slogan large, all other copy smaller).
 - for solid/gradient background with a single subject, geometric accents are added by default (unless `geometry_enabled=false`) and are distributed from subject-side or edge-side anchors (wider spread allowed, but not fully random scattering).
 - geometric colors use one shared logic for all shapes: hue families are capped at 3, and default harmony stays close to background (hue-near and/or saturation-near). Contrast/complementary jump colors are only enabled when user prompt explicitly asks for it (e.g. 跳色/撞色/contrast).
 - geometric color still enforces a minimum color distance from background (avoid “too similar to notice”).
@@ -218,6 +223,7 @@ vercel dev
 Deployment notes:
 - MCP endpoint request body limit is **8 MB**. Prefer `subject_image_urls` / `user_image_urls`; only use base64 for smaller images.
 - Keep serverless bundle slim via `.vercelignore`. This project excludes most `assets\fonts` and keeps lightweight runtime families.
+- For Traditional Chinese rendering in deployment, keep `assets\fonts\Noto_Sans_TC\static\*.ttf` (or equivalent CJK sans static files) in bundle; otherwise text may degrade to tofu squares.
 - If deploy still nears platform limits, remove extra local assets (docs/examples/test data/fonts) from runtime bundle.
 
 ## Font storage folder

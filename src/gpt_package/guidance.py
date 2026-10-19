@@ -39,6 +39,17 @@ def build_intake_questions() -> list[dict]:
             "allow_freeform": False,
         },
         {
+            "id": "image_role_mode",
+            "question": "你提供的圖片要當主體、背景，還是兩者皆是？",
+            "choices": [
+                "auto（先詢問後由系統自動判斷）",
+                "subject（主體物件）",
+                "background（背景底圖）",
+                "both（同張圖直接加字，不加幾何）",
+            ],
+            "allow_freeform": False,
+        },
+        {
             "id": "tone_and_keywords",
             "question": "有沒有想強調的情緒或關鍵字（例如：溫暖、可信任、公益感）？",
             "choices": ["我提供關鍵字", "請 AI 發想關鍵字與語氣"],
