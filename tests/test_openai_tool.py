@@ -39,8 +39,11 @@ class OpenAIToolTests(unittest.TestCase):
                 )
                 result = handle_tool_call({"poster_text_file": str(input_file)})
                 self.assertTrue(result["ok"])
+                self.assertEqual(result["status"]["code"], "completed")
+                self.assertTrue(result["rendered"])
                 self.assertEqual(result["decision"]["image_source"], "ai_fallback")
                 self.assertTrue(Path(result["output_path"]).is_file())
+                self.assertTrue(result["output_image_data_url"].startswith("data:image/png;base64,"))
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
@@ -53,7 +56,24 @@ class OpenAIToolTests(unittest.TestCase):
             }
         )
         self.assertFalse(result["ok"])
+        self.assertEqual(result["status"]["code"], "failed")
+        self.assertFalse(result["rendered"])
         self.assertEqual(result["error_type"], "ValidationError")
+
+    def test_handle_tool_call_returns_intake_on_missing_inputs(self) -> None:
+        result = handle_tool_call({})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"]["code"], "needs_input")
+        self.assertFalse(result["rendered"])
+        self.assertIn("intake_questions", result)
+        self.assertGreaterEqual(len(result["intake_questions"]), 4)
+
+    def test_handle_tool_call_returns_design_guide_when_requested(self) -> None:
+        result = handle_tool_call({"request_intake_only": True, "show_design_guide": True})
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"]["code"], "needs_input")
+        self.assertIn("design_guide", result)
+        self.assertIn("principles", result["design_guide"])
 
     def test_handle_tool_call_accepts_inline_request_and_base64_image(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -75,6 +95,8 @@ class OpenAIToolTests(unittest.TestCase):
                     }
                 )
                 self.assertTrue(result["ok"])
+                self.assertEqual(result["status"]["code"], "completed")
+                self.assertTrue(result["rendered"])
                 self.assertEqual(result["decision"]["image_source"], "user_image")
                 self.assertIsInstance(result.get("output_image_base64"), str)
                 self.assertGreater(len(result["output_image_base64"]), 100)

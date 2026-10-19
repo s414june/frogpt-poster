@@ -12,6 +12,7 @@ from .client import PosterGenerator
 from .errors import PosterError
 from .errors import ValidationError
 from .font_discovery import discover_open_source_fonts
+from .guidance import build_design_guide, build_intake_questions
 from .text_input import load_request_from_text_file
 from .types import PosterAssetSet, PosterLayout, PosterRequest
 
@@ -53,6 +54,14 @@ def build_tool_definition() -> dict:
                 "width": {"type": "integer", "minimum": 256, "maximum": 4096},
                 "height": {"type": "integer", "minimum": 256, "maximum": 4096},
                 "allow_ai_fallback": {"type": "boolean"},
+                "request_intake_only": {
+                    "type": "boolean",
+                    "description": "Return intake questions only, without rendering.",
+                },
+                "show_design_guide": {
+                    "type": "boolean",
+                    "description": "Include the poster design guide in response.",
+                },
             },
             "required": [],
             "additionalProperties": False,
@@ -188,16 +197,50 @@ def _safe_json_dumps(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _needs_intake(arguments: dict) -> bool:
+    if bool(arguments.get("request_intake_only", False)):
+        return True
+    has_text_file = bool(arguments.get("poster_text_file"))
+    has_inline = isinstance(arguments.get("poster_request"), dict)
+    has_title = bool(str(arguments.get("title", "")).strip())
+    has_body = bool(str(arguments.get("body", "")).strip())
+    return not (has_text_file or has_inline or (has_title and has_body))
+
+
 def handle_tool_call(arguments: dict) -> dict:
     temp_dir: str | None = None
     try:
+        show_design_guide = bool(arguments.get("show_design_guide", False))
+        if _needs_intake(arguments):
+            payload = {
+                "ok": True,
+                "tool_name": TOOL_NAME,
+                "status": {
+                    "code": "needs_input",
+                    "message": "intake_questions_required_before_render",
+                },
+                "rendered": False,
+                "intake_questions": build_intake_questions(),
+            }
+            if show_design_guide or bool(arguments.get("request_intake_only", False)):
+                payload["design_guide"] = build_design_guide()
+            return payload
+
         request = _build_request(arguments)
         temp_dir = _materialize_remote_images(arguments, request)
         generator = PosterGenerator()
         result = generator.generate(request)
-        return {
+        output_image_base64 = _encode_output_image(result.output_path)
+        if not output_image_base64:
+            raise ValidationError("render output image is missing or unreadable")
+        output_image_data_url = f"data:image/png;base64,{output_image_base64}"
+        payload = {
             "ok": True,
             "tool_name": TOOL_NAME,
+            "status": {
+                "code": "completed",
+                "message": "poster_render_completed",
+            },
             "decision": {
                 "image_source": result.decision.image_source.value,
                 "reason": result.decision.reason,
@@ -205,10 +248,14 @@ def handle_tool_call(arguments: dict) -> dict:
             "request": request.to_dict(),
             "output_path": result.output_path,
             "output_mime_type": "image/png",
-            "output_image_base64": _encode_output_image(result.output_path),
+            "output_image_base64": output_image_base64,
+            "output_image_data_url": output_image_data_url,
+            "rendered": True,
             "notes": result.notes,
+            "intake_questions": build_intake_questions(),
             "result_json": _safe_json_dumps(
                 {
+                    "status": {"code": "completed", "message": "poster_render_completed"},
                     "decision": {
                         "image_source": result.decision.image_source.value,
                         "reason": result.decision.reason,
@@ -217,13 +264,25 @@ def handle_tool_call(arguments: dict) -> dict:
                 }
             ),
         }
+        if show_design_guide:
+            payload["design_guide"] = build_design_guide()
+        return payload
     except PosterError as exc:
-        return {
+        payload = {
             "ok": False,
             "tool_name": TOOL_NAME,
+            "status": {
+                "code": "failed",
+                "message": "poster_render_failed",
+            },
+            "rendered": False,
             "error_type": exc.__class__.__name__,
             "error": str(exc),
+            "intake_questions": build_intake_questions(),
         }
+        if bool(arguments.get("show_design_guide", False)):
+            payload["design_guide"] = build_design_guide()
+        return payload
     finally:
         if temp_dir:
             shutil.rmtree(temp_dir, ignore_errors=True)

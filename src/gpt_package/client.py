@@ -47,6 +47,7 @@ class PosterGenerator:
             output_path=str(output_path),
             decision=decision,
             notes=[
+                "Render completed.",
                 "Validation passed.",
                 f"Poster rendered at: {output_path}",
                 f"Typography font: {font_note}",

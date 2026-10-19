@@ -23,6 +23,8 @@ Key arguments:
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
 - `open_source_font_paths`
 - `width`, `height`, `allow_ai_fallback`
+- `request_intake_only` (只回前置提問，不渲染)
+- `show_design_guide` (回傳簡易設計指南)
 
 If `open_source_font_paths` is omitted/empty, the tool auto-discovers fonts under:
 - `assets\fonts` (`.ttf`, `.otf`, `.ttc`)
@@ -41,6 +43,13 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 - `ok: false` with `ValidationError` for invalid payloads.
 - `output_path` points to a generated poster image for successful calls.
 - `output_image_base64` is included for browser/mobile clients.
+- `status.code` returns `completed` or `failed`.
+- `status.code` may return `needs_input` when request data is incomplete.
+- `output_image_data_url` can be rendered directly in UI (`<img src=\"...\">`).
+
+When first interaction lacks complete fields, the tool returns:
+- `intake_questions` (copy/image/style/prompt-oriented questions)
+- optional `design_guide` (when `show_design_guide=true` or `request_intake_only=true`)
 
 ## UAT with text interface (chat-like)
 
