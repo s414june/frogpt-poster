@@ -54,9 +54,19 @@ def validate_request(request: PosterRequest) -> None:
 
     for path in request.assets.user_image_paths:
         if not Path(path).is_file():
+            if str(path).startswith("/mnt/data/"):
+                raise ValidationError(
+                    f"user image path is not accessible from this runtime: {path}. "
+                    "Use user_image_base64/user_image_urls or a server-local absolute path."
+                )
             raise ValidationError(f"user image does not exist: {path}")
     for path in request.assets.subject_image_paths:
         if not Path(path).is_file():
+            if str(path).startswith("/mnt/data/"):
+                raise ValidationError(
+                    f"subject image path is not accessible from this runtime: {path}. "
+                    "Use subject_image_base64/subject_image_urls or a server-local absolute path."
+                )
             raise ValidationError(f"subject image does not exist: {path}")
     for path in request.assets.open_source_font_paths:
         font_path = Path(path)
