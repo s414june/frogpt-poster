@@ -8,8 +8,7 @@
         "cta": "認養代替購買・尊重生命・不棄養"
       },
       "style": {
-        "preset": "minimal-charity-tw",
-        "subject": "hamster"
+        "subject": "animal"
       },
       "layout": {
         "width": 1080,
@@ -26,4 +25,3 @@
     "regenerate_variant": true
   }
 }
-

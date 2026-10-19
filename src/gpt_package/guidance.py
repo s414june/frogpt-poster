@@ -28,6 +28,17 @@ def build_intake_questions() -> list[dict]:
             "allow_freeform": True,
         },
         {
+            "id": "background_mode",
+            "question": "背景模式要用哪一種？",
+            "choices": [
+                "auto（依素材自動判斷）",
+                "solid（單色背景）",
+                "gradient（漸層背景）",
+                "reference（直接引用圖庫/參考圖）",
+            ],
+            "allow_freeform": False,
+        },
+        {
             "id": "tone_and_keywords",
             "question": "有沒有想強調的情緒或關鍵字（例如：溫暖、可信任、公益感）？",
             "choices": ["我提供關鍵字", "請 AI 發想關鍵字與語氣"],
@@ -72,4 +83,3 @@ def build_design_guide() -> dict:
             "先出 2-3 組方向，再挑一組細修，品質會比一次到底更穩定。",
         ],
     }
-

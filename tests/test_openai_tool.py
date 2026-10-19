@@ -37,11 +37,19 @@ class OpenAIToolTests(unittest.TestCase):
                     ),
                     encoding="utf-8",
                 )
-                result = handle_tool_call({"poster_text_file": str(input_file)})
+                bg_path = Path(tmp_dir) / "bg.png"
+                Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
+                bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+                result = handle_tool_call(
+                    {
+                        "poster_text_file": str(input_file),
+                        "generated_background_base64": bg_b64,
+                    }
+                )
                 self.assertTrue(result["ok"])
                 self.assertEqual(result["status"]["code"], "completed")
                 self.assertTrue(result["rendered"])
-                self.assertEqual(result["decision"]["image_source"], "ai_fallback")
+                self.assertEqual(result["decision"]["image_source"], "user_image")
                 self.assertTrue(Path(result["output_path"]).is_file())
                 self.assertTrue(result["output_image_data_url"].startswith("data:image/png;base64,"))
                 self.assertEqual(
@@ -61,10 +69,9 @@ class OpenAIToolTests(unittest.TestCase):
                 "allow_ai_fallback": False,
             }
         )
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["status"]["code"], "failed")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"]["code"], "needs_background_generation")
         self.assertFalse(result["rendered"])
-        self.assertEqual(result["error_type"], "ValidationError")
 
     def test_handle_tool_call_returns_intake_on_missing_inputs(self) -> None:
         result = handle_tool_call({})
@@ -73,6 +80,7 @@ class OpenAIToolTests(unittest.TestCase):
         self.assertFalse(result["rendered"])
         self.assertIn("intake_questions", result)
         self.assertGreaterEqual(len(result["intake_questions"]), 4)
+        self.assertTrue(any(q.get("id") == "background_mode" for q in result["intake_questions"]))
 
     def test_handle_tool_call_returns_design_guide_when_requested(self) -> None:
         result = handle_tool_call({"request_intake_only": True, "show_design_guide": True})
@@ -129,32 +137,6 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
-    def test_style_preset_minimal_charity_tw_applies(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
-            try:
-                result = handle_tool_call(
-                    {
-                        "poster_request": {
-                            "title": "讓小小生命，被好好愛著",
-                            "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
-                            "style": {"preset": "minimal-charity-tw", "subject": "hamster"},
-                            "layout": {"width": 1080, "height": 1350},
-                            "assets": {"open_source_font_paths": []},
-                        }
-                    }
-                )
-                self.assertTrue(result["ok"])
-                self.assertEqual(result["status"]["code"], "completed")
-                self.assertEqual(
-                    result["request"]["style"]["primary_color"],
-                    "#F7F2E9",
-                )
-                self.assertEqual(result["request"]["style"]["panel_ratio"], 0.24)
-                self.assertTrue(result["output_image_data_url"].startswith("data:image/png;base64,"))
-            finally:
-                os.environ.pop("POSTER_OUTPUT_DIR", None)
-
     def test_pexels_query_requires_api_key(self) -> None:
         old = os.environ.pop("PEXELS_API_KEY", None)
         try:
@@ -184,7 +166,8 @@ class OpenAIToolTests(unittest.TestCase):
                     }
                 )
                 self.assertTrue(result["ok"])
-                self.assertTrue(result["rendered"])
+                self.assertFalse(result["rendered"])
+                self.assertEqual(result["status"]["code"], "needs_background_generation")
                 self.assertIsNone(result.get("auto_pexels_query_used"))
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
@@ -222,6 +205,176 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertTrue(result["reference_images_used"])
                 self.assertTrue(result["style_from_reference_applied"])
                 self.assertEqual(result["decision"]["image_source"], "user_image")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_reference_image_path_applies_source_credit_overlay(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                ref_path = Path(tmp_dir) / "my-author-sample.png"
+                Image.new("RGB", (1080, 1350), (210, 216, 226)).save(ref_path)
+                result = handle_tool_call(
+                    {
+                        "title": "Reference path test",
+                        "body": "Overlay source credit in corner",
+                        "reference_image_paths": [str(ref_path)],
+                        "use_reference_as_fallback": True,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertTrue(result["reference_images_used"])
+                self.assertTrue(result["source_credit_overlay_applied"])
+                self.assertEqual(result["source_credit_overlay_text"], "my-author-sample/Source")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_reference_background_can_compose_subject_image(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                ref_path = Path(tmp_dir) / "reference.png"
+                Image.new("RGB", (1080, 1350), (214, 228, 220)).save(ref_path)
+                subject_path = Path(tmp_dir) / "subject.png"
+                subject = Image.new("RGBA", (420, 420), (0, 0, 0, 0))
+                for x in range(60, 360):
+                    for y in range(80, 380):
+                        subject.putpixel((x, y), (222, 176, 122, 255))
+                subject.save(subject_path)
+                subject_b64 = base64.b64encode(subject_path.read_bytes()).decode("ascii")
+
+                result = handle_tool_call(
+                    {
+                        "title": "Compose subject",
+                        "body": "Reference background with foreground object",
+                        "reference_image_paths": [str(ref_path)],
+                        "subject_image_base64": [subject_b64],
+                        "use_reference_as_fallback": True,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                self.assertEqual(result["decision"]["image_source"], "user_image")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_background_mode_solid_renders_without_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                result = handle_tool_call(
+                    {
+                        "title": "Solid mode",
+                        "body": "No reference should still render",
+                        "background_mode": "solid",
+                        "allow_ai_fallback": True,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["status"]["code"], "completed")
+                self.assertEqual(result["decision"]["image_source"], "ai_fallback")
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_solid_single_subject_adds_geometry_and_subject_mask(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                rgba = Image.new("RGBA", (420, 420), (0, 0, 0, 0))
+                for x in range(80, 340):
+                    for y in range(70, 360):
+                        rgba.putpixel((x, y), (230, 180, 130, 255))
+                rgba.save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "Geometry check",
+                        "body": "solid bg single subject",
+                        "background_mode": "solid",
+                        "subject_image_paths": [str(subject)],
+                    }
+                )
+                self.assertTrue(result["ok"])
+                notes_text = "\n".join(result.get("notes", []))
+                self.assertIn("Subject mask applied: True", notes_text)
+                self.assertIn("Decorative geometry applied: True", notes_text)
+                self.assertRegex(
+                    notes_text,
+                    r"Subject mask style: (feather|rounded|border|fold)",
+                )
+                self.assertRegex(
+                    notes_text,
+                    r"Decorative geometry strategy: (subject_near|edge_near)",
+                )
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_background_mode_reference_needs_reference_when_missing(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "Reference mode",
+                "body": "Need reference input",
+                "background_mode": "reference",
+                "allow_ai_fallback": True,
+            }
+        )
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["status"]["code"], "needs_background_generation")
+
+    def test_background_mode_invalid_returns_validation_error(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "Invalid mode",
+                "body": "Should fail validation",
+                "background_mode": "texture",
+            }
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error_type"], "ValidationError")
+
+    def test_palette_is_derived_from_subject_image_when_no_explicit_colors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                img = Image.new("RGB", (360, 360), (242, 178, 102))
+                img.save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "Palette from subject",
+                        "body": "Use subject image colors",
+                        "background_mode": "gradient",
+                        "subject_image_paths": [str(subject)],
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["style_from_reference_applied"])
+                self.assertEqual(result["palette_source_path"], str(subject))
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
+
+    def test_explicit_palette_wins_over_auto_palette_extraction(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                subject = Path(tmp_dir) / "subject.png"
+                Image.new("RGB", (360, 360), (242, 178, 102)).save(subject)
+                result = handle_tool_call(
+                    {
+                        "title": "Explicit palette",
+                        "body": "Should not auto override",
+                        "background_mode": "gradient",
+                        "subject_image_paths": [str(subject)],
+                        "primary_color": "#101010",
+                        "secondary_color": "#202020",
+                        "accent_color": "#303030",
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertFalse(result["style_from_reference_applied"])
+                self.assertIsNone(result["palette_source_path"])
+                self.assertEqual(result["request"]["style"]["primary_color"], "#101010")
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 

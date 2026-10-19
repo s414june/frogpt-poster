@@ -12,6 +12,7 @@ class ImageSource(str, Enum):
 @dataclass(slots=True)
 class PosterAssetSet:
     user_image_paths: list[str] = field(default_factory=list)
+    subject_image_paths: list[str] = field(default_factory=list)
     open_source_font_paths: list[str] = field(default_factory=list)
 
 
@@ -23,7 +24,7 @@ class PosterLayout:
 
 @dataclass(slots=True)
 class PosterStyle:
-    preset: str = ""
+    background_mode: str = "auto"
     primary_color: str = "#F6F1E8"
     secondary_color: str = "#A8BFA8"
     accent_color: str = "#6D8A72"
@@ -35,6 +36,7 @@ class PosterStyle:
     background_shape_alpha_min: int = 10
     background_shape_alpha_max: int = 28
     variation_token: str = ""
+    source_credit_text: str = ""
 
 
 @dataclass(slots=True)
