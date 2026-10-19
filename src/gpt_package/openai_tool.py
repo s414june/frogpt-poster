@@ -51,6 +51,14 @@ def build_tool_definition() -> dict:
                         "Inline request object for web/mobile usage (no local file path)."
                     ),
                 },
+                "intake_confirmed": {
+                    "type": "boolean",
+                    "description": "Compatibility field for MCP intake flow.",
+                },
+                "intake_session_token": {
+                    "type": "string",
+                    "description": "Compatibility field for MCP intake flow.",
+                },
                 "title": {"type": "string"},
                 "body": {"type": "string"},
                 "user_image_paths": {"type": "array", "items": {"type": "string"}},

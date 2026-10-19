@@ -71,6 +71,7 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 MCP intake behavior (強制一次)：
 - 第一次要求生成海報時，會先回傳問卷與 `intake_session_token`，不直接渲染。
 - 後續呼叫請重用同一個 `intake_session_token`；帶完整 brief 後會自動記憶 intake 已完成。
+- `intake_session_token` / `intake_confirmed` 可放在頂層 arguments，或放在 `poster_request` 內（兩者都會被接收）。
 - 你仍可顯式傳 `intake_confirmed=true`，但不是必填。
 - 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
 

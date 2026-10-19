@@ -108,7 +108,7 @@ def _prune_intake_sessions(now_ts: float) -> None:
 
 
 def _ensure_intake_session_token(args: dict, now_ts: float) -> tuple[str, dict, bool]:
-    maybe = args.get("intake_session_token")
+    maybe = _resolve_intake_session_token(args)
     from_request = isinstance(maybe, str) and bool(maybe.strip())
     if isinstance(maybe, str) and maybe.strip():
         token = maybe.strip()
@@ -121,6 +121,30 @@ def _ensure_intake_session_token(args: dict, now_ts: float) -> tuple[str, dict, 
     else:
         state["updated_at"] = now_ts
     return token, state, from_request
+
+
+def _resolve_intake_session_token(args: dict) -> str:
+    top = args.get("intake_session_token")
+    if isinstance(top, str) and top.strip():
+        return top.strip()
+    payload = args.get("poster_request")
+    if isinstance(payload, dict):
+        nested = payload.get("intake_session_token")
+        if isinstance(nested, str) and nested.strip():
+            return nested.strip()
+    return ""
+
+
+def _resolve_intake_confirmed(args: dict) -> bool:
+    top = args.get("intake_confirmed")
+    if isinstance(top, bool):
+        return top
+    payload = args.get("poster_request")
+    if isinstance(payload, dict):
+        nested = payload.get("intake_confirmed")
+        if isinstance(nested, bool):
+            return nested
+    return False
 
 def dispatch(message):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
@@ -151,7 +175,7 @@ def dispatch(message):
             now_ts = time.time()
             _prune_intake_sessions(now_ts)
             intake_session_token, intake_state, token_from_request = _ensure_intake_session_token(args, now_ts)
-            intake_confirmed = bool(args.get("intake_confirmed", False))
+            intake_confirmed = _resolve_intake_confirmed(args)
             remembered = bool(intake_state.get("intake_completed", False))
             auto_confirmed = token_from_request and _has_render_brief(args)
             intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
