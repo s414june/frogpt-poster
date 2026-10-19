@@ -252,6 +252,12 @@ def _safe_json_dumps(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
+def _output_filename(path: str | None) -> str:
+    if not path:
+        return "poster.png"
+    return Path(path).name or "poster.png"
+
+
 def _needs_intake(arguments: dict) -> bool:
     if bool(arguments.get("request_intake_only", False)):
         return True
@@ -274,6 +280,7 @@ def handle_tool_call(arguments: dict) -> dict:
                     "code": "needs_input",
                     "message": "intake_questions_required_before_render",
                 },
+                "next_action": "ask_user_intake_questions",
                 "rendered": False,
                 "intake_questions": build_intake_questions(),
             }
@@ -296,6 +303,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "code": "completed",
                 "message": "poster_render_completed",
             },
+            "next_action": "deliver_image_then_text",
             "decision": {
                 "image_source": result.decision.image_source.value,
                 "reason": result.decision.reason,
@@ -303,9 +311,12 @@ def handle_tool_call(arguments: dict) -> dict:
             "request": request.to_dict(),
             "output_path": result.output_path,
             "output_mime_type": "image/png",
+            "output_filename": _output_filename(result.output_path),
             "output_image_base64": output_image_base64,
             "output_image_data_url": output_image_data_url,
+            "output_download_data_url": output_image_data_url,
             "rendered": True,
+            "display_priority": ["image", "download", "text"],
             "notes": result.notes,
             "intake_questions": build_intake_questions(),
             "result_json": _safe_json_dumps(
@@ -316,6 +327,7 @@ def handle_tool_call(arguments: dict) -> dict:
                         "reason": result.decision.reason,
                     },
                     "output_path": result.output_path,
+                    "output_filename": _output_filename(result.output_path),
                 }
             ),
         }
@@ -330,6 +342,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "code": "failed",
                 "message": "poster_render_failed",
             },
+            "next_action": "fix_input_and_retry",
             "rendered": False,
             "error_type": exc.__class__.__name__,
             "error": str(exc),

@@ -44,6 +44,12 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertEqual(result["decision"]["image_source"], "ai_fallback")
                 self.assertTrue(Path(result["output_path"]).is_file())
                 self.assertTrue(result["output_image_data_url"].startswith("data:image/png;base64,"))
+                self.assertEqual(
+                    result["output_download_data_url"],
+                    result["output_image_data_url"],
+                )
+                self.assertTrue(result["output_filename"].endswith(".png"))
+                self.assertEqual(result["display_priority"], ["image", "download", "text"])
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 

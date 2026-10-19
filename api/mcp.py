@@ -11,6 +11,7 @@ NAME = "prepare_poster"
 SCHEMA = {
     "type": "object",
     "properties": {
+        "intake_confirmed": {"type": "boolean"},
         "poster_request": {"type": "object"},
         "title": {"type": "string", "minLength": 1, "maxLength": 120},
         "body": {"type": "string", "minLength": 1, "maxLength": 4000},
@@ -28,7 +29,7 @@ SCHEMA = {
 }
 TOOL = {
     "name": NAME,
-    "description": "Render a poster and return structured status plus preview image data.",
+    "description": "Intake-first poster tool. Ask intake questions first; render only when intake_confirmed=true.",
     "inputSchema": SCHEMA,
     "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
@@ -47,7 +48,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.0"}, "instructions": "prepare_poster renders a poster image when enough input is provided; otherwise it returns intake questions."}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.1"}, "instructions": "Always run intake first. If intake_confirmed is not true, call the tool to get intake_questions and ask the user. Only render after user confirms and intake_confirmed=true."}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -59,9 +60,37 @@ def dispatch(message):
         elif not isinstance(args, dict) or set(args) - set(SCHEMA["properties"]):
             result["error"] = {"code": -32602, "message": "Arguments shape not allowed by schema."}
         else:
-            output = handle_tool_call(args)
-            content = [{"type": "text", "text": json.dumps(output, ensure_ascii=False)}]
+            intake_confirmed = bool(args.get("intake_confirmed", False))
+            call_args = dict(args)
+            if not intake_confirmed:
+                call_args["request_intake_only"] = True
+                call_args["show_design_guide"] = True
+            output = handle_tool_call(call_args)
+            if not intake_confirmed and output.get("status", {}).get("code") != "needs_input":
+                output["status"] = {
+                    "code": "needs_input",
+                    "message": "intake_questions_required_before_render",
+                }
+                output["next_action"] = "ask_user_intake_questions"
+                output["rendered"] = False
+            content = []
+            status_code = output.get("status", {}).get("code")
+            if status_code == "needs_input":
+                questions = output.get("intake_questions", [])
+                question_lines = []
+                for q in questions:
+                    question_lines.append(f"- {q.get('question', '')}")
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再以 intake_confirmed=true 重新呼叫工具：\n"
+                            + "\n".join(question_lines)
+                        ),
+                    }
+                )
             if output.get("ok") and output.get("rendered") and output.get("output_image_base64"):
+                # 1) Rendered image first for immediate preview
                 content.append(
                     {
                         "type": "image",
@@ -69,7 +98,25 @@ def dispatch(message):
                         "mimeType": output.get("output_mime_type", "image/png"),
                     }
                 )
-            result["result"] = {"content": content, "isError": not output.get("ok", False)}
+                # 2) Download hint second
+                filename = output.get("output_filename", "poster.png")
+                download_url = output.get("output_download_data_url", output.get("output_image_data_url", ""))
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            f"下載檔名: {filename}\n"
+                            f"下載連結(data URL): {download_url}"
+                        ),
+                    }
+                )
+            # 3) Structured/text details last
+            content.append({"type": "text", "text": json.dumps(output, ensure_ascii=False)})
+            result["result"] = {
+                "content": content,
+                "structuredContent": output,
+                "isError": not output.get("ok", False),
+            }
     else:
         result["error"] = {"code": -32601, "message": "Method not found"}
     return result
