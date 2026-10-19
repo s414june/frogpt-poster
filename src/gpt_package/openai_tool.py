@@ -35,6 +35,25 @@ _LOCAL_REFERENCE_MANIFEST = Path("assets") / "reference-library" / "pexels" / "m
 _LOCAL_REFERENCE_INDEX: dict[str, dict] | None = None
 
 
+def _env_flag_enabled(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_pexels_enabled() -> bool:
+    return _env_flag_enabled("FROGPT_ENABLE_PEXELS", default=False)
+
+
+def _has_pexels_api_key() -> bool:
+    return bool(os.getenv("PEXELS_API_KEY", "").strip())
+
+
+def _is_pexels_available() -> bool:
+    return _is_pexels_enabled() and _has_pexels_api_key()
+
+
 def build_tool_definition() -> dict:
     return {
         "type": "function",
@@ -400,7 +419,7 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
     if generated_background_b64.strip():
         ref_b64_items.insert(0, generated_background_b64.strip())
 
-    pexels_query = str(arguments.get("pexels_query", "")).strip()
+    pexels_query = str(arguments.get("pexels_query", "")).strip() if _is_pexels_available() else ""
     if pexels_query:
         refs.extend(
             fetch_pexels_references(
@@ -482,6 +501,8 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
 
 
 def _auto_pexels_query(arguments: dict, request: PosterRequest) -> str:
+    if not _is_pexels_available():
+        return ""
     if not bool(arguments.get("auto_pexels_fallback", False)):
         return ""
     explicit = str(arguments.get("pexels_query", "")).strip()
@@ -491,8 +512,6 @@ def _auto_pexels_query(arguments: dict, request: PosterRequest) -> str:
         str(arguments.get("generated_background_base64", "")).strip()
     )
     if has_refs:
-        return ""
-    if not os.getenv("PEXELS_API_KEY", "").strip():
         return ""
     has_user_image = bool(request.assets.user_image_paths) or bool(arguments.get("user_image_urls")) or bool(
         arguments.get("user_image_base64")
@@ -659,8 +678,7 @@ def _choose_gpt_autopilot_design_path(arguments: dict, request: PosterRequest) -
             return "solid"
         return "gradient"
 
-    has_pexels_api = bool(os.getenv("PEXELS_API_KEY", "").strip())
-    if has_pexels_api:
+    if _is_pexels_available():
         return "pexels_reference"
     return "gradient"
 
@@ -965,6 +983,11 @@ def handle_tool_call(arguments: dict) -> dict:
     temp_dirs: list[str] = []
     try:
         arguments = dict(arguments)
+        if not _is_pexels_available():
+            arguments.pop("pexels_query", None)
+            arguments.pop("pexels_orientation", None)
+            arguments.pop("pexels_per_page", None)
+            arguments.pop("auto_pexels_fallback", None)
         show_design_guide = bool(arguments.get("show_design_guide", False))
         if _needs_intake(arguments):
             payload = {

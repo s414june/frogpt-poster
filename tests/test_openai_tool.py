@@ -199,8 +199,9 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
-    def test_pexels_query_requires_api_key(self) -> None:
-        old = os.environ.pop("PEXELS_API_KEY", None)
+    def test_pexels_query_is_ignored_when_pexels_feature_is_disabled(self) -> None:
+        old_key = os.environ.pop("PEXELS_API_KEY", None)
+        old_flag = os.environ.pop("FROGPT_ENABLE_PEXELS", None)
         try:
             result = handle_tool_call(
                 {
@@ -209,11 +210,15 @@ class OpenAIToolTests(unittest.TestCase):
                     "pexels_query": "hamster charity poster",
                 }
             )
-            self.assertFalse(result["ok"])
-            self.assertEqual(result["error_type"], "ValidationError")
+            self.assertTrue(result["ok"])
+            self.assertFalse(result["rendered"])
+            self.assertEqual(result["status"]["code"], "needs_background_generation")
+            self.assertIsNone(result.get("auto_pexels_query_used"))
         finally:
-            if old is not None:
-                os.environ["PEXELS_API_KEY"] = old
+            if old_key is not None:
+                os.environ["PEXELS_API_KEY"] = old_key
+            if old_flag is not None:
+                os.environ["FROGPT_ENABLE_PEXELS"] = old_flag
 
     def test_auto_pexels_disabled_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

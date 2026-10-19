@@ -131,7 +131,8 @@ Reference image citation flow (non-regenerated background):
 ## Pexels reference workflow (no repo image storage)
 
 For legal and operational safety, use Pexels via official API:
-- Set environment variable: `PEXELS_API_KEY`
+- Pexels is **off by default** and controlled only by environment variables.
+- Enable with `FROGPT_ENABLE_PEXELS=true` and set `PEXELS_API_KEY`.
 - Provide `pexels_query` (and optional orientation/per_page)
 - The tool downloads reference images to temp storage at runtime, then cleans them up.
 
