@@ -25,6 +25,10 @@
       "destination": "/api/mcp"
     },
     {
+      "source": "/api/mcp.py",
+      "destination": "/api/mcp"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/index.py"
     }

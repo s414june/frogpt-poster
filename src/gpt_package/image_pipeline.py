@@ -565,15 +565,8 @@ class ImagePipeline:
         return pool[:3]
 
     def _shape_types(self) -> list[str]:
-        return [
-            "circle",
-            "rounded_rect",
-            "trapezoid",
-            "diamond",
-            "triangle",
-            "spark_star",
-            "flower",
-        ]
+        # Keep one coherent decorative language (organic rounded motifs).
+        return ["circle", "flower"]
 
     def _edge_anchor(
         self, edge: str, width: int, height: int, span: int, rng: random.Random

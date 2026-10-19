@@ -128,6 +128,26 @@ class TypographyPriorityTests(unittest.TestCase):
         self.assertLessEqual(title_start + title_h + clearance, focus_top)
         self.assertGreaterEqual(body_start, focus_bottom + clearance)
 
+    def test_default_layout_snaps_vertical_metrics_to_8pt_grid(self) -> None:
+        engine = TypographyEngine()
+
+        class _Style:
+            image_role_mode = "background"
+            source_credit_text = ""
+            variation_token = "grid-check"
+
+        image = Image.new("RGB", (1080, 1350), (220, 220, 220))
+        info = engine.apply(
+            image=image,
+            title="讓小小生命，被好好愛著",
+            body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            style=_Style(),
+        )
+        for key in ("title_start_y", "title_block_h", "body_start_y", "focus_clearance"):
+            value = int(info.get(key, 0))
+            self.assertEqual(value % 8, 0, f"{key} should align to 8pt grid")
+
 
 if __name__ == "__main__":
     unittest.main()

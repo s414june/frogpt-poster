@@ -75,6 +75,8 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         shapes = pipe._shape_types()
         self.assertNotIn("leaf", shapes)
         self.assertIn("circle", shapes)
+        self.assertNotIn("diamond", shapes)
+        self.assertNotIn("triangle", shapes)
 
     def test_geometry_color_keeps_min_distance_from_background(self) -> None:
         pipe = ImagePipeline()

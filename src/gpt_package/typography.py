@@ -45,7 +45,7 @@ class TypographyEngine:
             )
 
         width, height = image.size
-        margin = max(36, int(width * 0.06))
+        margin = self._snap8(max(36, int(width * 0.06)))
         sample_text = f"{title}\n{body}"
         variant_token = str(getattr(style, "variation_token", ""))
         variant_index = self._variant_index(variant_token, modulo=17)
@@ -102,11 +102,13 @@ class TypographyEngine:
         body_base = body_y_candidates[variant_index % len(body_y_candidates)]
         title_ratio = max(0.06, min(0.22, title_base + title_jitter))
         body_ratio = max(0.66, min(0.84, body_base + body_jitter))
-        y = max(24, int(height * title_ratio))
-        major_gap = int(title_font.size * 0.2)
-        focus_clearance = int(title_font.size * 0.25)
+        y = self._snap8(max(24, int(height * title_ratio)))
+        major_gap = self._snap8(max(8, int(title_font.size * 0.2)))
+        focus_clearance = self._snap8(max(8, int(title_font.size * 0.25)))
         title_line_count = max(1, len(title_lines[:title_max_lines]))
-        title_block_h = int(title_font.size * 1.22 * title_line_count)
+        title_step = self._snap8(max(8, int(title_font.size * 1.22)))
+        minor_step = self._snap8(max(8, int(minor_font.size * 1.32)))
+        title_block_h = title_step * title_line_count
         if has_explicit_focus_box:
             y = max(margin, focus_box[1] - focus_clearance - title_block_h)
         else:
@@ -126,22 +128,18 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
             draw.text((x, y), line, fill=title_color, font=title_font)
-            y += int(title_font.size * 1.22)
+            y += title_step
 
-        y = int(height * body_ratio)
+        y = self._snap8(int(height * body_ratio))
         # Two-size policy: body first line uses major size; remaining lines use minor size.
         subtitle_line = body_lines_major[0] if body_lines_major else ""
         rest_lines = body_lines_minor[1:] if len(body_lines_minor) > 1 else []
         body_block_h = 0
         if subtitle_line:
-            body_block_h += int(title_font.size * 1.22)
+            body_block_h += title_step
         if rest_lines:
             body_block_h += major_gap
-            body_block_h += int(
-                minor_font.size
-                * 1.32
-                * max(1, min(len(rest_lines), max(1, body_max_lines - 1)))
-            )
+            body_block_h += minor_step * max(1, min(len(rest_lines), max(1, body_max_lines - 1)))
         if body_block_h > 0:
             if has_explicit_focus_box:
                 min_body_y = focus_box[3] + focus_clearance
@@ -159,21 +157,18 @@ class TypographyEngine:
                     image_h=height,
                     prefer="down",
                 )
-        body_start_y = y
+        body_start_y = self._snap8(y)
+        y = body_start_y
         if subtitle_line:
             y = max(
                 y,
-                int(height * title_ratio)
-                + int(
-                    title_font.size * 1.22 * max(1, len(title_lines[:title_max_lines]))
-                    + major_gap
-                ),
+                self._snap8(int(height * title_ratio)) + (title_step * max(1, len(title_lines[:title_max_lines]))) + major_gap,
             )
             box = draw.textbbox((0, 0), subtitle_line, font=title_font)
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
             draw.text((x, y), subtitle_line, fill=body_color, font=title_font)
-            y += int(title_font.size * 1.22)
+            y += title_step
         if subtitle_line and rest_lines:
             y += major_gap
         for line in rest_lines[: max(1, body_max_lines - 1)]:
@@ -181,7 +176,7 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
             draw.text((x, y), line, fill=body_color, font=minor_font)
-            y += int(minor_font.size * 1.32)
+            y += minor_step
 
         credit_text = (
             str(getattr(style, "source_credit_text", "")).strip() if style else ""
@@ -214,7 +209,7 @@ class TypographyEngine:
         style=None,
     ) -> dict:
         width, height = image.size
-        margin = max(36, int(width * 0.06))
+        margin = self._snap8(max(36, int(width * 0.06)))
         sample_text = f"{title}\n{body}"
 
         body_font_path = self.select_font_by_role(
@@ -285,7 +280,7 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
             draw.text((x, hero_start_y), line, fill=hero_color, font=hero_font)
-            hero_start_y += int(hero_font.size * 1.20)
+            hero_start_y += self._snap8(max(8, int(hero_font.size * 1.20)))
 
         minor_start_y = minor_region[1]
         for line in minor_lines:
@@ -293,7 +288,7 @@ class TypographyEngine:
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
             draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
-            minor_start_y += int(minor_font.size * 1.30)
+            minor_start_y += self._snap8(max(8, int(minor_font.size * 1.30)))
 
         credit_text = (
             str(getattr(style, "source_credit_text", "")).strip() if style else ""
@@ -468,7 +463,12 @@ class TypographyEngine:
 
     def _lines_height(self, font_size: int, line_count: int, line_ratio: float) -> int:
         count = max(1, line_count)
-        return int(font_size * line_ratio * count)
+        return self._snap8(int(font_size * line_ratio * count))
+
+    def _snap8(self, value: int) -> int:
+        if value <= 0:
+            return 0
+        return max(8, int(round(value / 8.0) * 8))
 
     def _estimate_focus_box(self, image: Image.Image) -> tuple[int, int, int, int]:
         width, height = image.size
