@@ -14,6 +14,7 @@ _INTAKE_SESSION_MAX = 512
 _INTAKE_SESSION_TTL_SECONDS = 60 * 60 * 12
 _INTAKE_SESSIONS: dict[str, dict] = {}
 _MAX_REQUEST_BYTES = 16 * 1024 * 1024
+_MAX_EMBED_FULLSIZE_BASE64 = 5_500_000
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -68,6 +69,36 @@ TOOL = {
     "inputSchema": SCHEMA,
     "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
+
+
+def _image_input_contract() -> dict:
+    return {
+        "accepted_fields": [
+            "user_image_base64",
+            "subject_image_base64",
+            "user_image_urls",
+            "subject_image_urls",
+            "reference_image_urls",
+            "reference_image_base64",
+        ],
+        "not_accepted_fields": [
+            "user_image_paths",
+            "subject_image_paths",
+            "reference_image_paths",
+        ],
+        "required_data_url_prefix_examples": [
+            "data:image/jpeg;base64,...",
+            "data:image/png;base64,...",
+        ],
+        "rule": "Do not send filesystem paths. Send image bytes as base64 data URL or public URL.",
+    }
+
+
+def _image_input_contract_text() -> str:
+    return (
+        "圖片輸入規則：請傳 base64（data URL）或圖片網址（URL），不要傳本機/沙箱路徑。\n"
+        "正確示例：subject_image_base64: [\"data:image/jpeg;base64,...\"]"
+    )
 
 
 def _compact_output(output: dict) -> dict:
@@ -201,6 +232,7 @@ def _has_path_style_image_inputs(args: dict) -> bool:
 
 
 def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
+    contract = _image_input_contract()
     return {
         "ok": True,
         "tool_name": NAME,
@@ -222,20 +254,11 @@ def _build_path_input_rejection(token: str, intake_completed: bool) -> dict:
                 "請改用圖片上傳（base64）",
                 "或提供可公開存取的圖片網址（URL）",
             ],
-            "accepted_fields": [
-                "user_image_base64",
-                "subject_image_base64",
-                "user_image_urls",
-                "subject_image_urls",
-                "reference_image_urls",
-                "reference_image_base64",
-            ],
-            "not_accepted_fields": [
-                "user_image_paths",
-                "subject_image_paths",
-                "reference_image_paths",
-            ],
+            "accepted_fields": contract["accepted_fields"],
+            "not_accepted_fields": contract["not_accepted_fields"],
+            "required_data_url_prefix_examples": contract["required_data_url_prefix_examples"],
         },
+        "image_input_contract": contract,
     }
 
 
@@ -278,7 +301,8 @@ def dispatch(message):
                         "type": "text",
                         "text": (
                             "目前收到的是圖片路徑（paths），這種格式在雲端通常無法讀取。\n"
-                            "請改用圖片上傳（base64）或圖片網址（URL）後重試。"
+                            "請改用圖片上傳（base64）或圖片網址（URL）後重試。\n"
+                            + _image_input_contract_text()
                         ),
                     },
                     {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
@@ -300,6 +324,7 @@ def dispatch(message):
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
             output = handle_tool_call(call_args)
+            output["image_input_contract"] = _image_input_contract()
             output["intake_session_token"] = intake_session_token
             output["intake_session_state"] = {
                 "intake_completed": bool(intake_state.get("intake_completed", False)),
@@ -334,6 +359,8 @@ def dispatch(message):
                         "text": (
                             "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再用同一個 intake_session_token 重新呼叫工具：\n"
                             + "\n".join(question_lines)
+                            + "\n\n"
+                            + _image_input_contract_text()
                         ),
                     }
                 )
@@ -347,13 +374,17 @@ def dispatch(message):
                         "text": (
                             "目前需要『無字背景海報』才能繼續。請先用 GPT 生成無文字背景，並確認沒有字母/數字/logo/浮水印。\n"
                             f"重呼叫時請同時帶入: {required_flag}\n"
-                            f"建議提示詞：{prompt}"
+                            f"建議提示詞：{prompt}\n\n"
+                            + _image_input_contract_text()
                         ),
                     }
                 )
             preview_b64 = output.get("output_preview_base64") or output.get("output_image_base64")
             preview_mime = output.get("output_preview_mime_type", output.get("output_mime_type", "image/png"))
             if output.get("ok") and output.get("rendered") and preview_b64:
+                full_b64 = output.get("output_image_base64")
+                full_mime = output.get("output_mime_type", "image/png")
+                full_embedded = False
                 # 1) Rendered image first for immediate preview
                 content.append(
                     {
@@ -362,7 +393,36 @@ def dispatch(message):
                         "mimeType": preview_mime,
                     }
                 )
-                # 2) Download hint second
+                # 2) Delivery contract for GPT response behavior
+                output["final_delivery_contract"] = {
+                    "must_include_preview_thumbnail": True,
+                    "must_include_fullsize_download": True,
+                    "preview_field": "output_preview_base64",
+                    "fullsize_field": "output_image_base64",
+                }
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "最終回覆請務必同時提供：\n"
+                            "1) 縮圖預覽\n"
+                            "2) 正式大小海報圖（可下載）"
+                        ),
+                    }
+                )
+                # 3) Embed full-size image when payload is still reasonable.
+                if isinstance(full_b64, str) and full_b64 and len(full_b64) <= _MAX_EMBED_FULLSIZE_BASE64:
+                    content.append(
+                        {
+                            "type": "image",
+                            "data": full_b64,
+                            "mimeType": full_mime,
+                        }
+                    )
+                    full_embedded = True
+                output["final_delivery_contract"]["fullsize_embedded"] = full_embedded
+                output["final_delivery_contract"]["fullsize_embed_limit_base64_bytes"] = _MAX_EMBED_FULLSIZE_BASE64
+                # 4) Download hint
                 filename = output.get("output_filename", "poster.png")
                 sha = str(output.get("output_image_sha256", "")).strip()
                 short_sha = sha[:12] if sha else ""
