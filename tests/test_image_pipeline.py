@@ -86,6 +86,52 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         dist = pipe._rgb_distance(color, (186, 142, 126))
         self.assertGreaterEqual(dist, 42.0)
 
+    def test_geometry_brand_pair_uses_at_most_two_hues(self) -> None:
+        pipe = ImagePipeline()
+        bg = (232, 190, 198)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(168, 132, 196)],
+            bg_sample=bg,
+            rng=random.Random(5),
+        )
+        self.assertEqual(len(pair), 2)
+        h0 = _hue(pair[0])
+        h1 = _hue(pair[1])
+        self.assertLessEqual(_hue_delta(h0, h1), 0.24)
+        l0 = pair[0][0] * 0.2126 + pair[0][1] * 0.7152 + pair[0][2] * 0.0722
+        l1 = pair[1][0] * 0.2126 + pair[1][1] * 0.7152 + pair[1][2] * 0.0722
+        self.assertGreater(abs(l0 - l1), 14.0)
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0)
+        for color in pair:
+            _h, s, _v = colorsys.rgb_to_hsv(color[0] / 255.0, color[1] / 255.0, color[2] / 255.0)
+            self.assertGreater(s, bs + 0.14)
+
+    def test_geometry_luma_is_lower_on_bright_background(self) -> None:
+        pipe = ImagePipeline()
+        bg = (240, 228, 222)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(182, 132, 202)],
+            bg_sample=bg,
+            rng=random.Random(11),
+        )
+        bg_luma = bg[0] * 0.2126 + bg[1] * 0.7152 + bg[2] * 0.0722
+        for color in pair:
+            luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722
+            self.assertLess(luma, bg_luma - 34.0)
+
+    def test_geometry_luma_is_higher_on_dark_background(self) -> None:
+        pipe = ImagePipeline()
+        bg = (36, 40, 48)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(126, 110, 188)],
+            bg_sample=bg,
+            rng=random.Random(12),
+        )
+        bg_luma = bg[0] * 0.2126 + bg[1] * 0.7152 + bg[2] * 0.0722
+        for color in pair:
+            luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722
+            self.assertGreater(luma, bg_luma + 42.0)
+
     def test_background_color_hint_adds_subtle_hue_and_tone_variation(self) -> None:
         pipe = ImagePipeline()
         req_plain = PosterRequest(

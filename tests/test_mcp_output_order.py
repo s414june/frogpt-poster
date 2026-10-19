@@ -31,6 +31,8 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertFalse(structured.get("rendered"))
         self.assertEqual(structured.get("next_action"), "ask_user_intake_questions")
         self.assertIn("intake_questions", structured)
+        self.assertIn("image_input_contract", structured)
+        self.assertIn("user_image_base64", structured.get("image_input_contract", {}).get("accepted_fields", []))
         self.assertTrue(str(structured.get("intake_session_token", "")).startswith("intake_"))
         self.assertIn("尚未渲染海報", result["content"][0]["text"])
 
@@ -95,17 +97,26 @@ class MCPOutputOrderTests(unittest.TestCase):
         result = response["result"]
         self.assertIn("content", result)
         content = result["content"]
-        self.assertGreaterEqual(len(content), 2)
+        self.assertGreaterEqual(len(content), 4)
         self.assertEqual(content[0]["type"], "image")
         self.assertEqual(content[1]["type"], "text")
+        self.assertIn("縮圖預覽", content[1]["text"])
         structured = result.get("structuredContent", {})
         self.assertEqual(structured.get("status", {}).get("code"), "completed")
         self.assertTrue(structured.get("rendered"))
+        self.assertIn("final_delivery_contract", structured)
+        self.assertTrue(structured.get("final_delivery_contract", {}).get("must_include_preview_thumbnail"))
+        self.assertTrue(structured.get("final_delivery_contract", {}).get("must_include_fullsize_download"))
         self.assertNotIn("output_image_base64", structured)
         self.assertIn("output_image_base64_length", structured)
-        self.assertIn("若客戶端不支援 image content", content[2]["text"])
+        if structured.get("final_delivery_contract", {}).get("fullsize_embedded"):
+            self.assertEqual(content[2]["type"], "image")
+            self.assertIn("若客戶端不支援 image content", content[4]["text"])
+        else:
+            self.assertIn("若客戶端不支援 image content", content[3]["text"])
         self.assertNotIn("data:image/png;base64,", content[1]["text"])
-        self.assertNotIn("data:image/png;base64,", content[2]["text"])
+        target_text_idx = 4 if structured.get("final_delivery_contract", {}).get("fullsize_embedded") else 3
+        self.assertNotIn("data:image/png;base64,", content[target_text_idx]["text"])
         # The last item remains machine-readable JSON text
         json.loads(content[-1]["text"])
 
@@ -157,6 +168,8 @@ class MCPOutputOrderTests(unittest.TestCase):
         hint = structured.get("user_friendly_hint", {})
         self.assertIn("user_image_base64", hint.get("accepted_fields", []))
         self.assertIn("user_image_paths", hint.get("not_accepted_fields", []))
+        self.assertIn("image_input_contract", structured)
+        self.assertIn("data:image/jpeg;base64,...", structured.get("image_input_contract", {}).get("required_data_url_prefix_examples", []))
 
     def test_tools_call_can_reuse_token_without_intake_confirmed(self) -> None:
         first = {

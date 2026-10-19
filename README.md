@@ -113,6 +113,7 @@ Typography/layout policy:
 - in `image_role_mode=both`, text placement uses a small focus-avoid algorithm to move text blocks away from visual focal area; typography is constrained to two sizes (slogan large, all other copy smaller).
 - for solid/gradient background with a single subject, geometric accents are added by default (unless `geometry_enabled=false`) and are distributed from subject-side or edge-side anchors (wider spread allowed, but not fully random scattering).
 - geometric colors use one shared logic for all shapes: hue families are capped at 3, and default harmony stays close to background (hue-near and/or saturation-near). Contrast/complementary jump colors are only enabled when user prompt explicitly asks for it (e.g. 跳色/撞色/contrast).
+- geometric motifs use a repeated two-tone system (same hue family: primary + lighter step) with consistent alpha and size ratios for stronger brand consistency.
 - geometric color still enforces a minimum color distance from background (avoid “too similar to notice”).
 - ellipse/oval geometry is disabled; only perfect circles are used when circular motifs are rendered.
 

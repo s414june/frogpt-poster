@@ -470,6 +470,7 @@ class TypographyEngine:
             return 0
         return max(8, int(round(value / 8.0) * 8))
 
+
     def _estimate_focus_box(self, image: Image.Image) -> tuple[int, int, int, int]:
         width, height = image.size
         small = image.convert("L").resize((96, 96), Image.Resampling.BILINEAR)

@@ -489,8 +489,16 @@ class ImagePipeline:
         if subject_color is None:
             subject_color = self._parse_color(request.style.accent_color)
         color_pool = self._prepare_geometry_color_pool(background, subject_color, request, rng)
+        brand_pair = self._build_geometry_brand_pair(
+            color_pool=color_pool,
+            bg_sample=background.getpixel((background.width // 2, background.height // 2)),
+            rng=rng,
+        )
+        shape_alpha = 132
 
-        draw = ImageDraw.Draw(background)
+        overlay = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay, "RGBA")
+        shape_ratios = [0.18, 0.13, 0.18, 0.13]
         shape_count = 0
         if strategy == "subject_near" and subject_box:
             x1, y1, x2, y2 = subject_box
@@ -505,10 +513,13 @@ class ImagePipeline:
                 py = ay + rng.randint(-span // 6, span // 6)
                 px = max(0, min(width - 1, px))
                 py = max(0, min(height - 1, py))
-                size = int(min(width, height) * rng.uniform(0.12, 0.22))
-                color = self._geometry_color(background, (px, py), color_pool, rng)
-                self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
+                size = int(min(width, height) * shape_ratios[shape_count % len(shape_ratios)])
+                color_rgb = brand_pair[shape_count % 2]
+                color = (color_rgb[0], color_rgb[1], color_rgb[2], shape_alpha)
+                self._draw_shape(draw, self._shape_types()[shape_count % len(self._shape_types())], px, py, size, color)
                 shape_count += 1
+            composed = Image.alpha_composite(background.convert("RGBA"), overlay)
+            background.paste(composed.convert("RGB"))
             return (strategy, shape_count)
 
         edges = ["left", "right", "top", "bottom"]
@@ -516,13 +527,108 @@ class ImagePipeline:
         for edge in edges[:2]:
             for _ in range(2):
                 px, py = self._edge_anchor(edge, width, height, span, rng)
-                size = int(min(width, height) * rng.uniform(0.12, 0.22))
-                color = self._geometry_color(background, (px, py), color_pool, rng)
-                self._draw_shape(draw, rng.choice(self._shape_types()), px, py, size, color)
+                size = int(min(width, height) * shape_ratios[shape_count % len(shape_ratios)])
+                color_rgb = brand_pair[shape_count % 2]
+                color = (color_rgb[0], color_rgb[1], color_rgb[2], shape_alpha)
+                self._draw_shape(draw, self._shape_types()[shape_count % len(self._shape_types())], px, py, size, color)
                 shape_count += 1
         if shape_count == 0:
             return None
+        composed = Image.alpha_composite(background.convert("RGBA"), overlay)
+        background.paste(composed.convert("RGB"))
         return (strategy, shape_count)
+
+    def _build_geometry_brand_pair(
+        self,
+        color_pool: list[tuple[int, int, int]],
+        bg_sample: tuple[int, int, int],
+        rng: random.Random,
+    ) -> list[tuple[int, int, int]]:
+        if not color_pool:
+            color_pool = [bg_sample]
+        base = color_pool[rng.randint(0, len(color_pool) - 1)]
+        h, s, v = colorsys.rgb_to_hsv(base[0] / 255.0, base[1] / 255.0, base[2] / 255.0)
+        alt_h = h
+        # Allow at most two hue families (cute dual-tone); fallback to controlled local shift.
+        for candidate in color_pool:
+            ch, _cs, _cv = colorsys.rgb_to_hsv(candidate[0] / 255.0, candidate[1] / 255.0, candidate[2] / 255.0)
+            d = self._hue_delta(ch, h)
+            if 0.06 <= d <= 0.22:
+                alt_h = ch
+                break
+        if alt_h == h:
+            alt_h = (h + (0.10 if rng.random() < 0.5 else -0.10)) % 1.0
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg_sample[0] / 255.0, bg_sample[1] / 255.0, bg_sample[2] / 255.0)
+        # Keep geometry clearly more saturated than background.
+        s_main = max(0.62, min(0.96, max(s + 0.24, bs + 0.28)))
+        v_main = max(0.36, min(0.84, v))
+        s_soft = max(0.52, min(0.90, max(s_main * 0.82, bs + 0.20)))
+        v_soft = max(0.42, min(0.94, v_main + 0.14))
+        main = self._hsv_to_rgb(h, s_main, v_main)
+        soft = self._hsv_to_rgb(alt_h, s_soft, v_soft)
+        main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
+        main = self._enforce_min_saturation(main, min_sat=max(0.62, min(0.96, bs + 0.24)))
+        soft = self._enforce_min_saturation(soft, min_sat=max(0.52, min(0.90, bs + 0.18)))
+        # Re-apply luminance separation after saturation lift so both constraints hold.
+        main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
+        if self._rgb_distance(soft, bg_sample) < (self._min_geometry_bg_distance * 0.62):
+            soft = self._ensure_min_color_distance(soft, bg_sample, rng, self._min_geometry_bg_distance * 0.62)
+        if self._rgb_distance(main, bg_sample) < self._min_geometry_bg_distance:
+            main = self._ensure_min_color_distance(main, bg_sample, rng, self._min_geometry_bg_distance)
+        return [main, soft]
+
+    def _separate_geometry_luma_from_background(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+        bg_sample: tuple[int, int, int],
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        bg_luma = self._luma(bg_sample)
+        if bg_luma >= 150.0:
+            # Bright background: geometry should be darker.
+            target_main = max(40.0, min(144.0, bg_luma - 68.0))
+            target_soft = max(56.0, min(162.0, target_main + 16.0))
+            min_gap_main = 52.0
+            min_gap_soft = 40.0
+        elif bg_luma <= 118.0:
+            # Dark background: geometry should be brighter.
+            target_main = max(122.0, min(228.0, bg_luma + 84.0))
+            target_soft = max(138.0, min(238.0, target_main + 14.0))
+            min_gap_main = 56.0
+            min_gap_soft = 44.0
+        else:
+            # Mid background: keep clear separation following same direction split.
+            if bg_luma >= 132.0:
+                target_main = max(48.0, min(152.0, bg_luma - 56.0))
+                target_soft = max(64.0, min(168.0, target_main + 14.0))
+                min_gap_main = 44.0
+                min_gap_soft = 34.0
+            else:
+                target_main = max(112.0, min(222.0, bg_luma + 66.0))
+                target_soft = max(128.0, min(234.0, target_main + 12.0))
+                min_gap_main = 48.0
+                min_gap_soft = 36.0
+
+        main_out = self._with_target_luma(main, target_main)
+        soft_out = self._with_target_luma(soft, target_soft)
+
+        # Hard guard: enforce minimum opposite-direction luminance gap against background.
+        if bg_luma >= 132.0:
+            if (bg_luma - self._luma(main_out)) < min_gap_main:
+                main_out = self._with_target_luma(main_out, max(24.0, bg_luma - min_gap_main))
+            if (bg_luma - self._luma(soft_out)) < min_gap_soft:
+                soft_out = self._with_target_luma(soft_out, max(30.0, bg_luma - min_gap_soft))
+        else:
+            if (self._luma(main_out) - bg_luma) < min_gap_main:
+                main_out = self._with_target_luma(main_out, min(242.0, bg_luma + min_gap_main))
+            if (self._luma(soft_out) - bg_luma) < min_gap_soft:
+                soft_out = self._with_target_luma(soft_out, min(246.0, bg_luma + min_gap_soft))
+        return main_out, soft_out
+
+    def _enforce_min_saturation(self, rgb: tuple[int, int, int], min_sat: float) -> tuple[int, int, int]:
+        h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+        sat = max(0.0, min(1.0, max(s, min_sat)))
+        return self._hsv_to_rgb(h, sat, v)
 
     def _extract_subject_color(self, subject_path: str | None) -> tuple[int, int, int] | None:
         if not subject_path:
@@ -643,8 +749,10 @@ class ImagePipeline:
         cx: int,
         cy: int,
         size: int,
-        color: tuple[int, int, int],
+        color: tuple[int, int, int] | tuple[int, int, int, int],
     ) -> None:
+        alpha = color[3] if len(color) == 4 else 255
+        base_rgb = (color[0], color[1], color[2])
         if shape == "circle":
             draw.ellipse([(cx - size, cy - size), (cx + size, cy + size)], fill=color)
             return
@@ -692,7 +800,11 @@ class ImagePipeline:
                     [(px - petal // 2, py - petal // 2), (px + petal // 2, py + petal // 2)],
                     fill=color,
                 )
-            draw.ellipse([(cx - size // 2, cy - size // 2), (cx + size // 2, cy + size // 2)], fill=self._lighten(color, 32))
+            center_rgb = self._lighten(base_rgb, 32)
+            draw.ellipse(
+                [(cx - size // 2, cy - size // 2), (cx + size // 2, cy + size // 2)],
+                fill=(center_rgb[0], center_rgb[1], center_rgb[2], alpha),
+            )
 
     def _rgb_distance(self, a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
         return math.sqrt((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2)
