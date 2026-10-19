@@ -134,6 +134,58 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
         self.assertLess(_avg_sat(image), 0.10)
 
+    def test_white_light_hint_produces_neutral_white_background(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="白色主題", body="white light")
+        req.style.primary_color = "#F6F1E8"  # warm default that used to drift to beige
+        req.style.secondary_color = "#E8DFD0"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = "white light"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        pixels = list(sample.getdata())
+        avg_sat = _avg_sat(sample)
+        avg_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in pixels) / max(1, len(pixels))
+        avg_rg_gap = sum(abs(p[0] - p[1]) + abs(p[1] - p[2]) + abs(p[0] - p[2]) for p in pixels) / max(1, len(pixels))
+        self.assertLess(avg_sat, 0.06)
+        self.assertGreater(avg_luma, 238.0)
+        self.assertLess(avg_rg_gap, 6.0)
+
+    def test_black_hint_produces_neutral_dark_background(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="黑色主題", body="black dark")
+        req.style.primary_color = "#F6F1E8"
+        req.style.secondary_color = "#E8DFD0"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = "black dark"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        pixels = list(sample.getdata())
+        avg_sat = _avg_sat(sample)
+        avg_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in pixels) / max(1, len(pixels))
+        avg_rg_gap = sum(abs(p[0] - p[1]) + abs(p[1] - p[2]) + abs(p[0] - p[2]) for p in pixels) / max(1, len(pixels))
+        self.assertLess(avg_sat, 0.05)
+        self.assertLess(avg_luma, 40.0)
+        self.assertLess(avg_rg_gap, 5.0)
+
+    def test_gray_hint_produces_neutral_gray_background(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="灰色主題", body="gray light")
+        req.style.primary_color = "#F6F1E8"
+        req.style.secondary_color = "#E8DFD0"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = "gray light"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        pixels = list(sample.getdata())
+        avg_sat = _avg_sat(sample)
+        avg_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in pixels) / max(1, len(pixels))
+        avg_rg_gap = sum(abs(p[0] - p[1]) + abs(p[1] - p[2]) + abs(p[0] - p[2]) for p in pixels) / max(1, len(pixels))
+        self.assertLess(avg_sat, 0.05)
+        self.assertGreater(avg_luma, 145.0)
+        self.assertLess(avg_luma, 185.0)
+        self.assertLess(avg_rg_gap, 6.0)
+
     def test_light_design_background_is_brighter(self) -> None:
         pipe = ImagePipeline()
         req = PosterRequest(title="春季市集", body="柔和淺色設計")

@@ -130,7 +130,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(structured.get("status", {}).get("code"), "needs_background_generation")
         self.assertFalse(structured.get("rendered"))
 
-    def test_tools_call_accepts_user_image_paths_from_mcp_schema(self) -> None:
+    def test_tools_call_rejects_path_style_image_inputs_with_friendly_hint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             img_path = Path(tmp_dir) / "from-mcp-schema.png"
             Image.new("RGB", (1080, 1350), (210, 220, 235)).save(img_path)
@@ -152,8 +152,11 @@ class MCPOutputOrderTests(unittest.TestCase):
             response = dispatch(message)
         self.assertIsNotNone(response)
         structured = response["result"].get("structuredContent", {})
-        self.assertEqual(structured.get("status", {}).get("code"), "completed")
-        self.assertTrue(structured.get("rendered"))
+        self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
+        self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_or_url")
+        hint = structured.get("user_friendly_hint", {})
+        self.assertIn("user_image_base64", hint.get("accepted_fields", []))
+        self.assertIn("user_image_paths", hint.get("not_accepted_fields", []))
 
     def test_tools_call_can_reuse_token_without_intake_confirmed(self) -> None:
         first = {
