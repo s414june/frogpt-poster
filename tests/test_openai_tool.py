@@ -58,6 +58,8 @@ class OpenAIToolTests(unittest.TestCase):
                     result["output_image_data_url"],
                 )
                 self.assertTrue(str(result.get("output_preview_markdown", "")).startswith("![poster-preview](data:image/png;base64,"))
+                self.assertIsInstance(result.get("output_preview_base64"), str)
+                self.assertTrue(str(result.get("output_preview_data_url", "")).startswith("data:image/jpeg;base64,"))
                 self.assertEqual(len(str(result.get("output_image_sha256", ""))), 64)
                 self.assertGreater(int(result.get("output_image_bytes", 0)), 0)
                 self.assertTrue(result["output_filename"].endswith(".png"))
@@ -204,6 +206,63 @@ class OpenAIToolTests(unittest.TestCase):
                     os.environ.pop("PEXELS_API_KEY", None)
                 else:
                     os.environ["PEXELS_API_KEY"] = old
+
+    def test_gpt_generate_autopilot_is_deterministic_and_uses_generated_background_path(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "倉鼠認養海報主視覺",
+                "body": "溫暖公益感",
+                "creative_source_preference": "gpt_generate",
+                "allow_ai_fallback": True,
+            }
+        )
+        self.assertTrue(result["ok"])
+        self.assertFalse(result["rendered"])
+        self.assertEqual(result["status"]["code"], "needs_background_generation")
+        autopilot = result.get("design_autopilot", {})
+        self.assertTrue(autopilot.get("active"))
+        self.assertEqual(autopilot.get("design_path"), "generated_background")
+
+    def test_gpt_generate_autopilot_respects_user_customization(self) -> None:
+        result = handle_tool_call(
+            {
+                "title": "公益活動海報",
+                "body": "清新風格",
+                "creative_source_preference": "gpt_generate",
+                "background_mode": "solid",
+                "allow_ai_fallback": True,
+            }
+        )
+        self.assertTrue(result["ok"])
+        autopilot = result.get("design_autopilot", {})
+        self.assertFalse(autopilot.get("active"))
+        self.assertTrue(autopilot.get("customized"))
+
+    def test_regenerate_variant_overrides_stale_variation_token(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            os.environ["POSTER_OUTPUT_DIR"] = tmp_dir
+            try:
+                bg_path = Path(tmp_dir) / "bg-regen.png"
+                Image.new("RGB", (1080, 1350), (240, 238, 230)).save(bg_path)
+                bg_b64 = base64.b64encode(bg_path.read_bytes()).decode("ascii")
+                stale = "stale-token-keep-out"
+                result = handle_tool_call(
+                    {
+                        "title": "再生變體",
+                        "body": "測試",
+                        "variation_token": stale,
+                        "regenerate_variant": True,
+                        "generated_background_base64": bg_b64,
+                        "generated_background_text_free_confirmed": True,
+                    }
+                )
+                self.assertTrue(result["ok"])
+                self.assertTrue(result["rendered"])
+                token = result.get("request", {}).get("style", {}).get("variation_token", "")
+                self.assertTrue(isinstance(token, str) and len(token) > 0)
+                self.assertNotEqual(token, stale)
+            finally:
+                os.environ.pop("POSTER_OUTPUT_DIR", None)
 
     def test_gradient_mode_without_any_visual_assets_still_requires_background_generation(self) -> None:
         result = handle_tool_call(

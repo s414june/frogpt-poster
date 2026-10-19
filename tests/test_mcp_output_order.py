@@ -173,9 +173,9 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(second_structured.get("rendered"))
         self.assertEqual(second_structured.get("intake_session_token"), token)
         self.assertTrue(second_structured.get("intake_session_state", {}).get("intake_completed"))
-        self.assertTrue(second_structured.get("request", {}).get("style", {}).get("variation_token"))
+        self.assertEqual(second_structured.get("request", {}).get("style", {}).get("variation_token"), "")
 
-    def test_mcp_auto_regenerate_ignores_stale_variation_token(self) -> None:
+    def test_mcp_default_does_not_auto_regenerate_variation_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             bg_path = Path(tmp_dir) / "bg.png"
             Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
@@ -199,7 +199,7 @@ class MCPOutputOrderTests(unittest.TestCase):
             first_response = dispatch(first)
             first_structured = first_response["result"].get("structuredContent", {})
             first_token = first_structured.get("request", {}).get("style", {}).get("variation_token")
-            self.assertTrue(isinstance(first_token, str) and len(first_token) > 0)
+            self.assertEqual(first_token, "")
 
             second = {
                 "jsonrpc": "2.0",
@@ -211,7 +211,7 @@ class MCPOutputOrderTests(unittest.TestCase):
                         "intake_confirmed": True,
                         "title": "變體測試",
                         "body": "第二次",
-                        "variation_token": first_token,
+                        "variation_token": "stale-token",
                         "generated_background_base64": bg_b64,
                         "generated_background_text_free_confirmed": True,
                     },
@@ -221,8 +221,7 @@ class MCPOutputOrderTests(unittest.TestCase):
 
         second_structured = second_response["result"].get("structuredContent", {})
         second_token = second_structured.get("request", {}).get("style", {}).get("variation_token")
-        self.assertTrue(isinstance(second_token, str) and len(second_token) > 0)
-        self.assertNotEqual(first_token, second_token)
+        self.assertEqual(second_token, "stale-token")
 
     def test_mcp_regenerate_true_also_overrides_stale_variation_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

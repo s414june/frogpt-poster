@@ -102,6 +102,32 @@ class TypographyPriorityTests(unittest.TestCase):
         self.assertIn("minor_font_size", info)
         self.assertGreater(int(info.get("major_font_size", 0)), int(info.get("minor_font_size", 0)))
 
+    def test_default_layout_keeps_fixed_clearance_from_subject_focus_box(self) -> None:
+        engine = TypographyEngine()
+
+        class _Style:
+            image_role_mode = "background"
+            source_credit_text = ""
+            variation_token = "stable-gap"
+            subject_focus_box = [220, 300, 860, 980]
+
+        image = Image.new("RGB", (1080, 1350), (220, 220, 220))
+        info = engine.apply(
+            image=image,
+            title="讓小小生命，被好好愛著",
+            body="愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+            font_paths=[r"assets\fonts\Noto_Sans_TC\static\NotoSansTC-Regular.ttf"],
+            style=_Style(),
+        )
+        focus_top = int(info.get("focus_box", [0, 0, 0, 0])[1])
+        focus_bottom = int(info.get("focus_box", [0, 0, 0, 0])[3])
+        clearance = int(info.get("focus_clearance", 0))
+        title_start = int(info.get("title_start_y", 0))
+        title_h = int(info.get("title_block_h", 0))
+        body_start = int(info.get("body_start_y", 0))
+        self.assertLessEqual(title_start + title_h + clearance, focus_top)
+        self.assertGreaterEqual(body_start, focus_bottom + clearance)
+
 
 if __name__ == "__main__":
     unittest.main()

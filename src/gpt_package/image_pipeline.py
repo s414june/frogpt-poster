@@ -127,6 +127,7 @@ class ImagePipeline:
         planned_box = None
         if request.assets.subject_image_paths:
             planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
+        request.style.subject_focus_box = list(planned_box) if planned_box else []
 
         if self._should_add_geometry(request, decision):
             geo_result = self._add_decorative_geometry(

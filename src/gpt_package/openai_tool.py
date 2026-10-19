@@ -7,6 +7,7 @@ import os
 import shutil
 import tempfile
 import uuid
+import io
 from pathlib import Path
 from urllib.parse import urlparse
 from urllib.request import urlopen
@@ -26,6 +27,7 @@ from .validation import validate_request
 TOOL_NAME = "generate_poster_with_real_image_priority"
 _BACKGROUND_MODES = {"auto", "solid", "gradient", "reference"}
 _IMAGE_ROLE_MODES = {"auto", "subject", "background", "both"}
+_CREATIVE_SOURCE_MODES = {"auto", "real_image_priority", "gpt_generate"}
 _DEFAULT_PRIMARY_COLOR = "#F6F1E8"
 _DEFAULT_SECONDARY_COLOR = "#A8BFA8"
 _DEFAULT_ACCENT_COLOR = "#6D8A72"
@@ -111,6 +113,15 @@ def build_tool_definition() -> dict:
                 },
                 "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
                 "background_color_hint": {"type": "string"},
+                "creative_source_preference": {
+                    "type": "string",
+                    "enum": ["auto", "real_image_priority", "gpt_generate"],
+                    "description": "Set gpt_generate to let GPT choose design path deterministically unless user customizes settings.",
+                },
+                "intake_answers": {
+                    "type": "object",
+                    "description": "Optional intake answers keyed by question id.",
+                },
                 "variation_token": {"type": "string"},
                 "regenerate_variant": {
                     "type": "boolean",
@@ -488,6 +499,26 @@ def _encode_output_image(path: str | None) -> str | None:
     return base64.b64encode(file_path.read_bytes()).decode("ascii")
 
 
+def _encode_preview_image(path: str | None, max_side: int = 1024) -> str | None:
+    if not path:
+        return None
+    file_path = Path(path)
+    if not file_path.is_file():
+        return None
+    try:
+        with Image.open(file_path) as img:
+            img = img.convert("RGB")
+            w, h = img.size
+            if max(w, h) > max_side:
+                ratio = max_side / float(max(w, h))
+                img = img.resize((max(1, int(w * ratio)), max(1, int(h * ratio))), Image.Resampling.LANCZOS)
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=84, optimize=True)
+            return base64.b64encode(buf.getvalue()).decode("ascii")
+    except OSError:
+        return None
+
+
 def _safe_json_dumps(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
@@ -511,6 +542,147 @@ def _normalize_image_role_mode(value: object) -> str:
     if mode not in _IMAGE_ROLE_MODES:
         raise ValidationError("image_role_mode must be one of: auto, subject, background, both")
     return mode
+
+
+def _normalize_creative_source_preference(value: object) -> str:
+    mode = str(value or "auto").strip().lower()
+    if mode not in _CREATIVE_SOURCE_MODES:
+        raise ValidationError("creative_source_preference must be one of: auto, real_image_priority, gpt_generate")
+    return mode
+
+
+def _extract_intake_answers(arguments: dict) -> dict:
+    top = arguments.get("intake_answers")
+    if isinstance(top, dict):
+        return top
+    payload = arguments.get("poster_request")
+    if isinstance(payload, dict):
+        nested = payload.get("intake_answers")
+        if isinstance(nested, dict):
+            return nested
+    return {}
+
+
+def _extract_intake_answer_text(arguments: dict, key: str) -> str:
+    answers = _extract_intake_answers(arguments)
+    value = answers.get(key)
+    if isinstance(value, str):
+        return value.strip().lower()
+    if isinstance(value, dict):
+        candidate = value.get("value")
+        if isinstance(candidate, str):
+            return candidate.strip().lower()
+    return ""
+
+
+def _resolve_creative_source_preference(arguments: dict) -> str:
+    top = arguments.get("creative_source_preference")
+    if top is not None:
+        return _normalize_creative_source_preference(top)
+    payload = arguments.get("poster_request")
+    if isinstance(payload, dict) and "creative_source_preference" in payload:
+        return _normalize_creative_source_preference(payload.get("creative_source_preference"))
+
+    intake_source = _extract_intake_answer_text(arguments, "creative_source_preference")
+    if intake_source:
+        if "自訂" in intake_source or "custom" in intake_source:
+            return "real_image_priority"
+        if "gpt" in intake_source or "ai" in intake_source or "自動判斷" in intake_source:
+            return "gpt_generate"
+
+    image_ready = _extract_intake_answer_text(arguments, "image_ready")
+    if image_ready and ("ai" in image_ready or "生成" in image_ready):
+        return "gpt_generate"
+    return "auto"
+
+
+def _has_user_design_customization(arguments: dict, request: PosterRequest) -> bool:
+    explicit_keys = {
+        "background_mode",
+        "background_color_hint",
+        "geometry_enabled",
+        "subject_mask_mode",
+        "subject_border_px",
+        "primary_color",
+        "secondary_color",
+        "accent_color",
+        "image_role_mode",
+        "pexels_query",
+        "reference_image_urls",
+        "reference_image_paths",
+        "reference_image_base64",
+        "generated_background_base64",
+        "use_reference_as_fallback",
+        "auto_pexels_fallback",
+    }
+    if any(k in arguments for k in explicit_keys):
+        return True
+    payload = arguments.get("poster_request")
+    if isinstance(payload, dict):
+        if any(k in payload for k in explicit_keys):
+            return True
+        style = payload.get("style")
+        if isinstance(style, dict) and any(k in style for k in explicit_keys):
+            return True
+    if _normalize_background_mode(getattr(request.style, "background_mode", "auto")) != "auto":
+        return True
+    if str(getattr(request.style, "background_color_hint", "")).strip():
+        return True
+    return False
+
+
+def _choose_gpt_autopilot_design_path(arguments: dict, request: PosterRequest) -> str:
+    if _wants_explicit_visual_subject(request):
+        return "generated_background"
+
+    hint = str(getattr(request.style, "background_color_hint", "")).strip().lower()
+    if hint:
+        if any(k in hint for k in ("solid", "單色", "純色", "flat")):
+            return "solid"
+        return "gradient"
+
+    has_pexels_api = bool(os.getenv("PEXELS_API_KEY", "").strip())
+    if has_pexels_api:
+        return "pexels_reference"
+    return "gradient"
+
+
+def _apply_gpt_design_autopilot(arguments: dict, request: PosterRequest) -> dict:
+    preference = _resolve_creative_source_preference(arguments)
+    custom = _has_user_design_customization(arguments, request)
+    active = preference == "gpt_generate" and not custom
+    if not active:
+        return {
+            "active": False,
+            "preference": preference,
+            "customized": custom,
+            "design_path": None,
+        }
+
+    request.style.background_mode = "auto"
+    request.style.geometry_enabled = True
+    request.style.variation_token = ""
+    arguments.pop("variation_token", None)
+
+    design_path = _choose_gpt_autopilot_design_path(arguments, request)
+    if design_path == "pexels_reference":
+        arguments["auto_pexels_fallback"] = True
+        arguments["use_reference_as_fallback"] = True
+        request.style.background_mode = "reference"
+    elif design_path == "solid":
+        request.style.background_mode = "solid"
+    elif design_path == "gradient":
+        request.style.background_mode = "gradient"
+    else:
+        request.style.background_mode = "auto"
+        arguments["auto_pexels_fallback"] = False
+
+    return {
+        "active": True,
+        "preference": preference,
+        "customized": custom,
+        "design_path": design_path,
+    }
 
 
 def _resolve_image_role_mode(request: PosterRequest) -> tuple[str, str]:
@@ -780,6 +952,7 @@ def handle_tool_call(arguments: dict) -> dict:
             payload = {
                 "ok": True,
                 "tool_name": TOOL_NAME,
+                "pipeline_stage": "intake",
                 "status": {
                     "code": "needs_input",
                     "message": "intake_questions_required_before_render",
@@ -793,7 +966,8 @@ def handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
-        if bool(arguments.get("regenerate_variant", False)) and not request.style.variation_token:
+        design_autopilot = _apply_gpt_design_autopilot(arguments, request)
+        if bool(arguments.get("regenerate_variant", False)):
             request.style.variation_token = uuid.uuid4().hex[:12]
         auto_query = _auto_pexels_query(arguments, request)
         if auto_query:
@@ -816,6 +990,7 @@ def handle_tool_call(arguments: dict) -> dict:
             return {
                 "ok": True,
                 "tool_name": TOOL_NAME,
+                "pipeline_stage": "needs_background_generation",
                 "status": {
                     "code": "needs_background_generation",
                     "message": "generate_text_free_background_then_retry",
@@ -843,11 +1018,13 @@ def handle_tool_call(arguments: dict) -> dict:
                 "palette_source_path": palette_source_path,
                 "resolved_image_role_mode": resolved_image_role_mode,
                 "image_role_resolution_reason": image_role_resolution_reason,
+                "design_autopilot": design_autopilot,
             }
         if _needs_text_free_background_confirmation(arguments, request):
             return {
                 "ok": True,
                 "tool_name": TOOL_NAME,
+                "pipeline_stage": "needs_background_generation",
                 "status": {
                     "code": "needs_background_generation",
                     "message": "generated_background_requires_text_free_confirmation",
@@ -870,6 +1047,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "palette_source_path": palette_source_path,
                 "resolved_image_role_mode": resolved_image_role_mode,
                 "image_role_resolution_reason": image_role_resolution_reason,
+                "design_autopilot": design_autopilot,
             }
         request.style.source_credit_text = str(reference_context.get("attribution_label", "")).strip()
         generator = PosterGenerator()
@@ -877,10 +1055,13 @@ def handle_tool_call(arguments: dict) -> dict:
         output_image_base64 = _encode_output_image(result.output_path)
         if not output_image_base64:
             raise ValidationError("render output image is missing or unreadable")
+        preview_image_base64 = _encode_preview_image(result.output_path) or output_image_base64
         output_image_data_url = f"data:image/png;base64,{output_image_base64}"
+        preview_image_data_url = f"data:image/jpeg;base64,{preview_image_base64}"
         payload = {
             "ok": True,
             "tool_name": TOOL_NAME,
+            "pipeline_stage": "completed",
             "status": {
                 "code": "completed",
                 "message": "poster_render_completed",
@@ -898,6 +1079,9 @@ def handle_tool_call(arguments: dict) -> dict:
             "output_image_data_url": output_image_data_url,
             "output_download_data_url": output_image_data_url,
             "output_preview_markdown": f"![poster-preview]({output_image_data_url})",
+            "output_preview_base64": preview_image_base64,
+            "output_preview_data_url": preview_image_data_url,
+            "output_preview_mime_type": "image/jpeg",
             "output_image_sha256": _output_sha256(result.output_path),
             "output_image_bytes": Path(result.output_path).stat().st_size if result.output_path else None,
             "rendered": True,
@@ -912,12 +1096,12 @@ def handle_tool_call(arguments: dict) -> dict:
             "source_credit_overlay_applied": bool(request.style.source_credit_text),
             "source_credit_overlay_text": request.style.source_credit_text or None,
             "auto_pexels_query_used": auto_query or None,
+            "design_autopilot": design_autopilot,
             "compliance_notes": [
                 "Pexels content should be requested via official API; avoid scraping.",
                 "Do not redistribute source images on a standalone basis.",
                 "Keep prominent link/credit to Pexels and photographer when possible.",
             ],
-            "intake_questions": build_intake_questions(),
             "result_json": _safe_json_dumps(
                 {
                     "status": {"code": "completed", "message": "poster_render_completed"},

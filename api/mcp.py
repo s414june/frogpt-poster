@@ -34,6 +34,11 @@ SCHEMA = {
         "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
         "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
         "background_color_hint": {"type": "string"},
+        "creative_source_preference": {
+            "type": "string",
+            "enum": ["auto", "real_image_priority", "gpt_generate"],
+        },
+        "intake_answers": {"type": "object"},
         "reference_image_urls": {"type": "array", "items": {"type": "string"}},
         "reference_image_paths": {"type": "array", "items": {"type": "string"}},
         "reference_image_base64": {"type": "array", "items": {"type": "string"}},
@@ -66,14 +71,40 @@ TOOL = {
 def _compact_output(output: dict) -> dict:
     compact = dict(output)
     image_b64 = compact.pop("output_image_base64", None)
+    preview_b64 = compact.pop("output_preview_base64", None)
     data_url = compact.pop("output_image_data_url", None)
+    preview_data_url = compact.pop("output_preview_data_url", None)
     compact.pop("output_download_data_url", None)
     compact.pop("output_preview_markdown", None)
     if isinstance(image_b64, str):
         compact["output_image_base64_length"] = len(image_b64)
+    if isinstance(preview_b64, str):
+        compact["output_preview_base64_length"] = len(preview_b64)
     if isinstance(data_url, str):
         compact["output_image_data_url_length"] = len(data_url)
+    if isinstance(preview_data_url, str):
+        compact["output_preview_data_url_length"] = len(preview_data_url)
+    request = compact.get("request")
+    if isinstance(request, dict):
+        compact["request"] = _compact_request(request)
+    if compact.get("pipeline_stage") == "completed":
+        compact.pop("intake_questions", None)
+        compact.pop("result_json", None)
     return compact
+
+
+def _compact_request(request: dict) -> dict:
+    copy = dict(request)
+    assets = copy.get("assets")
+    if isinstance(assets, dict):
+        assets_copy = dict(assets)
+        font_paths = assets_copy.get("open_source_font_paths")
+        if isinstance(font_paths, list):
+            assets_copy["open_source_font_paths_count"] = len(font_paths)
+            assets_copy["open_source_font_paths_sample"] = font_paths[:3]
+            assets_copy.pop("open_source_font_paths", None)
+        copy["assets"] = assets_copy
+    return copy
 
 
 def _has_render_brief(args: dict) -> bool:
@@ -185,9 +216,6 @@ def dispatch(message):
             auto_confirmed = token_from_request and _has_render_brief(args)
             intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
             call_args = dict(args)
-            if intake_confirmed_effective and "regenerate_variant" not in call_args:
-                call_args["regenerate_variant"] = True
-                call_args.pop("variation_token", None)
             if intake_confirmed_effective and bool(call_args.get("regenerate_variant", False)):
                 call_args.pop("variation_token", None)
             if not intake_confirmed_effective:
@@ -245,13 +273,15 @@ def dispatch(message):
                         ),
                     }
                 )
-            if output.get("ok") and output.get("rendered") and output.get("output_image_base64"):
+            preview_b64 = output.get("output_preview_base64") or output.get("output_image_base64")
+            preview_mime = output.get("output_preview_mime_type", output.get("output_mime_type", "image/png"))
+            if output.get("ok") and output.get("rendered") and preview_b64:
                 # 1) Rendered image first for immediate preview
                 content.append(
                     {
                         "type": "image",
-                        "data": output["output_image_base64"],
-                        "mimeType": output.get("output_mime_type", "image/png"),
+                        "data": preview_b64,
+                        "mimeType": preview_mime,
                     }
                 )
                 # 2) Download hint second
@@ -274,6 +304,20 @@ def dispatch(message):
                         "text": (
                             "若客戶端不支援 image content，請改走 API `/api/poster` 讀取 `output_image_data_url`。"
                         ),
+                    }
+                )
+            elif output.get("ok") and output.get("rendered"):
+                output["ok"] = False
+                output["status"] = {
+                    "code": "failed",
+                    "message": "render_completed_but_preview_missing",
+                }
+                output["next_action"] = "retry_render"
+                output["rendered"] = False
+                content.append(
+                    {
+                        "type": "text",
+                        "text": "渲染完成但預覽圖遺失，請重試一次。",
                     }
                 )
             # 3) Structured/text details last

@@ -11,18 +11,38 @@ class TypographyEngine:
     """Applies title/body text on poster image."""
 
     def select_font(self, font_paths: list[str], sample_text: str = "") -> str | None:
-        return self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
+        return self.select_font_by_role(
+            font_paths, sample_text=sample_text, role="body"
+        )
 
-    def select_font_by_role(self, font_paths: list[str], sample_text: str, role: str) -> str | None:
+    def select_font_by_role(
+        self, font_paths: list[str], sample_text: str, role: str
+    ) -> str | None:
         if not font_paths:
             return None
-        ranked = sorted(font_paths, key=lambda path: self._font_priority(path, sample_text, role=role))
+        ranked = sorted(
+            font_paths,
+            key=lambda path: self._font_priority(path, sample_text, role=role),
+        )
         return ranked[0]
 
-    def apply(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
-        role_mode = str(getattr(style, "image_role_mode", "auto")).strip().lower() if style else "auto"
+    def apply(
+        self,
+        image: Image.Image,
+        title: str,
+        body: str,
+        font_paths: list[str],
+        style=None,
+    ) -> dict:
+        role_mode = (
+            str(getattr(style, "image_role_mode", "auto")).strip().lower()
+            if style
+            else "auto"
+        )
         if role_mode == "both":
-            return self._apply_focus_aware_two_size(image, title, body, font_paths, style=style)
+            return self._apply_focus_aware_two_size(
+                image, title, body, font_paths, style=style
+            )
 
         width, height = image.size
         margin = max(36, int(width * 0.06))
@@ -31,7 +51,9 @@ class TypographyEngine:
         variant_index = self._variant_index(variant_token, modulo=17)
         title_jitter = self._variant_jitter(variant_token, salt="title", max_abs=0.028)
         body_jitter = self._variant_jitter(variant_token, salt="body", max_abs=0.032)
-        body_font_path = self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
+        body_font_path = self.select_font_by_role(
+            font_paths, sample_text=sample_text, role="body"
+        )
         heading_font_path = self._find_heading_font_from_body_family(
             font_paths=font_paths,
             body_font_path=body_font_path,
@@ -39,13 +61,13 @@ class TypographyEngine:
         )
         title_font = self._load_font(
             [heading_font_path] if heading_font_path else font_paths,
-            size=max(48, int(width * 0.078)),
+            size=max(48, int(round(width * 0.07))),
             sample_text=sample_text,
             role="heading",
         )
         minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(round(width * 0.032 * 1.05))),
+            size=max(24, int(round(width * 0.04))),
             sample_text=sample_text,
             role="body",
         )
@@ -61,10 +83,18 @@ class TypographyEngine:
         title_max_lines = max(1, min(4, title_max_lines))
         body_max_lines = max(2, min(8, body_max_lines))
 
-        title_region = (margin, max(8, int(height * 0.05)), width - margin, int(height * 0.35))
+        title_region = (
+            margin,
+            max(8, int(height * 0.05)),
+            width - margin,
+            int(height * 0.35),
+        )
         body_region = (margin, int(height * 0.70), width - margin, int(height * 0.97))
         title_color = self._pick_text_color(image, title_region)
         body_color = self._pick_text_color(image, body_region)
+        style_focus_box = self._style_focus_box(style, image)
+        focus_box = style_focus_box or self._estimate_focus_box(image)
+        has_explicit_focus_box = style_focus_box is not None
 
         title_y_candidates = [0.10, 0.12, 0.14, 0.16]
         body_y_candidates = [0.70, 0.72, 0.74, 0.76]
@@ -73,6 +103,24 @@ class TypographyEngine:
         title_ratio = max(0.06, min(0.22, title_base + title_jitter))
         body_ratio = max(0.66, min(0.84, body_base + body_jitter))
         y = max(24, int(height * title_ratio))
+        major_gap = int(title_font.size * 0.2)
+        focus_clearance = int(title_font.size * 0.25)
+        title_line_count = max(1, len(title_lines[:title_max_lines]))
+        title_block_h = int(title_font.size * 1.22 * title_line_count)
+        if has_explicit_focus_box:
+            y = max(margin, focus_box[1] - focus_clearance - title_block_h)
+        else:
+            y = self._keep_region_clear_of_focus(
+                y=y,
+                block_h=title_block_h,
+                focus_box=focus_box,
+                clearance=focus_clearance,
+                margin=margin,
+                image_w=width,
+                image_h=height,
+                prefer="up",
+            )
+        title_start_y = y
         for line in title_lines[:title_max_lines]:
             box = draw.textbbox((0, 0), line, font=title_font)
             line_w = box[2] - box[0]
@@ -84,9 +132,43 @@ class TypographyEngine:
         # Two-size policy: body first line uses major size; remaining lines use minor size.
         subtitle_line = body_lines_major[0] if body_lines_major else ""
         rest_lines = body_lines_minor[1:] if len(body_lines_minor) > 1 else []
-        major_gap = int(title_font.size * 0.50)
+        body_block_h = 0
         if subtitle_line:
-            y = max(y, int(height * title_ratio) + int(title_font.size * 1.22 * max(1, len(title_lines[:title_max_lines])) + major_gap))
+            body_block_h += int(title_font.size * 1.22)
+        if rest_lines:
+            body_block_h += major_gap
+            body_block_h += int(
+                minor_font.size
+                * 1.32
+                * max(1, min(len(rest_lines), max(1, body_max_lines - 1)))
+            )
+        if body_block_h > 0:
+            if has_explicit_focus_box:
+                min_body_y = focus_box[3] + focus_clearance
+                max_body_y = max(margin, height - margin - body_block_h)
+                y = max(y, min_body_y)
+                y = min(y, max_body_y)
+            else:
+                y = self._keep_region_clear_of_focus(
+                    y=y,
+                    block_h=body_block_h,
+                    focus_box=focus_box,
+                    clearance=focus_clearance,
+                    margin=margin,
+                    image_w=width,
+                    image_h=height,
+                    prefer="down",
+                )
+        body_start_y = y
+        if subtitle_line:
+            y = max(
+                y,
+                int(height * title_ratio)
+                + int(
+                    title_font.size * 1.22 * max(1, len(title_lines[:title_max_lines]))
+                    + major_gap
+                ),
+            )
             box = draw.textbbox((0, 0), subtitle_line, font=title_font)
             line_w = box[2] - box[0]
             x = max(margin, (width - line_w) // 2)
@@ -101,26 +183,43 @@ class TypographyEngine:
             draw.text((x, y), line, fill=body_color, font=minor_font)
             y += int(minor_font.size * 1.32)
 
-        credit_text = str(getattr(style, "source_credit_text", "")).strip() if style else ""
+        credit_text = (
+            str(getattr(style, "source_credit_text", "")).strip() if style else ""
+        )
         if credit_text:
             self.apply_source_credit_overlay(image, credit_text, font_paths)
 
         return {
-            "selected_font": body_font_path or self.select_font(font_paths, sample_text=sample_text),
+            "selected_font": body_font_path
+            or self.select_font(font_paths, sample_text=sample_text),
             "title_font": heading_font_path or body_font_path,
             "body_font": body_font_path,
             "layout_mode": "default",
             "layout_variant": variant_index,
             "major_font_size": title_font.size,
             "minor_font_size": minor_font.size,
+            "focus_box": focus_box,
+            "focus_clearance": focus_clearance,
+            "title_start_y": title_start_y,
+            "title_block_h": title_block_h,
+            "body_start_y": body_start_y,
         }
 
-    def _apply_focus_aware_two_size(self, image: Image.Image, title: str, body: str, font_paths: list[str], style=None) -> dict:
+    def _apply_focus_aware_two_size(
+        self,
+        image: Image.Image,
+        title: str,
+        body: str,
+        font_paths: list[str],
+        style=None,
+    ) -> dict:
         width, height = image.size
         margin = max(36, int(width * 0.06))
         sample_text = f"{title}\n{body}"
 
-        body_font_path = self.select_font_by_role(font_paths, sample_text=sample_text, role="body")
+        body_font_path = self.select_font_by_role(
+            font_paths, sample_text=sample_text, role="body"
+        )
         heading_font_path = self._find_heading_font_from_body_family(
             font_paths=font_paths,
             body_font_path=body_font_path,
@@ -129,13 +228,13 @@ class TypographyEngine:
 
         hero_font = self._load_font(
             [heading_font_path] if heading_font_path else font_paths,
-            size=max(48, int(width * 0.072)),
+            size=max(48, int(round(width * 0.065))),
             sample_text=sample_text,
             role="heading",
         )
         minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(round(width * 0.034 * 1.05))),
+            size=max(24, int(round(width * 0.05))),
             sample_text=sample_text,
             role="body",
         )
@@ -147,7 +246,9 @@ class TypographyEngine:
         if raw_body_lines and raw_body_lines[0].strip():
             hero_text = raw_body_lines[0].strip()
             hero_lines = self._wrap_text(draw, hero_text, hero_font, text_width)
-            minor_lines = [line for line in (raw_title_lines + raw_body_lines[1:]) if line.strip()]
+            minor_lines = [
+                line for line in (raw_title_lines + raw_body_lines[1:]) if line.strip()
+            ]
         else:
             hero_text = title.strip()
             hero_lines = self._wrap_text(draw, hero_text, hero_font, text_width)
@@ -194,12 +295,15 @@ class TypographyEngine:
             draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
             minor_start_y += int(minor_font.size * 1.30)
 
-        credit_text = str(getattr(style, "source_credit_text", "")).strip() if style else ""
+        credit_text = (
+            str(getattr(style, "source_credit_text", "")).strip() if style else ""
+        )
         if credit_text:
             self.apply_source_credit_overlay(image, credit_text, font_paths)
 
         return {
-            "selected_font": body_font_path or self.select_font(font_paths, sample_text=sample_text),
+            "selected_font": body_font_path
+            or self.select_font(font_paths, sample_text=sample_text),
             "title_font": heading_font_path or body_font_path,
             "body_font": body_font_path,
             "layout_mode": "both_focus_aware",
@@ -211,13 +315,17 @@ class TypographyEngine:
             "minor_region": minor_region,
         }
 
-    def apply_source_credit_overlay(self, image: Image.Image, credit_text: str, font_paths: list[str]) -> None:
+    def apply_source_credit_overlay(
+        self, image: Image.Image, credit_text: str, font_paths: list[str]
+    ) -> None:
         text = credit_text.strip()
         if not text:
             return
         width, _height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
-        font = self._load_font(font_paths, size=max(14, int(width * 0.018)), sample_text=text, role="body")
+        font = self._load_font(
+            font_paths, size=max(14, int(width * 0.018)), sample_text=text, role="body"
+        )
         margin = max(12, int(width * 0.018))
         box = draw.textbbox((0, 0), text, font=font)
         text_w = box[2] - box[0]
@@ -240,7 +348,10 @@ class TypographyEngine:
         sample_text: str,
         role: str = "body",
     ) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-        for path in sorted(font_paths, key=lambda item: self._font_priority(item, sample_text, role=role)):
+        for path in sorted(
+            font_paths,
+            key=lambda item: self._font_priority(item, sample_text, role=role),
+        ):
             try:
                 return ImageFont.truetype(path, size=size)
             except OSError:
@@ -278,7 +389,9 @@ class TypographyEngine:
             lines.append(current.rstrip())
         return lines if lines else [text]
 
-    def _font_priority(self, path: str, sample_text: str, role: str = "body") -> tuple[int, int, str]:
+    def _font_priority(
+        self, path: str, sample_text: str, role: str = "body"
+    ) -> tuple[int, int, str]:
         name = path.lower()
         has_han = any("\u4e00" <= ch <= "\u9fff" for ch in sample_text)
         cjk_hits = (
@@ -297,11 +410,14 @@ class TypographyEngine:
         )
         sans_hits = ("sans", "gothic", "heiti", "hei")
         serif_hits = ("serif", "ming", "song")
-        heading_weight_hits = ("black", "bold", "semibold", "demi", "medium")
+        heading_weight_hits = ("bold", "semibold", "demi", "medium")
         regular_weight_hits = ("regular", "book", "normal", "medium")
 
         cjk_rank = 3
-        if has_han and any(token in name for token in ("tc", "sc", "hk", "sourcehan", "source-han", "cjk", "han")):
+        if has_han and any(
+            token in name
+            for token in ("tc", "sc", "hk", "sourcehan", "source-han", "cjk", "han")
+        ):
             cjk_rank = 0
         elif any(token in name for token in cjk_hits):
             cjk_rank = 1
@@ -313,9 +429,18 @@ class TypographyEngine:
             sans_rank = 4
 
         if role == "heading":
-            weight_rank = 0 if any(token in name for token in heading_weight_hits) else 2
+            if any(token in name for token in heading_weight_hits):
+                weight_rank = 0
+            elif any(token in name for token in regular_weight_hits):
+                weight_rank = 1
+            elif any(token in name for token in ("black", "bold")):
+                weight_rank = 2
+            else:
+                weight_rank = 3
         else:
-            weight_rank = 0 if any(token in name for token in regular_weight_hits) else 2
+            weight_rank = (
+                0 if any(token in name for token in regular_weight_hits) else 2
+            )
             if any(token in name for token in ("black", "bold")):
                 weight_rank = max(weight_rank, 1)
 
@@ -330,11 +455,15 @@ class TypographyEngine:
         sample_text: str,
     ) -> str | None:
         if not body_font_path:
-            return self.select_font_by_role(font_paths, sample_text=sample_text, role="heading")
+            return self.select_font_by_role(
+                font_paths, sample_text=sample_text, role="heading"
+            )
         family = self._font_family_key(body_font_path)
         same_family = [p for p in font_paths if self._font_family_key(p) == family]
         if same_family:
-            return self.select_font_by_role(same_family, sample_text=sample_text, role="heading")
+            return self.select_font_by_role(
+                same_family, sample_text=sample_text, role="heading"
+            )
         return body_font_path
 
     def _lines_height(self, font_size: int, line_count: int, line_ratio: float) -> int:
@@ -368,6 +497,24 @@ class TypographyEngine:
         y1 = max(0, min(height - box_h, cy - box_h // 2))
         return (x1, y1, x1 + box_w, y1 + box_h)
 
+    def _style_focus_box(
+        self, style, image: Image.Image
+    ) -> tuple[int, int, int, int] | None:
+        if style is None:
+            return None
+        raw = getattr(style, "subject_focus_box", None)
+        if not isinstance(raw, (list, tuple)) or len(raw) != 4:
+            return None
+        try:
+            x1, y1, x2, y2 = [int(v) for v in raw]
+        except (TypeError, ValueError):
+            return None
+        x1 = max(0, min(image.width - 1, x1))
+        y1 = max(0, min(image.height - 1, y1))
+        x2 = max(x1 + 1, min(image.width, x2))
+        y2 = max(y1 + 1, min(image.height, y2))
+        return (x1, y1, x2, y2)
+
     def _pick_two_block_regions(
         self,
         image: Image.Image,
@@ -397,9 +544,12 @@ class TypographyEngine:
             minor_y = int(height * max(0.06, min(0.90, minor_r + minor_shift)))
             hero_region = (margin, hero_y, width - margin, hero_y + hero_height)
             minor_region = (margin, minor_y, width - margin, minor_y + minor_height)
+            clearance = int(max(8, hero_height * 0.05))
             score = 0.0
             score += self._overlap_area(hero_region, focus_box) * 6.0
             score += self._overlap_area(minor_region, focus_box) * 4.0
+            score += self._clearance_penalty(hero_region, focus_box, clearance) * 5.0
+            score += self._clearance_penalty(minor_region, focus_box, clearance) * 3.0
             score += self._overlap_area(hero_region, minor_region) * 8.0
             score += self._out_of_bounds_penalty(hero_region, width, height)
             score += self._out_of_bounds_penalty(minor_region, width, height)
@@ -407,12 +557,24 @@ class TypographyEngine:
                 best_score = score
                 best = (hero_region, minor_region)
         if best is None:
-            top = (margin, int(height * 0.12), width - margin, int(height * 0.12) + hero_height)
-            bottom = (margin, int(height * 0.76), width - margin, int(height * 0.76) + minor_height)
+            top = (
+                margin,
+                int(height * 0.12),
+                width - margin,
+                int(height * 0.12) + hero_height,
+            )
+            bottom = (
+                margin,
+                int(height * 0.76),
+                width - margin,
+                int(height * 0.76) + minor_height,
+            )
             return top, bottom
         return best
 
-    def _overlap_area(self, a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> int:
+    def _overlap_area(
+        self, a: tuple[int, int, int, int], b: tuple[int, int, int, int]
+    ) -> int:
         x1 = max(a[0], b[0])
         y1 = max(a[1], b[1])
         x2 = min(a[2], b[2])
@@ -421,7 +583,9 @@ class TypographyEngine:
             return 0
         return (x2 - x1) * (y2 - y1)
 
-    def _out_of_bounds_penalty(self, region: tuple[int, int, int, int], width: int, height: int) -> float:
+    def _out_of_bounds_penalty(
+        self, region: tuple[int, int, int, int], width: int, height: int
+    ) -> float:
         x1, y1, x2, y2 = region
         p = 0.0
         if x1 < 0:
@@ -433,6 +597,43 @@ class TypographyEngine:
         if y2 > height:
             p += abs(y2 - height) * 20.0
         return p
+
+    def _keep_region_clear_of_focus(
+        self,
+        y: int,
+        block_h: int,
+        focus_box: tuple[int, int, int, int],
+        clearance: int,
+        margin: int,
+        image_w: int,
+        image_h: int,
+        prefer: str,
+    ) -> int:
+        if block_h <= 0:
+            return y
+        region = (margin, y, max(margin + 1, image_w - margin), y + block_h)
+        if self._clearance_penalty(region, focus_box, clearance) <= 0:
+            return y
+        fx1, fy1, fx2, fy2 = focus_box
+        up_y = max(margin, fy1 - clearance - block_h)
+        down_y = min(max(margin, image_h - margin - block_h), fy2 + clearance)
+        if prefer == "up":
+            return up_y if up_y >= margin else down_y
+        return down_y if down_y + block_h <= image_h - margin else up_y
+
+    def _clearance_penalty(
+        self,
+        region: tuple[int, int, int, int],
+        focus_box: tuple[int, int, int, int],
+        clearance: int,
+    ) -> int:
+        expanded = (
+            focus_box[0] - clearance,
+            focus_box[1] - clearance,
+            focus_box[2] + clearance,
+            focus_box[3] + clearance,
+        )
+        return self._overlap_area(region, expanded)
 
     def _variant_index(self, token: str, modulo: int) -> int:
         text = (token or "").strip()
@@ -453,11 +654,22 @@ class TypographyEngine:
     def _font_family_key(self, path: str) -> str:
         stem = path.lower().replace("\\", "/").split("/")[-1]
         base = stem.split(".")[0]
-        for token in ("-bold", "_bold", "-black", "_black", "-regular", "_regular", "-medium", "_medium"):
+        for token in (
+            "-bold",
+            "_bold",
+            "-black",
+            "_black",
+            "-regular",
+            "_regular",
+            "-medium",
+            "_medium",
+        ):
             base = base.replace(token, "")
         return base
 
-    def _pick_text_color(self, image: Image.Image, region: tuple[int, int, int, int]) -> tuple[int, int, int, int]:
+    def _pick_text_color(
+        self, image: Image.Image, region: tuple[int, int, int, int]
+    ) -> tuple[int, int, int, int]:
         dark = (18, 18, 18, 240)
         light = (248, 248, 248, 240)
         bg_luma = self._region_luma(image, region)
@@ -465,13 +677,19 @@ class TypographyEngine:
         light_ratio = self._contrast_ratio(bg_luma, self._rgb_luma(light[:3]))
         return light if light_ratio >= dark_ratio else dark
 
-    def _region_luma(self, image: Image.Image, region: tuple[int, int, int, int]) -> float:
+    def _region_luma(
+        self, image: Image.Image, region: tuple[int, int, int, int]
+    ) -> float:
         x1, y1, x2, y2 = region
         x1 = max(0, min(image.width - 1, x1))
         y1 = max(0, min(image.height - 1, y1))
         x2 = max(x1 + 1, min(image.width, x2))
         y2 = max(y1 + 1, min(image.height, y2))
-        crop = image.convert("RGB").crop((x1, y1, x2, y2)).resize((1, 1), Image.Resampling.BILINEAR)
+        crop = (
+            image.convert("RGB")
+            .crop((x1, y1, x2, y2))
+            .resize((1, 1), Image.Resampling.BILINEAR)
+        )
         rgb = crop.getpixel((0, 0))
         return self._rgb_luma(rgb)
 
