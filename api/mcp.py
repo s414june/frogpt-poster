@@ -1,6 +1,8 @@
 """Stateless Streamable HTTP MCP adapter for poster rendering."""
 import json
 import sys
+import time
+import uuid
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler
 
@@ -8,10 +10,15 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from gpt_package.openai_tool import handle_tool_call
 
 NAME = "prepare_poster"
+_INTAKE_SESSION_MAX = 512
+_INTAKE_SESSION_TTL_SECONDS = 60 * 60 * 12
+_INTAKE_SESSIONS: dict[str, dict] = {}
+_MAX_REQUEST_BYTES = 8 * 1024 * 1024
 SCHEMA = {
     "type": "object",
     "properties": {
         "intake_confirmed": {"type": "boolean"},
+        "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
         "title": {"type": "string", "minLength": 1, "maxLength": 120},
         "body": {"type": "string", "minLength": 1, "maxLength": 4000},
@@ -21,7 +28,13 @@ SCHEMA = {
         "secondary_color": {"type": "string"},
         "accent_color": {"type": "string"},
         "subject": {"type": "string"},
+        "background_mode": {"type": "string", "enum": ["auto", "solid", "gradient", "reference"]},
+        "geometry_enabled": {"type": "boolean"},
+        "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
+        "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
+        "background_color_hint": {"type": "string"},
         "reference_image_urls": {"type": "array", "items": {"type": "string"}},
+        "reference_image_paths": {"type": "array", "items": {"type": "string"}},
         "reference_image_base64": {"type": "array", "items": {"type": "string"}},
         "generated_background_base64": {"type": "string"},
         "pexels_query": {"type": "string"},
@@ -30,6 +43,9 @@ SCHEMA = {
         "auto_pexels_fallback": {"type": "boolean"},
         "use_reference_as_fallback": {"type": "boolean"},
         "user_image_base64": {"type": "array", "items": {"type": "string"}},
+        "subject_image_base64": {"type": "array", "items": {"type": "string"}},
+        "subject_image_urls": {"type": "array", "items": {"type": "string"}},
+        "subject_image_paths": {"type": "array", "items": {"type": "string"}},
         "show_design_guide": {"type": "boolean"},
     },
     "required": [],
@@ -37,101 +53,22 @@ SCHEMA = {
 }
 TOOL = {
     "name": NAME,
-    "description": "Intake-first poster tool. Ask intake questions first; render only when intake_confirmed=true.",
+    "description": "Mandatory first-round intake poster tool. Ask intake once, then reuse intake_session_token for follow-up renders.",
     "inputSchema": SCHEMA,
     "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
 }
 
-def dispatch(message):
-    if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
-        return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
-    if "id" not in message:
-        return None
-    result = {"jsonrpc": "2.0", "id": message["id"]}
-    method = message["method"]
-    params = message.get("params", {})
-    if not isinstance(params, dict):
-        result["error"] = {"code": -32602, "message": "params must be an object"}
-        return result
-    if method == "initialize":
-        versions = ("2025-03-26", "2025-06-18", "2025-11-25")
-        version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.2"}, "instructions": "If brief information is incomplete, call tool to get intake_questions first. If title/body (or poster_request.copy) is already complete, render directly even without intake_confirmed."}
-    elif method == "ping":
-        result["result"] = {}
-    elif method == "tools/list":
-        result["result"] = {"tools": [TOOL]}
-    elif method == "tools/call":
-        args = params.get("arguments", {})
-        if params.get("name") != NAME:
-            result["error"] = {"code": -32602, "message": "Unknown tool"}
-        elif not isinstance(args, dict) or set(args) - set(SCHEMA["properties"]):
-            result["error"] = {"code": -32602, "message": "Arguments shape not allowed by schema."}
-        else:
-            intake_confirmed = bool(args.get("intake_confirmed", False))
-            call_args = dict(args)
-            if not intake_confirmed and not _has_render_brief(args):
-                call_args["request_intake_only"] = True
-                call_args["show_design_guide"] = True
-            output = handle_tool_call(call_args)
-            if (
-                not intake_confirmed
-                and not _has_render_brief(args)
-                and output.get("status", {}).get("code") != "needs_input"
-            ):
-                output["status"] = {
-                    "code": "needs_input",
-                    "message": "intake_questions_required_before_render",
-                }
-                output["next_action"] = "ask_user_intake_questions"
-                output["rendered"] = False
-            content = []
-            status_code = output.get("status", {}).get("code")
-            if status_code == "needs_input":
-                questions = output.get("intake_questions", [])
-                question_lines = []
-                for q in questions:
-                    question_lines.append(f"- {q.get('question', '')}")
-                content.append(
-                    {
-                        "type": "text",
-                        "text": (
-                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再以 intake_confirmed=true 重新呼叫工具：\n"
-                            + "\n".join(question_lines)
-                        ),
-                    }
-                )
-            if output.get("ok") and output.get("rendered") and output.get("output_image_base64"):
-                # 1) Rendered image first for immediate preview
-                content.append(
-                    {
-                        "type": "image",
-                        "data": output["output_image_base64"],
-                        "mimeType": output.get("output_mime_type", "image/png"),
-                    }
-                )
-                # 2) Download hint second
-                filename = output.get("output_filename", "poster.png")
-                download_url = output.get("output_download_data_url", output.get("output_image_data_url", ""))
-                content.append(
-                    {
-                        "type": "text",
-                        "text": (
-                            f"下載檔名: {filename}\n"
-                            f"下載連結(data URL): {download_url}"
-                        ),
-                    }
-                )
-            # 3) Structured/text details last
-            content.append({"type": "text", "text": json.dumps(output, ensure_ascii=False)})
-            result["result"] = {
-                "content": content,
-                "structuredContent": output,
-                "isError": not output.get("ok", False),
-            }
-    else:
-        result["error"] = {"code": -32601, "message": "Method not found"}
-    return result
+
+def _compact_output(output: dict) -> dict:
+    compact = dict(output)
+    image_b64 = compact.pop("output_image_base64", None)
+    data_url = compact.pop("output_image_data_url", None)
+    compact.pop("output_download_data_url", None)
+    if isinstance(image_b64, str):
+        compact["output_image_base64_length"] = len(image_b64)
+    if isinstance(data_url, str):
+        compact["output_image_data_url_length"] = len(data_url)
+    return compact
 
 
 def _has_render_brief(args: dict) -> bool:
@@ -153,6 +90,167 @@ def _has_render_brief(args: dict) -> bool:
         cta = str(copy.get("cta", "")).strip()
         return bool(headline and (subtitle or cta))
     return False
+
+
+def _prune_intake_sessions(now_ts: float) -> None:
+    expired = [
+        token for token, meta in _INTAKE_SESSIONS.items()
+        if (now_ts - float(meta.get("updated_at", 0.0))) > _INTAKE_SESSION_TTL_SECONDS
+    ]
+    for token in expired:
+        _INTAKE_SESSIONS.pop(token, None)
+    if len(_INTAKE_SESSIONS) <= _INTAKE_SESSION_MAX:
+        return
+    old_tokens = sorted(_INTAKE_SESSIONS.items(), key=lambda kv: float(kv[1].get("updated_at", 0.0)))
+    overflow = len(_INTAKE_SESSIONS) - _INTAKE_SESSION_MAX
+    for token, _meta in old_tokens[:overflow]:
+        _INTAKE_SESSIONS.pop(token, None)
+
+
+def _ensure_intake_session_token(args: dict, now_ts: float) -> tuple[str, dict, bool]:
+    maybe = args.get("intake_session_token")
+    from_request = isinstance(maybe, str) and bool(maybe.strip())
+    if isinstance(maybe, str) and maybe.strip():
+        token = maybe.strip()
+    else:
+        token = f"intake_{uuid.uuid4().hex}"
+    state = _INTAKE_SESSIONS.get(token)
+    if not isinstance(state, dict):
+        state = {"intake_completed": False, "created_at": now_ts, "updated_at": now_ts}
+        _INTAKE_SESSIONS[token] = state
+    else:
+        state["updated_at"] = now_ts
+    return token, state, from_request
+
+def dispatch(message):
+    if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
+        return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
+    if "id" not in message:
+        return None
+    result = {"jsonrpc": "2.0", "id": message["id"]}
+    method = message["method"]
+    params = message.get("params", {})
+    if not isinstance(params, dict):
+        result["error"] = {"code": -32602, "message": "params must be an object"}
+        return result
+    if method == "initialize":
+        versions = ("2025-03-26", "2025-06-18", "2025-11-25")
+        version = params.get("protocolVersion")
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.2.5"}, "instructions": "Always perform one intake round first. Reuse intake_session_token across calls; once brief is provided after intake, the token is remembered and follow-up renders no longer need intake_confirmed=true."}
+    elif method == "ping":
+        result["result"] = {}
+    elif method == "tools/list":
+        result["result"] = {"tools": [TOOL]}
+    elif method == "tools/call":
+        args = params.get("arguments", {})
+        if params.get("name") != NAME:
+            result["error"] = {"code": -32602, "message": "Unknown tool"}
+        elif not isinstance(args, dict) or set(args) - set(SCHEMA["properties"]):
+            result["error"] = {"code": -32602, "message": "Arguments shape not allowed by schema."}
+        else:
+            now_ts = time.time()
+            _prune_intake_sessions(now_ts)
+            intake_session_token, intake_state, token_from_request = _ensure_intake_session_token(args, now_ts)
+            intake_confirmed = bool(args.get("intake_confirmed", False))
+            remembered = bool(intake_state.get("intake_completed", False))
+            auto_confirmed = token_from_request and _has_render_brief(args)
+            intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
+            call_args = dict(args)
+            if not intake_confirmed_effective:
+                call_args["request_intake_only"] = True
+                call_args["show_design_guide"] = True
+            output = handle_tool_call(call_args)
+            output["intake_session_token"] = intake_session_token
+            output["intake_session_state"] = {
+                "intake_completed": bool(intake_state.get("intake_completed", False)),
+                "ttl_seconds": _INTAKE_SESSION_TTL_SECONDS,
+            }
+            if not intake_confirmed_effective:
+                output["next_request_hint"] = {
+                    "intake_session_token": intake_session_token,
+                    "intake_confirmed": True,
+                }
+            if not intake_confirmed_effective and output.get("status", {}).get("code") != "needs_input":
+                output["status"] = {
+                    "code": "needs_input",
+                    "message": "intake_questions_required_before_render",
+                }
+                output["next_action"] = "ask_user_intake_questions"
+                output["rendered"] = False
+            if intake_confirmed_effective and output.get("status", {}).get("code") != "needs_input":
+                intake_state["intake_completed"] = True
+                intake_state["updated_at"] = now_ts
+                output["intake_session_state"]["intake_completed"] = True
+            content = []
+            status_code = output.get("status", {}).get("code")
+            if status_code == "needs_input":
+                questions = output.get("intake_questions", [])
+                question_lines = []
+                for q in questions:
+                    question_lines.append(f"- {q.get('question', '')}")
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再用同一個 intake_session_token 重新呼叫工具：\n"
+                            + "\n".join(question_lines)
+                        ),
+                    }
+                )
+            if status_code == "needs_background_generation":
+                prompt = output.get("background_generation_prompt", "")
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "目前沒有可用圖片。請先用 GPT 生成『無字背景海報』，再把 base64 放到 generated_background_base64 後重呼叫。\n"
+                            f"建議提示詞：{prompt}"
+                        ),
+                    }
+                )
+            if output.get("ok") and output.get("rendered") and output.get("output_image_base64"):
+                # 1) Rendered image first for immediate preview
+                content.append(
+                    {
+                        "type": "image",
+                        "data": output["output_image_base64"],
+                        "mimeType": output.get("output_mime_type", "image/png"),
+                    }
+                )
+                # 2) Download hint second
+                filename = output.get("output_filename", "poster.png")
+                download_url = output.get("output_download_data_url", output.get("output_image_data_url", ""))
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "已完成渲染，請優先顯示上方圖片。\n"
+                            f"下載檔名: {filename}\n"
+                            f"下載連結(data URL): {download_url}"
+                        ),
+                    }
+                )
+                content.append(
+                    {
+                        "type": "text",
+                        "text": (
+                            "若客戶端不支援 image content，請使用以下 Markdown 顯示圖片：\n"
+                            f"![poster]({download_url})"
+                        ),
+                    }
+                )
+            # 3) Structured/text details last
+            compact_output = _compact_output(output)
+            content.append({"type": "text", "text": json.dumps(compact_output, ensure_ascii=False)})
+            result["result"] = {
+                "content": content,
+                "structuredContent": compact_output,
+                "isError": not output.get("ok", False),
+            }
+    else:
+        result["error"] = {"code": -32601, "message": "Method not found"}
+    return result
+
 
 class handler(BaseHTTPRequestHandler):
     def reply(self, status, payload=None):
@@ -182,8 +280,18 @@ class handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if size <= 0 or size > 65536:
-                self.reply(413 if size > 65536 else 400)
+            if size <= 0 or size > _MAX_REQUEST_BYTES:
+                if size > _MAX_REQUEST_BYTES:
+                    self.reply(
+                        413,
+                        {
+                            "error": "payload_too_large",
+                            "max_bytes": _MAX_REQUEST_BYTES,
+                            "hint": "Use image URLs or smaller/compressed base64 images.",
+                        },
+                    )
+                else:
+                    self.reply(400)
                 return
             message = json.loads(self.rfile.read(size))
         except (ValueError, UnicodeDecodeError):

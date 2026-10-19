@@ -1,0 +1,14 @@
+{
+  "arguments": {
+    "title": "讓小小生命，被好好愛著",
+    "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
+    "subject": "animal",
+    "reference_image_paths": [
+      "assets\\reference-library\\pexels\\pexels-460621.jpeg",
+      "assets\\reference-library\\pexels\\pexels-13392284.jpeg",
+      "assets\\reference-library\\pexels\\pexels-1527934.jpeg"
+    ],
+    "use_reference_as_fallback": true,
+    "allow_ai_fallback": true
+  }
+}

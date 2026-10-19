@@ -21,9 +21,15 @@ Key arguments:
 - `poster_request`: inline request object (recommended for web/mobile)
 - `title`, `body`: optional overrides
 - `subject`, `primary_color`, `secondary_color`, `accent_color`: visual style hints
-- `style_preset`: reusable style profile (e.g. `minimal-charity-tw`)
+- `background_mode`: `auto` | `solid` | `gradient` | `reference`
+- `geometry_enabled`: `true/false` (solid/gradient + single subject 時預設會加幾何裝飾)
+- `subject_mask_mode`: `rounded` | `feather`
+- `subject_border_px`: `0` or `8..20` (僅使用者明確要求時加粗邊框)
+- `background_color_hint`: 使用者想要的背景色提示詞（例如 `blue light`, `暖橘`, `深綠`）。也支援只有明度語意（如 `light`、`dark`）來調整背景亮暗。
 - `user_image_paths`, `user_image_urls`, `user_image_base64`
+- `subject_image_paths`, `subject_image_urls`, `subject_image_base64` (可疊加為前景主體，建議透明背景 PNG)
 - `reference_image_urls`: style reference images (URL)
+- `reference_image_paths`: local reference images (e.g. downloaded library files)
 - `reference_image_base64`: style reference images (base64)
 - `generated_background_base64`: a GPT-generated background draft to use as top-priority reference
 - `pexels_query`, `pexels_orientation`, `pexels_per_page`: fetch references from Pexels API
@@ -33,9 +39,14 @@ Key arguments:
 - `width`, `height`, `allow_ai_fallback`
 - `request_intake_only` (只回前置提問，不渲染)
 - `show_design_guide` (回傳簡易設計指南)
+- `intake_confirmed`（MCP 流程：第一次問卷完成後請設為 `true`）
+- `intake_session_token`（MCP 會話記憶鍵；第一次回傳，後續重用可免手動維護 intake flag）
 
 If `open_source_font_paths` is omitted/empty, the tool auto-discovers fonts under:
 - `assets\fonts` (`.ttf`, `.otf`, `.ttc`)
+
+Open-source font compliance:
+- font files must be under `assets\fonts` to be accepted by validation.
 
 ## UAT quick run (local)
 
@@ -54,8 +65,16 @@ python scripts\uat_run_tool.py --input examples\uat\tool-call.json
 - `status.code` returns `completed` or `failed`.
 - `status.code` may return `needs_input` when request data is incomplete.
 - `output_image_data_url` can be rendered directly in UI (`<img src=\"...\">`).
+- `source_credit_overlay_applied` / `source_credit_overlay_text` indicate whether corner source attribution was stamped.
+- `scripts\uat_run_tool.py` will also save a JPG preview to `outputs\uat-jpg\` when render succeeds.
 
-When first interaction lacks complete fields, the tool returns:
+MCP intake behavior (強制一次)：
+- 第一次要求生成海報時，會先回傳問卷與 `intake_session_token`，不直接渲染。
+- 後續呼叫請重用同一個 `intake_session_token`；帶完整 brief 後會自動記憶 intake 已完成。
+- 你仍可顯式傳 `intake_confirmed=true`，但不是必填。
+- 首輪問卷會包含背景模式題：`auto / solid / gradient / reference`。
+
+When first interaction enters intake mode, the tool returns:
 - `intake_questions` (copy/image/style/prompt-oriented questions)
 - optional `design_guide` (when `show_design_guide=true` or `request_intake_only=true`)
 
@@ -65,8 +84,28 @@ For cleaner copy control, prefer:
 - `poster_request.copy.organization`
 - `poster_request.copy.cta`
 
-Preset example:
-- `minimal-charity-tw`: softer cream/sage palette, lighter background elements, shorter text panel, cleaner nonprofit poster hierarchy.
+Typography/layout policy:
+- no solid background box behind slogan/body text.
+- title/subtitle are center-aligned and kept near visual center (not tied to subject edges), with larger default sizes.
+- body/campaign copy is center-aligned in lower area.
+- sans-serif (黑體) is prioritized; heading prefers heavier weight, body keeps one consistent font/weight.
+- when no explicit palette is provided, colors are automatically extracted from user/GPT-provided images (subject/reference/background draft).
+- when `background_color_hint` is provided, palette selection first tries to match that hue from image colors; if no close same hue exists, it still uses image colors and adjusts saturation/lightness toward the hint.
+- text color is auto-switched between dark/light to keep luminance contrast against background.
+- subject image uses one mask style at a time (`rounded` or `feather`) and preserves original aspect ratio.
+- border is optional and only applied when requested (`subject_border_px`, 8-20px).
+- for solid/gradient background with a single subject, geometric accents are added by default (unless `geometry_enabled=false`) and are distributed from subject-side or edge-side anchors (wider spread allowed, but not fully random scattering).
+- geometry colors are sampled from subject and tuned to similar luminance as background while keeping enough chroma/hue distinction; text uses opposite luminance for readability.
+
+No-image flow:
+- if no user image/reference is provided, tool returns `status.code = needs_background_generation`
+- it includes `background_generation_prompt`; generate a **text-free** background first, then retry with `generated_background_base64`.
+- prompt policy defaults to presentation style: mostly solid/soft-gradient background, minimal geometry, clear foreground subject.
+
+Reference image citation flow (non-regenerated background):
+- you can pass `reference_image_urls` (including Pexels photo page URLs) or `reference_image_paths`.
+- when a reference image is used as fallback background, renderer stamps top-right credit label (e.g. `June Wu/Pexels`) using the same open-source font pipeline.
+- if you also pass `subject_image_*`, system keeps reference as background and composites subject object in foreground.
 
 ## Pexels reference workflow (no repo image storage)
 
@@ -149,11 +188,32 @@ Manual-library mode sample (GPT background reference, no auto Pexels):
 python scripts\uat_run_tool.py --input examples\uat\tool-call-manual-library.json
 ```
 
+Download the fixed Pexels set from page URLs into local library:
+
+```bash
+python scripts\download_pexels_reference_pages.py
+```
+
+Downloaded assets + manifest:
+- `assets\reference-library\pexels\*.jpeg`
+- `assets\reference-library\pexels\manifest.json`
+
+Then test local reference reuse:
+
+```bash
+python scripts\uat_run_tool.py --input examples\uat\tool-call-pexels-library.json
+```
+
 Local run:
 
 ```bash
 vercel dev
 ```
+
+Deployment notes:
+- MCP endpoint request body limit is **8 MB**. Prefer `subject_image_urls` / `user_image_urls`; only use base64 for smaller images.
+- Keep serverless bundle slim via `.vercelignore`. This project excludes most `assets\fonts` and keeps lightweight runtime families.
+- If deploy still nears platform limits, remove extra local assets (docs/examples/test data/fonts) from runtime bundle.
 
 ## Font storage folder
 

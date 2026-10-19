@@ -38,7 +38,11 @@ def load_request_from_text_file(path: str) -> PosterRequest:
             height=int(layout.get("height", 1350)),
         ),
         style=PosterStyle(
-            preset=str(style.get("preset", "")),
+            background_mode=str(style.get("background_mode", "auto")),
+            geometry_enabled=bool(style.get("geometry_enabled", True)),
+            subject_mask_mode=str(style.get("subject_mask_mode", "rounded")),
+            subject_border_px=int(style.get("subject_border_px", 0)),
+            background_color_hint=str(style.get("background_color_hint", payload.get("background_color_hint", ""))),
             primary_color=str(style.get("primary_color", "#F6F1E8")),
             secondary_color=str(style.get("secondary_color", "#A8BFA8")),
             accent_color=str(style.get("accent_color", "#6D8A72")),
