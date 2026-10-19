@@ -79,6 +79,8 @@ class ImagePipeline:
         ):
             top = self._boost_saturation(top, lift=0.10, min_sat=0.32)
             bottom = self._boost_saturation(bottom, lift=0.10, min_sat=0.30)
+            top = self._soften_background_harsh_hues(top, tone=tone)
+            bottom = self._soften_background_harsh_hues(bottom, tone=tone)
         accent = self._parse_color(getattr(getattr(self, "_style", None), "accent_color", "#6D8A72"))
         mode = str(getattr(getattr(self, "_style", None), "background_mode", "auto")).strip().lower()
         if mode == "solid":
@@ -228,6 +230,9 @@ class ImagePipeline:
         else:
             # Keep solid/auto visually non-gradient: apply uniform tint.
             bottom_rgb = top_rgb
+        if not (mono_white or mono_black or mono_gray):
+            top_rgb = self._soften_background_harsh_hues(top_rgb, tone=tone)
+            bottom_rgb = self._soften_background_harsh_hues(bottom_rgb, tone=tone)
         overlay = self._vertical_gradient(background.size, top_rgb, bottom_rgb)
 
         alpha = 0.24
@@ -327,6 +332,26 @@ class ImagePipeline:
             self._clamp_color(int(g * 255)),
             self._clamp_color(int(b * 255)),
         )
+
+    def _soften_background_harsh_hues(self, rgb: tuple[int, int, int], tone: str) -> tuple[int, int, int]:
+        h, s, v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+        if self._is_green_hue(h):
+            sat_cap = 0.30 if tone == "light" else 0.33
+            sat_floor = 0.20 if tone == "light" else 0.22
+            s = max(sat_floor, min(sat_cap, s - 0.14))
+            v = min(v, 0.86 if tone == "light" else 0.82)
+        elif self._is_bright_purple(h, s, v):
+            # Purple can be a bit more saturated than green, but still toned down.
+            sat_cap = 0.44 if tone == "light" else 0.48
+            s = max(0.20, min(sat_cap, s - 0.14))
+            if tone == "light":
+                v_floor, v_cap = 0.74, 0.84
+            elif tone == "dark":
+                v_floor, v_cap = 0.64, 0.78
+            else:
+                v_floor, v_cap = 0.70, 0.82
+            v = max(v_floor, min(v, v_cap))
+        return self._hsv_to_rgb(h, s, v)
 
     def _contains_mono_keyword(self, text: str) -> bool:
         raw = (text or "").strip().lower()
@@ -569,6 +594,7 @@ class ImagePipeline:
         main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
         main = self._enforce_min_saturation(main, min_sat=max(0.62, min(0.96, bs + 0.24)))
         soft = self._enforce_min_saturation(soft, min_sat=max(0.52, min(0.90, bs + 0.18)))
+        main, soft = self._soften_overstimulating_hues(main, soft, bg_sample)
         # Re-apply luminance separation after saturation lift so both constraints hold.
         main, soft = self._separate_geometry_luma_from_background(main, soft, bg_sample)
         if self._rgb_distance(soft, bg_sample) < (self._min_geometry_bg_distance * 0.62):
@@ -576,6 +602,51 @@ class ImagePipeline:
         if self._rgb_distance(main, bg_sample) < self._min_geometry_bg_distance:
             main = self._ensure_min_color_distance(main, bg_sample, rng, self._min_geometry_bg_distance)
         return [main, soft]
+
+    def _soften_overstimulating_hues(
+        self,
+        main: tuple[int, int, int],
+        soft: tuple[int, int, int],
+        bg_sample: tuple[int, int, int],
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        main_hsv = colorsys.rgb_to_hsv(main[0] / 255.0, main[1] / 255.0, main[2] / 255.0)
+        soft_hsv = colorsys.rgb_to_hsv(soft[0] / 255.0, soft[1] / 255.0, soft[2] / 255.0)
+        risk_detected = any(
+            self._is_green_hue(h) or self._is_fluorescent_purple(h, s, v)
+            for h, s, v in (main_hsv, soft_hsv)
+        )
+        if not risk_detected:
+            return main, soft
+
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg_sample[0] / 255.0, bg_sample[1] / 255.0, bg_sample[2] / 255.0)
+        sat_floor = max(0.0, min(1.0, bs + 0.14))
+
+        def _reduce_one(hsv: tuple[float, float, float]) -> tuple[int, int, int]:
+            h, s, v = hsv
+            reduced = max(sat_floor, s - 0.10)
+            if self._is_green_hue(h):
+                reduced = min(reduced, 0.76)
+            if self._is_fluorescent_purple(h, s, v):
+                reduced = min(reduced, 0.70)
+            return self._hsv_to_rgb(h, reduced, v)
+
+        return _reduce_one(main_hsv), _reduce_one(soft_hsv)
+
+    def _is_green_hue(self, hue: float) -> bool:
+        return 0.22 <= hue <= 0.46
+
+    def _is_purple_hue(self, hue: float) -> bool:
+        return 0.74 <= hue <= 0.93
+
+    def _is_bright_purple(self, hue: float, sat: float, val: float) -> bool:
+        if not self._is_purple_hue(hue):
+            return False
+        return val >= 0.72 and sat >= 0.28
+
+    def _is_fluorescent_purple(self, hue: float, sat: float, val: float) -> bool:
+        if not self._is_purple_hue(hue):
+            return False
+        return sat >= 0.66 and val >= 0.62
 
     def _separate_geometry_luma_from_background(
         self,

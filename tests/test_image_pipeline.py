@@ -42,6 +42,11 @@ def _avg_sat(image: Image.Image) -> float:
     return sum(values) / max(1, len(values))
 
 
+def _sat(rgb: tuple[int, int, int]) -> float:
+    _h, s, _v = colorsys.rgb_to_hsv(rgb[0] / 255.0, rgb[1] / 255.0, rgb[2] / 255.0)
+    return s
+
+
 class ImagePipelineColorPoolTests(unittest.TestCase):
     def test_geometry_pool_default_is_harmonized_and_limited(self) -> None:
         pipe = ImagePipeline()
@@ -132,6 +137,36 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
             luma = color[0] * 0.2126 + color[1] * 0.7152 + color[2] * 0.0722
             self.assertGreater(luma, bg_luma + 42.0)
 
+    def test_geometry_guard_reduces_green_harsh_saturation(self) -> None:
+        pipe = ImagePipeline()
+        bg = (236, 232, 224)
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[(98, 214, 124)],
+            bg_sample=bg,
+            rng=random.Random(21),
+        )
+        sats = [_sat(color) for color in pair]
+        self.assertLessEqual(max(sats), 0.76)
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0)
+        for s in sats:
+            self.assertGreater(s, bs + 0.14)
+
+    def test_geometry_guard_reduces_fluorescent_purple_saturation(self) -> None:
+        pipe = ImagePipeline()
+        bg = (246, 236, 242)
+        pr, pg, pb = colorsys.hsv_to_rgb(0.83, 0.95, 0.92)
+        vivid_purple = (int(pr * 255), int(pg * 255), int(pb * 255))
+        pair = pipe._build_geometry_brand_pair(
+            color_pool=[vivid_purple],
+            bg_sample=bg,
+            rng=random.Random(22),
+        )
+        sats = [_sat(color) for color in pair]
+        self.assertLessEqual(max(sats), 0.78)
+        _bh, bs, _bv = colorsys.rgb_to_hsv(bg[0] / 255.0, bg[1] / 255.0, bg[2] / 255.0)
+        for s in sats:
+            self.assertGreater(s, bs + 0.14)
+
     def test_background_color_hint_adds_subtle_hue_and_tone_variation(self) -> None:
         pipe = ImagePipeline()
         req_plain = PosterRequest(
@@ -169,6 +204,65 @@ class ImagePipelineColorPoolTests(unittest.TestCase):
         req.style.background_color_hint = ""
         image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
         self.assertGreater(_avg_sat(image), 0.20)
+
+    def test_green_background_is_softened_to_reduce_glare(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="綠色主題", body="背景不要刺眼")
+        req.style.primary_color = "#7DF376"
+        req.style.secondary_color = "#72EA6E"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = ""
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        avg_sat = _avg_sat(image)
+        self.assertLess(avg_sat, 0.34)
+        self.assertGreater(avg_sat, 0.18)
+
+    def test_green_light_hint_is_softened(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="綠色提示", body="green light")
+        req.style.primary_color = "#CDEBCB"
+        req.style.secondary_color = "#BDE3BA"
+        req.style.background_mode = "gradient"
+        req.style.background_color_hint = "green light"
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        self.assertLess(_avg_sat(image), 0.30)
+
+    def test_bright_purple_background_is_softened(self) -> None:
+        pipe = ImagePipeline()
+        req = PosterRequest(title="紫色主題", body="背景避免刺眼")
+        req.style.primary_color = "#D488E6"
+        req.style.secondary_color = "#CC7FE0"
+        req.style.background_mode = "solid"
+        req.style.background_color_hint = ""
+        image = pipe.build_background(req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        sample = image.resize((48, 48)).convert("RGB")
+        avg_sat = _avg_sat(sample)
+        avg_luma = sum((p[0] * 0.2126 + p[1] * 0.7152 + p[2] * 0.0722) for p in sample.getdata()) / (48 * 48)
+        self.assertLess(avg_sat, 0.46)
+        self.assertGreater(avg_sat, 0.30)
+        self.assertGreater(avg_luma, 150.0)
+        self.assertLess(avg_luma, 178.0)
+
+    def test_purple_can_be_more_saturated_than_green_but_still_controlled(self) -> None:
+        pipe = ImagePipeline()
+        green_req = PosterRequest(title="綠色背景", body="防刺眼")
+        green_req.style.primary_color = "#7DF376"
+        green_req.style.secondary_color = "#72EA6E"
+        green_req.style.background_mode = "solid"
+        green_req.style.background_color_hint = ""
+        green_image = pipe.build_background(green_req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        green_sat = _avg_sat(green_image)
+
+        purple_req = PosterRequest(title="紫色背景", body="可比綠色彩一點")
+        purple_req.style.primary_color = "#D488E6"
+        purple_req.style.secondary_color = "#CC7FE0"
+        purple_req.style.background_mode = "solid"
+        purple_req.style.background_color_hint = ""
+        purple_image = pipe.build_background(purple_req, PosterDecision(image_source=ImageSource.AI_FALLBACK, reason="test"))
+        purple_sat = _avg_sat(purple_image)
+
+        self.assertGreater(purple_sat, green_sat)
+        self.assertLess(purple_sat, 0.46)
 
     def test_monochrome_hint_keeps_background_low_saturation(self) -> None:
         pipe = ImagePipeline()
