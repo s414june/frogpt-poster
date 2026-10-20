@@ -21,12 +21,12 @@ assets/fonts/Noto_Sans_TC/*
 !assets/fonts/Noto_Sans_TC/OFL.txt
 !assets/fonts/Noto_Sans_TC/static/
 assets/fonts/Noto_Sans_TC/static/*
-!assets/fonts/Noto_Sans_TC/static/NotoSansTC-Medium.ttf
+!assets/fonts/Noto_Sans_TC/static/NotoSansTC-Bold.ttf
 !assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf
 !assets/fonts/Noto_Serif_TC/
 assets/fonts/Noto_Serif_TC/*
 !assets/fonts/Noto_Serif_TC/OFL.txt
 !assets/fonts/Noto_Serif_TC/static/
 assets/fonts/Noto_Serif_TC/static/*
-!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Medium.ttf
+!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Bold.ttf
 !assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Regular.ttf

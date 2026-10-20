@@ -6,8 +6,10 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """使用者提供設計海報作為靈感時，設 design_reference=true，先由 GPT 看圖分析配色、構圖、材質、光線、文字層級與留白，傳 reference_style_description。參考圖只供視覺靈感，不得直接當背景成品。
-此模式優先於下方一般 AI 流程的主體置中、單一文字色與逐輪確認限制：先生成符合參考風格及新主題的原創無字海報，再把實際無字圖片以 generated_background_base64 傳入，確認無文字後設 generated_background_text_free_confirmed=true；GPT 同時定義 text_layers，每層含 text、font_family、font_size、color、x、y、width、height、align、line_spacing，座標與尺寸均為最終畫布像素。可使用不同字級與顏色，所有字交 API 渲染，禁止生圖畫字。保留使用者文案，不抄參考圖原文或 logo。此模式使用者要求直接完成時可同輪接續排字，不需額外批准；若使用者要求先看草稿則先展示並等待。API 本身不會呼叫生圖模型，助理必須完成看圖與生圖再回傳實際位元組。
+ASSISTANT_INSTRUCTIONS = """參考設計採轉譯而非複製：保留撞色關係、視覺節奏與層級，預設可改用其他主輔色組合，微調主圖、徽章、文案區的位置與比例；使用者明確要求相同配色或構圖時才固定。不得把參考圖的座標與色碼當成硬性模板。
+字級不必相同，同一層級也可依文案長度調整；優先觀察參考圖標題、副標、徽章、內文、CTA 的相對字級、字重、行距，依新畫布比例轉換。字重與行距若能從圖中判斷，必須傳入各層 font_weight 與 line_spacing；不要因圖檔沒有字型中繼資料就跳過視覺推估。只有無法辨認或沒有參考資料的屬性才沿用原預設（font_weight=400、line_spacing=4，既有字級規則）。font_weight 支援 sans/serif 的 400、700（真實字型）；kai/rounded 只有 400。沒有可用字重時須說明並選可支援的字型，不得靜默忽略。
+使用者提供設計海報作為靈感時，設 design_reference=true，先由 GPT 看圖分析配色、構圖、材質、光線、文字層級與留白，傳 reference_style_description。參考圖只供視覺靈感，不得直接當背景成品。
+此模式優先於下方一般 AI 流程的主體置中、單一文字色與逐輪確認限制：先生成符合參考風格及新主題的原創無字海報，再把實際無字圖片以 generated_background_base64 傳入，確認無文字後設 generated_background_text_free_confirmed=true；GPT 同時定義 text_layers，每層含 text、font_family、font_weight、font_size、color、x、y、width、height、align、line_spacing，座標與尺寸均為最終畫布像素。可使用不同字級與顏色，所有字交 API 渲染，禁止生圖畫字。保留使用者文案，不抄參考圖原文或 logo。此模式使用者要求直接完成時可同輪接續排字，不需額外批准；若使用者要求先看草稿則先展示並等待。API 本身不會呼叫生圖模型，助理必須完成看圖與生圖再回傳實際位元組。
 先完成一次需求確認，重用 intake_session_token。AI 生圖流程必須分成兩階段：
 附件讀取前置檢查（適用使用者上傳圖片與 AI 圖）：在助理所在環境先確認本輪提供的附件可實際讀取，並能以圖片解碼器開啟；僅看見對話中的圖片，不代表已取得可傳送的圖片位元組。
 若附件路徑出現 No such file or directory／FileNotFoundError，停止使用該失效路徑，不得原樣重試或把其他對話的暫存路徑當成目前附件。

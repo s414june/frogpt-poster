@@ -33,7 +33,7 @@ SCHEMA = {
         "poster_request": {"type": "object"},
         "design_reference": {"type": "boolean", "description": "Use the user poster as visual inspiration only. Generate a new text-free visual first, then send text_layers for API typography."},
         "reference_style_description": {"type": "string", "description": "GPT visual analysis: palette, composition, texture, lighting, hierarchy and reserved text space."},
-        "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Exact text overlay definitions in canvas pixels: text, font_family, font_size, color (#RRGGBB), x, y, width, height, align, line_spacing. Overflow fails explicitly."},
+        "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Exact text overlay definitions in canvas pixels: text, font_family, font_weight (400/700; kai/rounded only 400), font_size (independent per layer), color (#RRGGBB), x, y, width, height, align, line_spacing. Infer weight and spacing visually from reference; defaults only when unknown. Overflow fails explicitly."},
         "font_family": {"type": "string", "description": "Default sans (黑體). Request serif (明體/宋體), kai (楷體), rounded (圓體). Also accepted in poster_request.style.font_family. Unsupported names fail explicitly."},
         "text_align": {"type": "string", "enum": ["left", "center", "right"], "description": "Alignment for every copy block."},
         "headline_source": {"type": "string", "enum": ["title", "body_first"], "description": "Use title to preserve the supplied headline and its explicit newlines as the large heading."},

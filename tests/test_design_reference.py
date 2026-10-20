@@ -41,3 +41,16 @@ class DesignReferenceTests(unittest.TestCase):
         for patch in [dict(x=float('nan')), dict(color='red'), dict(height=1000)]:
             with self.assertRaises(ValidationError):
                 validate_text_layers([dict(self.layer(), **patch)],480,640)
+
+    def test_reference_typography_can_use_different_sizes_weights_and_spacing(self):
+        from gpt_package.font_registry import resolve_font_weight
+        layers = [dict(self.layer(), font_size=48, font_weight=700, height=120, line_spacing=18),
+                  dict(self.layer(), y=160, font_size=20, font_weight=400, line_spacing=6)]
+        checked = validate_text_layers(layers, 480, 640)
+        self.assertEqual([x['font_size'] for x in checked], [48, 20])
+        self.assertEqual([x['line_spacing'] for x in checked], [18, 6])
+        self.assertTrue(resolve_font_weight('sans', 700)[1].endswith('-Bold.ttf'))
+        image = Image.new('RGB', (480, 640), 'white')
+        render_text_layers(image, layers)
+        with self.assertRaises(ValidationError):
+            validate_text_layers([dict(self.layer(), font_family='kai', font_weight=700)], 480, 640)

@@ -1056,11 +1056,11 @@ def handle_tool_call(arguments: dict) -> dict:
                     "background_generation_prompt": (
                         f"Create an original text-free poster {request.layout.width}x{request.layout.height} for {request.style.subject or request.title}. "
                         f"Visual direction from the user reference: {description}. "
-                        "Use the reference for palette, texture, lighting, visual hierarchy and composition. "
+                        "Interpret the reference contrast relationships, texture, lighting and hierarchy; use a different coherent palette and subtly rearrange the layout unless the user explicitly requests matching colors/layout. "
                         "Adapt composition to the new subject; reserve negative space for the planned text layers. "
                         "Do not reproduce original copy, logos or watermarks. No text, letters or numbers."
                     ),
-                    "text_layer_contract": "text_layers: [{text, font_family: sans|serif|kai|rounded, font_size: pixels, color: #RRGGBB, x, y, width, height: pixels, align: left|center|right, line_spacing: pixels}]. Explicit newlines are preserved; overflow is rejected.",
+                    "text_layer_contract": "text_layers: [{text, font_family: sans|serif|kai|rounded, font_weight: 400|700, font_size: pixels (per-layer reference hierarchy), color: #RRGGBB, x, y, width, height: pixels, align: left|center|right, line_spacing: pixels (visually inferred from reference, else 4)}]. No equal-size constraint. Use reference weight/spacing before defaults. Explicit newlines are preserved; overflow is rejected.",
                     "reference_is_inspiration_only": True,
                 }
             # Only the new text-free image reaches the renderer, never the inspiration poster.

@@ -3,7 +3,7 @@ import math
 import re
 from PIL import ImageDraw, ImageFont
 from .errors import ValidationError
-from .font_registry import resolve_font_family
+from .font_registry import resolve_font_family, resolve_font_weight
 
 
 def validate_text_layers(layers, width, height):
@@ -35,6 +35,7 @@ def validate_text_layers(layers, width, height):
         if isinstance(spacing, bool) or not isinstance(spacing, (int, float)) or not math.isfinite(spacing) or not 0 <= spacing <= 512:
             raise ValidationError('Layer line_spacing must be 0–512')
         item['font_family'], _ = resolve_font_family(item.get('font_family', 'sans'))
+        item['font_weight'], _ = resolve_font_weight(item['font_family'], item.get('font_weight', 400))
         result.append(item)
     return result
 
@@ -44,8 +45,8 @@ def render_text_layers(image, layers):
     draw = ImageDraw.Draw(image)
     planned = []
     for item in layers:
-        _, paths = resolve_font_family(item['font_family'])
-        font = ImageFont.truetype(paths[0], round(item['font_size']))
+        _, path = resolve_font_weight(item['font_family'], item['font_weight'])
+        font = ImageFont.truetype(path, round(item['font_size']))
         box = draw.multiline_textbbox((0, 0), item['text'], font=font,
                                       spacing=item['line_spacing'], align=item['align'])
         width, height = box[2] - box[0], box[3] - box[1]
