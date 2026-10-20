@@ -60,9 +60,9 @@ Key arguments:
 - `intake_session_token`（MCP 會話記憶鍵；第一次回傳，後續重用可免手動維護 intake flag）
 
 MCP 本機路徑模式（僅本機開發建議）：
-- 預設仍是 base64 / asset_refs 優先。
-- 若你要接受 `user_image_paths`、`subject_image_paths`、`reference_image_paths`，可設定：
-  - `FROGPT_ALLOW_LOCAL_IMAGE_PATHS=true`
+- 預設已接受 `user_image_paths`、`subject_image_paths`、`reference_image_paths`（仍建議優先使用 base64 / asset_refs）。
+- 若你要關閉本機路徑輸入，可設定：
+  - `FROGPT_ALLOW_LOCAL_IMAGE_PATHS=false`
 - 圖片 URL（`*_image_urls`）仍會被拒絕。
 
 If `open_source_font_paths` is omitted/empty, the tool auto-discovers fonts under:

@@ -251,7 +251,8 @@ class MCPOutputOrderTests(unittest.TestCase):
                     },
                 },
             }
-            response = dispatch(message)
+            with patch.dict(os.environ, {"FROGPT_ALLOW_LOCAL_IMAGE_PATHS": "false"}):
+                response = dispatch(message)
         self.assertIsNotNone(response)
         structured = response["result"].get("structuredContent", {})
         self.assertEqual(structured.get("status", {}).get("code"), "needs_input")

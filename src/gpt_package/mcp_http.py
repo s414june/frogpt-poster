@@ -103,7 +103,10 @@ TOOL = {
 
 
 def _local_path_inputs_allowed() -> bool:
-    return str(os.getenv("FROGPT_ALLOW_LOCAL_IMAGE_PATHS", "")).strip().lower() in {"1", "true", "yes", "on"}
+    raw = os.getenv("FROGPT_ALLOW_LOCAL_IMAGE_PATHS")
+    if raw is None:
+        return True
+    return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _image_input_contract() -> dict:
