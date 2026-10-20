@@ -6,6 +6,7 @@ import base64
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
+import os
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -261,6 +262,34 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIn("user_image_urls", hint.get("not_accepted_fields", []))
         self.assertIn("image_input_contract", structured)
         self.assertIn("data:image/jpeg;base64,...", structured.get("image_input_contract", {}).get("required_data_url_prefix_examples", []))
+
+    def test_tools_call_allows_local_paths_when_flag_enabled(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "allow-local-path.png"
+            Image.new("RGB", (1080, 1350), (210, 220, 235)).save(img_path)
+            message = {
+                "jsonrpc": "2.0",
+                "id": 42,
+                "method": "tools/call",
+                "params": {
+                    "name": "prepare_poster",
+                    "arguments": {
+                        "intake_confirmed": True,
+                        "title": "Allow local path",
+                        "body": "MCP local path mode",
+                        "image_role_mode": "both",
+                        "user_image_paths": [str(img_path)],
+                    },
+                },
+            }
+            with patch.dict(os.environ, {"FROGPT_ALLOW_LOCAL_IMAGE_PATHS": "true"}):
+                response = dispatch(message)
+        self.assertIsNotNone(response)
+        structured = response["result"].get("structuredContent", {})
+        self.assertNotEqual(structured.get("status", {}).get("message"), "image_upload_required_use_data_url_base64")
+        self.assertNotEqual(structured.get("next_action"), "reupload_image_as_base64_only")
+        accepted = structured.get("image_input_contract", {}).get("accepted_fields", [])
+        self.assertIn("user_image_paths", accepted)
 
     def test_tools_call_rewrites_failed_output_to_recoverable_needs_input(self) -> None:
         message = {

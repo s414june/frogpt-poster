@@ -4,6 +4,7 @@ import base64
 import io
 import hashlib
 import re
+import os
 
 from PIL import Image, UnidentifiedImageError
 import sys
@@ -101,33 +102,51 @@ TOOL = {
 }
 
 
+def _local_path_inputs_allowed() -> bool:
+    return str(os.getenv("FROGPT_ALLOW_LOCAL_IMAGE_PATHS", "")).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _image_input_contract() -> dict:
+    allow_local_paths = _local_path_inputs_allowed()
+    accepted_fields = [
+        "asset_refs",
+        "geometry_image_base64",
+        "user_image_base64",
+        "subject_image_base64",
+        "reference_image_base64",
+        "generated_background_base64",
+    ]
+    if allow_local_paths:
+        accepted_fields.extend(["user_image_paths", "subject_image_paths", "reference_image_paths"])
+    not_accepted = [
+        "user_image_urls",
+        "subject_image_urls",
+        "reference_image_urls",
+    ]
+    if not allow_local_paths:
+        not_accepted = ["user_image_paths", "subject_image_paths", "reference_image_paths", *not_accepted]
+    rule = "Use store_poster_asset once, then asset_refs; base64 data URLs remain supported."
+    if allow_local_paths:
+        rule += " Local image paths are also accepted because FROGPT_ALLOW_LOCAL_IMAGE_PATHS is enabled. URLs are still rejected."
+    else:
+        rule += " No arbitrary paths or URLs."
     return {
-        "accepted_fields": [
-            "asset_refs",
-            "geometry_image_base64",
-            "user_image_base64",
-            "subject_image_base64",
-            "reference_image_base64",
-            "generated_background_base64",
-        ],
-        "not_accepted_fields": [
-            "user_image_paths",
-            "subject_image_paths",
-            "reference_image_paths",
-            "user_image_urls",
-            "subject_image_urls",
-            "reference_image_urls",
-        ],
+        "accepted_fields": accepted_fields,
+        "not_accepted_fields": not_accepted,
         "required_data_url_prefix_examples": [
             "data:image/jpeg;base64,...",
             "data:image/png;base64,...",
         ],
-        "rule": "Use store_poster_asset once, then asset_refs; base64 data URLs remain supported. No arbitrary paths or URLs.",
+        "rule": rule,
     }
 
 
 def _image_input_contract_text() -> str:
+    if _local_path_inputs_allowed():
+        return (
+            "圖片輸入規則：優先傳 store_poster_asset 回傳的 asset_refs，也接受實際 base64（data URL）。\n"
+            "目前已啟用本機路徑輸入（FROGPT_ALLOW_LOCAL_IMAGE_PATHS=true），可傳 *_image_paths；圖片網址（URL）仍不接受。"
+        )
     return (
         "圖片輸入規則：優先傳 store_poster_asset 回傳的 asset_refs，也接受實際 base64（data URL）。\n"
         "不要傳本機/沙箱路徑，也不要傳圖片網址（URL）。\n"
@@ -280,27 +299,32 @@ def _resolve_intake_confirmed(args: dict) -> bool:
 
 
 def _has_non_base64_image_inputs(args: dict) -> bool:
+    allow_local_paths = _local_path_inputs_allowed()
     disallowed_keys = (
-        "user_image_paths",
-        "subject_image_paths",
-        "reference_image_paths",
         "user_image_urls",
         "subject_image_urls",
         "reference_image_urls",
     )
+    if not allow_local_paths:
+        disallowed_keys = ("user_image_paths", "subject_image_paths", "reference_image_paths", *disallowed_keys)
     if any(bool(args.get(k)) for k in disallowed_keys):
         return True
     payload = args.get("poster_request")
     if isinstance(payload, dict):
-        if bool(payload.get("reference_image_paths")) or bool(payload.get("reference_image_urls")):
+        if bool(payload.get("reference_image_urls")):
+            return True
+        if not allow_local_paths and bool(payload.get("reference_image_paths")):
             return True
         assets = payload.get("assets")
         if isinstance(assets, dict):
             if (
+                bool(assets.get("user_image_urls"))
+                or bool(assets.get("subject_image_urls"))
+            ):
+                return True
+            if not allow_local_paths and (
                 bool(assets.get("user_image_paths"))
                 or bool(assets.get("subject_image_paths"))
-                or bool(assets.get("user_image_urls"))
-                or bool(assets.get("subject_image_urls"))
             ):
                 return True
     return False
