@@ -5,8 +5,11 @@ import io
 import hashlib
 import re
 import os
+import logging
+import traceback
 from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.request import build_opener, HTTPRedirectHandler
+from urllib.error import URLError
 
 from PIL import Image, UnidentifiedImageError
 import sys
@@ -32,6 +35,21 @@ _MAX_STRUCTURED_FULLSIZE_BASE64 = 5_500_000
 _DATA_URL_IMAGE_PREFIX = re.compile(r"^data:image/(jpeg|png|webp);base64,", re.IGNORECASE)
 _ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024
 _ATTACHMENT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
+FILE_SCHEMA = {
+    "type": "object",
+    "properties": {key: {"type": "string"} for key in
+                   ("download_url", "file_id", "mime_type", "file_name")},
+    "required": ["download_url", "file_id"],
+    "additionalProperties": False,
+}
+
+class _NoAttachmentRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValidationError("attachment redirect rejected; request a fresh file reference")
+
+
+# File download URLs are host-issued and should not require redirects.
+urlopen = build_opener(_NoAttachmentRedirects()).open
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -95,9 +113,11 @@ SCHEMA = {
         "regenerate_variant": {"type": "boolean"},
         "variation_token": {"type": "string"},
         "show_design_guide": {"type": "boolean"},
-        "subject_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
-        "background_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
-        "reference_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
+        "subject_image": {**FILE_SCHEMA, "description": "Original product attachment; host supplies the file reference. No Base64 conversion tool needed."},
+        "background_image": {**FILE_SCHEMA, "description": "Background photo attachment."},
+        "reference_image": {**FILE_SCHEMA, "description": "Design inspiration attachment."},
+        "draft_image": {**FILE_SCHEMA, "description": "Complete generated text-free draft; same approval/hash rules as generated_background_base64."},
+        "geometry_image": {**FILE_SCHEMA, "description": "Transparent PNG geometry at final canvas size."},
     },
     "required": [],
     "additionalProperties": False,
@@ -106,14 +126,15 @@ TOOL = {
     "name": NAME,
     "description": ASSISTANT_INSTRUCTIONS,
     "inputSchema": SCHEMA,
-    "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": False},
+    "annotations": {"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False, "openWorldHint": True},
+    "_meta": {"openai/fileParams": ["subject_image", "background_image", "reference_image", "draft_image", "geometry_image"]},
 }
 
 
 def _local_path_inputs_allowed() -> bool:
     raw = os.getenv("FROGPT_ALLOW_LOCAL_IMAGE_PATHS")
     if raw is None:
-        return True
+        return not bool(os.getenv("VERCEL") or os.getenv("VERCEL_ENV"))
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
@@ -137,7 +158,7 @@ def _image_input_contract() -> dict:
     ]
     if allow_local_paths:
         accepted_fields.extend(["user_image_paths", "subject_image_paths", "reference_image_paths"])
-    accepted_fields.extend(["subject_image", "background_image", "reference_image"])
+    accepted_fields.extend(TOOL["_meta"]["openai/fileParams"])
     not_accepted = [
         "user_image_urls",
         "subject_image_urls",
@@ -145,7 +166,7 @@ def _image_input_contract() -> dict:
     ]
     if not allow_local_paths:
         not_accepted = ["user_image_paths", "subject_image_paths", "reference_image_paths", *not_accepted]
-    rule = "Use store_poster_asset once, then asset_refs; base64 data URLs remain supported."
+    rule = "Prefer top-level attachment file parameters directly on prepare_poster; the host supplies download_url/file_id. Reuse returned asset_refs. store_poster_asset is optional; base64 data URLs remain supported."
     if allow_local_paths:
         rule += " Local image paths are also accepted because FROGPT_ALLOW_LOCAL_IMAGE_PATHS is enabled. URLs are still rejected."
     else:
@@ -164,11 +185,11 @@ def _image_input_contract() -> dict:
 def _image_input_contract_text() -> str:
     if _local_path_inputs_allowed():
         return (
-            "圖片輸入規則：優先傳 store_poster_asset 回傳的 asset_refs，也接受實際 base64（data URL）。\n"
+            "圖片輸入規則：優先直接傳 subject_image/background_image 等附件欄位，之後重用 asset_refs；store_poster_asset 為可選，也接受實際 base64（data URL）。\n"
             "目前已啟用本機路徑輸入（FROGPT_ALLOW_LOCAL_IMAGE_PATHS=true），可傳 *_image_paths；圖片網址（URL）仍不接受。"
         )
     return (
-        "圖片輸入規則：優先傳 store_poster_asset 回傳的 asset_refs，也接受實際 base64（data URL）。\n"
+        "圖片輸入規則：優先直接傳 subject_image/background_image 等附件欄位，之後重用 asset_refs；store_poster_asset 為可選，也接受實際 base64（data URL）。\n"
         "不要傳本機/沙箱路徑，也不要傳圖片網址（URL）。\n"
         "正確示例：subject_image_base64: [\"data:image/jpeg;base64,...\"]"
     )
@@ -377,13 +398,22 @@ def _download_attachment_as_data_url(item: dict) -> str:
     if not url:
         raise ValidationError("attachment download_url is required")
     parsed = urlparse(url)
-    if parsed.scheme != "https":
-        raise ValidationError("attachment download_url must be https")
+    host = (parsed.hostname or "").lower()
+    allowed = (host == "chatgpt.com" or host.endswith(".chatgpt.com")
+               or host.endswith(".oaiusercontent.com")
+               or (host.startswith(("oaisdmntpr", "oaisdsorpr")) and host.endswith(".blob.core.windows.net"))
+               or (host.startswith("oaisdmntpr") and ".s3." in host and host.endswith(".amazonaws.com")))
+    if parsed.scheme != "https" or not allowed or parsed.username or parsed.password or parsed.port not in (None, 443):
+        raise ValidationError("attachment download_url must be a host-issued HTTPS file URL")
     mime_hint = str(item.get("mime_type", "")).strip().lower()
     if mime_hint and mime_hint not in _ATTACHMENT_ALLOWED_MIME:
         raise ValidationError("attachment mime_type must be PNG/JPEG/WebP")
-    with urlopen(url, timeout=20) as response:
-        content = response.read(_ATTACHMENT_MAX_BYTES + 1)
+    try:
+        with urlopen(url, timeout=20) as response:
+            content = response.read(_ATTACHMENT_MAX_BYTES + 1)
+    except (URLError, OSError, TimeoutError) as exc:
+        # Do not expose signed URLs or network exception strings.
+        raise ValidationError("attachment download failed; request a fresh file reference") from exc
     if not content:
         raise ValidationError("attachment bytes are empty")
     if len(content) > _ATTACHMENT_MAX_BYTES:
@@ -391,7 +421,11 @@ def _download_attachment_as_data_url(item: dict) -> str:
     try:
         with Image.open(io.BytesIO(content)) as img:
             fmt = str(img.format or "").upper()
+            if max(img.size) > 4096 or img.width * img.height > 16_000_000 or getattr(img, "n_frames", 1) != 1:
+                raise ValidationError("attachment dimensions or frame count exceed limits")
             img.verify()
+    except ValidationError:
+        raise
     except Exception as exc:
         raise ValidationError("attachment is not a valid image payload") from exc
     mime = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}.get(fmt)
@@ -406,12 +440,14 @@ def _materialize_attachment_file_inputs(args: dict) -> dict:
     payload = payload if isinstance(payload, dict) else {}
     assets = payload.get("assets")
     assets = assets if isinstance(assets, dict) else {}
-    refs = prepared.get("asset_refs")
+    refs = prepared.get("asset_refs", payload.get("asset_refs"))
     refs = refs if isinstance(refs, dict) else {}
     mapping = (
         ("subject_image", "subject_image_base64", "subjects"),
         ("background_image", "user_image_base64", "background"),
         ("reference_image", "reference_image_base64", "references"),
+        ("draft_image", "generated_background_base64", "draft"),
+        ("geometry_image", "geometry_image_base64", "geometry"),
     )
     for attachment_key, target_key, ref_key in mapping:
         direct = prepared.get(attachment_key)
@@ -427,11 +463,15 @@ def _materialize_attachment_file_inputs(args: dict) -> dict:
             raise ValidationError(f"{attachment_key} conflicts with asset_refs.{ref_key}")
         items = _as_list(raw_value)
         data_urls = [_download_attachment_as_data_url(item) for item in items]
-        if attachment_key == "background_image" and len(data_urls) != 1:
-            raise ValidationError("background_image accepts exactly one file")
-        prepared[target_key] = data_urls
-        if attachment_key == "background_image":
-            prepared[target_key] = [data_urls[0]]
+        if len(data_urls) != 1:
+            raise ValidationError(f"{attachment_key} accepts exactly one file")
+        prepared[target_key] = data_urls[0] if ref_key in ("draft", "geometry") else data_urls
+        # File objects contain signed URLs, which must not leak into render results.
+        prepared.pop(attachment_key, None)
+        if attachment_key in payload:
+            payload = dict(payload)
+            payload.pop(attachment_key)
+            prepared["poster_request"] = payload
     return prepared
 
 
@@ -545,7 +585,9 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
     rewritten["diagnostics"] = {
         "original_status_code": "failed",
         "error_type": str(output.get("error_type", "")),
+        "reason": hint_message,
     }
+    rewritten["next_action"] = "retry_with_attachment_or_asset_ref_or_base64"
     rewritten.pop("error", None)
     rewritten.pop("error_type", None)
     return rewritten
@@ -619,6 +661,21 @@ def _run_staged_call_legacy(args: dict, intake_completed: bool) -> dict:
 
 
 def dispatch(message):
+    try:
+        return _dispatch(message)
+    except Exception:
+        diagnostic_id = uuid.uuid4().hex
+        # Never log exception messages/locals: SDK failures can contain signed URLs.
+        exc_type, _, tb = sys.exc_info()
+        frames = [(Path(f.filename).name, f.lineno, f.name) for f in traceback.extract_tb(tb)]
+        logging.getLogger(__name__).error("MCP internal failure diagnostic_id=%s type=%s frames=%s",
+                                         diagnostic_id, exc_type.__name__, frames)
+        return {"jsonrpc": "2.0", "id": message.get("id") if isinstance(message, dict) else None,
+                "error": {"code": -32603, "message": "Internal error",
+                          "data": {"diagnostic_id": diagnostic_id}}}
+
+
+def _dispatch(message):
     if not isinstance(message, dict) or message.get("jsonrpc") != "2.0" or not isinstance(message.get("method"), str):
         return {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid Request"}}
     if "id" not in message:
@@ -632,7 +689,7 @@ def dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.1"}, "instructions": ASSISTANT_INSTRUCTIONS}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.2"}, "instructions": ASSISTANT_INSTRUCTIONS}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
