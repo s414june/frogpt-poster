@@ -34,6 +34,9 @@ class TypographyEngine:
         font_paths: list[str],
         style=None,
     ) -> dict:
+        if getattr(style, "text_layers", None):
+            from .text_layers import render_text_layers
+            return render_text_layers(image, style.text_layers)
         role_mode = (
             str(getattr(style, "image_role_mode", "auto")).strip().lower()
             if style

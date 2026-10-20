@@ -101,6 +101,9 @@ def build_tool_definition() -> dict:
                 "reference_image_urls": {"type": "array", "items": {"type": "string"}},
                 "reference_image_paths": {"type": "array", "items": {"type": "string"}},
                 "reference_image_base64": {"type": "array", "items": {"type": "string"}},
+                "design_reference": {"type": "boolean"},
+                "reference_style_description": {"type": "string"},
+                "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}},
                 "generated_background_base64": {"type": "string"},
                 "generated_background_text_free_confirmed": {
                     "type": "boolean",
@@ -257,6 +260,8 @@ def _build_request(arguments: dict) -> PosterRequest:
     if "accent_color" in arguments:
         request.style.accent_color = str(arguments["accent_color"])
 
+    from .text_layers import validate_text_layers
+    request.style.text_layers = validate_text_layers(arguments.get("text_layers", (payload.get("style") or {}).get("text_layers", [])), request.layout.width, request.layout.height)
     return request
 
 
@@ -1042,6 +1047,33 @@ def handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
+        if arguments.get("design_reference"):
+            description = str(arguments.get("reference_style_description", "")).strip()
+            if not _get_generated_background_base64(arguments):
+                return {
+                    "ok": True, "rendered": False, "pipeline_stage": "needs_background_generation",
+                    "next_action": "analyze_reference_generate_text_free_visual_then_define_text_layers",
+                    "background_generation_prompt": (
+                        f"Create an original text-free poster {request.layout.width}x{request.layout.height} for {request.style.subject or request.title}. "
+                        f"Visual direction from the user reference: {description}. "
+                        "Use the reference for palette, texture, lighting, visual hierarchy and composition. "
+                        "Adapt composition to the new subject; reserve negative space for the planned text layers. "
+                        "Do not reproduce original copy, logos or watermarks. No text, letters or numbers."
+                    ),
+                    "text_layer_contract": "text_layers: [{text, font_family: sans|serif|kai|rounded, font_size: pixels, color: #RRGGBB, x, y, width, height: pixels, align: left|center|right, line_spacing: pixels}]. Explicit newlines are preserved; overflow is rejected.",
+                    "reference_is_inspiration_only": True,
+                }
+            # Only the new text-free image reaches the renderer, never the inspiration poster.
+            for key in list(arguments):
+                if key.startswith(("reference_image_", "user_image_", "subject_image_")):
+                    arguments.pop(key)
+            request.assets.user_image_paths = []
+            request.assets.subject_image_paths = []
+            request.style.background_mode = "reference"
+            request.style.image_role_mode = "both"
+            request.style.geometry_enabled = False
+            if not request.style.text_layers:
+                raise ValidationError("design_reference requires text_layers for final typography")
         design_autopilot = _apply_gpt_design_autopilot(arguments, request)
         if bool(arguments.get("regenerate_variant", False)):
             request.style.variation_token = uuid.uuid4().hex[:12]

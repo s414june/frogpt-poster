@@ -24,6 +24,7 @@ class PosterLayout:
 
 @dataclass(slots=True)
 class PosterStyle:
+    text_layers: list[dict] = field(default_factory=list)
     background_mode: str = "auto"
     image_role_mode: str = "auto"
     geometry_enabled: bool = True

@@ -31,6 +31,9 @@ SCHEMA = {
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
+        "design_reference": {"type": "boolean", "description": "Use the user poster as visual inspiration only. Generate a new text-free visual first, then send text_layers for API typography."},
+        "reference_style_description": {"type": "string", "description": "GPT visual analysis: palette, composition, texture, lighting, hierarchy and reserved text space."},
+        "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Exact text overlay definitions in canvas pixels: text, font_family, font_size, color (#RRGGBB), x, y, width, height, align, line_spacing. Overflow fails explicitly."},
         "font_family": {"type": "string", "description": "Default sans (黑體). Request serif (明體/宋體), kai (楷體), rounded (圓體). Also accepted in poster_request.style.font_family. Unsupported names fail explicitly."},
         "text_align": {"type": "string", "enum": ["left", "center", "right"], "description": "Alignment for every copy block."},
         "headline_source": {"type": "string", "enum": ["title", "body_first"], "description": "Use title to preserve the supplied headline and its explicit newlines as the large heading."},
@@ -399,7 +402,7 @@ def _run_staged_call(args: dict, intake_completed: bool) -> dict:
             return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "invalid_generated_image_base64"}, "next_action": "reencode_actual_image_bytes_as_jpeg_or_png_data_url"}
         draft_sha = hashlib.sha256(raw).hexdigest()
         approved_sha = args.get("approved_draft_sha256", payload.get("approved_draft_sha256"))
-        if not confirmed or approved_sha != draft_sha:
+        if not args.get("design_reference") and (not confirmed or approved_sha != draft_sha):
             return {
                 "ok": True, "rendered": False, "pipeline_stage": "awaiting_typography_confirmation",
                 "status": {"code": "awaiting_typography_confirmation", "message": "text_free_draft_ready_wait_for_user"},

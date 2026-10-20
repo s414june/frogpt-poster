@@ -6,7 +6,9 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """先完成一次需求確認，重用 intake_session_token。AI 生圖流程必須分成兩階段：
+ASSISTANT_INSTRUCTIONS = """使用者提供設計海報作為靈感時，設 design_reference=true，先由 GPT 看圖分析配色、構圖、材質、光線、文字層級與留白，傳 reference_style_description。參考圖只供視覺靈感，不得直接當背景成品。
+此模式優先於下方一般 AI 流程的主體置中、單一文字色與逐輪確認限制：先生成符合參考風格及新主題的原創無字海報，再把實際無字圖片以 generated_background_base64 傳入，確認無文字後設 generated_background_text_free_confirmed=true；GPT 同時定義 text_layers，每層含 text、font_family、font_size、color、x、y、width、height、align、line_spacing，座標與尺寸均為最終畫布像素。可使用不同字級與顏色，所有字交 API 渲染，禁止生圖畫字。保留使用者文案，不抄參考圖原文或 logo。此模式使用者要求直接完成時可同輪接續排字，不需額外批准；若使用者要求先看草稿則先展示並等待。API 本身不會呼叫生圖模型，助理必須完成看圖與生圖再回傳實際位元組。
+先完成一次需求確認，重用 intake_session_token。AI 生圖流程必須分成兩階段：
 附件讀取前置檢查（適用使用者上傳圖片與 AI 圖）：在助理所在環境先確認本輪提供的附件可實際讀取，並能以圖片解碼器開啟；僅看見對話中的圖片，不代表已取得可傳送的圖片位元組。
 若附件路徑出現 No such file or directory／FileNotFoundError，停止使用該失效路徑，不得原樣重試或把其他對話的暫存路徑當成目前附件。
 優先使用本輪附件參照，透過平台提供的附件取得機制重新取得同一張原圖；只有確實取得圖片位元組且驗證可解碼後，才能縮小、轉成完整 base64 data URL 並呼叫套件渲染。
@@ -71,7 +73,8 @@ def assistant_execution_contract() -> dict:
         "when_status_not_completed": "follow_next_action; never retry while awaiting user confirmation",
         "subject_bounds": {"center": [0.5, 0.5], "max_width_ratio": 0.5, "max_height_ratio": 0.5},
         "mobile_test_profile": {"width": 480, "height": 640, "target_input_base64_chars": 100000},
-        "single_text_color": True,
+        "design_reference_workflow": {"enabled_by": "design_reference=true", "reference_usage": "inspiration_only", "text_renderer": "API text_layers", "requires_separate_typography_approval": False},
+        "single_text_color": "legacy flow only; design_reference supports per-layer color",
         "instructions": ASSISTANT_INSTRUCTIONS,
         "required_final_status_code": "completed",
         "required_final_rendered": True,

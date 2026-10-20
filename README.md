@@ -304,3 +304,25 @@ Default `font_family=sans` uses Noto Sans TC (黑體). Set `font_family` at MCP/
 `.vercelignore` uses an exact file allowlist matching `font_registry.FONT_FAMILIES`: six font files (sans Regular/Medium, serif Regular/Medium, kai Regular, rounded Regular) and four OFL licenses. Variable-font duplicates, unused weights and duplicate SC families remain in the development repository but are excluded from deployment. Font files are loaded for rendering; the API still returns rendered image bytes as base64, not encoded font files.
 
 Local ignore-rule audit: font resources fall from 170.45 MB to 74.67 MB (decimal). This is a measured source-font reduction, **not** a verified Vercel function bundle size. Dependencies and build-time packaging still contribute to the final deployment. `tests/test_font_bundle.py` checks that only registered fonts/licenses are included and that fonts remain below an 80 MB budget. Each family was also locally loaded through FreeType and rendered through the image-to-base64-to-PNG pipeline.
+
+
+### 使用設計海報作為靈感
+
+助理先檢視使用者的參考海報，設 `design_reference=true`，並以
+`reference_style_description` 記錄配色、構圖、材質、光線與留白。
+API 會回傳 `needs_background_generation`，由助理生成新的無字視覺。
+API 本身不呼叫生圖模型。參考海報不會作為成品背景。
+
+助理將新圖的實際 JPEG/PNG data URL 放入 `generated_background_base64`，
+並設定 `generated_background_text_free_confirmed=true`，同時傳入 `text_layers`：
+
+```json
+[{"text":"秋日限定", "font_family":"serif", "font_size":42,
+  "color":"#174C61", "x":32, "y":40, "width":416, "height":100,
+  "align":"left", "line_spacing":8}]
+```
+
+所有位置、尺寸、字級與行距均為最終畫布像素；支援 sans、serif、kai、rounded。
+文字換行由助理指定，超出文字框時回傳錯誤，不自動裁切或縮字。
+此流程可同輪完成無字視覺與 API 排字；使用者要求先看草稿時，助理先展示再等候。
+未啟用此模式時保留既有分階段確認流程。
