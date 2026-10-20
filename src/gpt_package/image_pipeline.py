@@ -151,7 +151,7 @@ class ImagePipeline:
             planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
         request.style.subject_focus_box = list(planned_box) if planned_box else []
 
-        if not request.style.geometry_layers and self._should_add_geometry(request, decision):
+        if not request.assets.geometry_image_path and not request.style.geometry_layers and self._should_add_geometry(request, decision):
             geo_result = self._add_decorative_geometry(
                 background=background,
                 subject_box=planned_box,
@@ -173,6 +173,17 @@ class ImagePipeline:
         return background
 
     def _render_explicit_geometry(self, background, request):
+        if request.style.geometry_enabled and request.assets.geometry_image_path:
+            with Image.open(request.assets.geometry_image_path) as source:
+                overlay = source.convert("RGBA")
+                if overlay.size != background.size:
+                    from .errors import ValidationError
+                    raise ValidationError("geometry image must match final canvas dimensions")
+                background.paste(overlay, (0, 0), overlay)
+            self._last_effects.update(decorative_geometry_applied=True,
+                decorative_geometry_strategy="gpt_image_overlay",
+                decorative_geometry_shapes=1)
+            return
         if request.style.geometry_enabled and request.style.geometry_layers:
             from .geometry import render_geometry
             render_geometry(background, request.style.geometry_layers)

@@ -394,10 +394,21 @@ Windows manifest 路徑會轉為跨平台路徑，以 repo 根目錄解析。
 `geometry_enabled=false` 停用；有精確圖層時不再額外隨機加裝飾。
 
 ```json
-{"geometry_layers":[{"shape":"circle","x":80,"y":260,"width":180,"height":180,"fill":null,"stroke":"#38483B","opacity":0.35,"stroke_width":3}]}
+{"geometry_layers":[{"shape":"circle","x":80,"y":260,"width":180,"height":180,"fill":null,"stroke":"#000000","opacity":0.35,"stroke_width":3}]}
 ```
 
 主標預設字級提高約 20%，副標略增；明確 text_layers 字級維持不變。
 商品包裝品牌／標籤等非標語文字可用 AI 生成，允許自繪、曲面與透視字樣。
 海報主標、副標及 CTA 仍使用工具字型。現有 text-free 確認欄位
 指的是沒有額外海報文案，不排除主體原生文字。
+
+
+### GPT 獨立幾何圖層（優先）
+GPT 環境先自行畫透明 PNG，以頂層 `geometry_image_base64` 或
+`poster_request.assets.geometry_image_base64` 傳入。PNG 必須含 alpha 並與最終畫布
+同尺寸，保留透明邊界；不能把主體、背景或標語畫進此圖。
+API 依背景 → 幾何 → 主體三個視覺圖層合成，最後排文案及引用。
+不裁切、不改色、不額外生成裝飾；圖片優先於舊的 `geometry_layers`，
+`geometry_enabled=false` 可停用兩者。舊形狀參數保留給非 GPT 或明確要求 API 繪製的流程。
+純黑用 #000000，不從品牌色自動帶入綠色；已刪除形狀不可自動補回。
+FrogToothpaste 本次調整規格見 `examples/frogtoothpaste-design.json`。

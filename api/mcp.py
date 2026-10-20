@@ -51,6 +51,7 @@ SCHEMA = {
         "subject": {"type": "string"},
         "background_mode": {"type": "string", "enum": ["auto", "solid", "gradient", "reference"]},
         "image_role_mode": {"type": "string", "enum": ["auto", "subject", "background", "both"]},
+        "geometry_image_base64": {"type": "string", "description": "GPT-drawn transparent PNG at final canvas size; background → geometry → subject. Preferred in GPT; no recoloring or cropping."},
         "geometry_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "GPT geometry behind subject on any background: shape circle|rectangle|line, canvas x/y/width/height, fill/stroke #RRGGBB, opacity 0–1, stroke_width."},
         "geometry_enabled": {"type": "boolean"},
         "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
@@ -423,7 +424,10 @@ def _run_staged_call(args: dict, intake_completed: bool) -> dict:
         if not _has_render_brief(args):
             return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "copy_required"}, "next_action": "ask_user_for_copy"}
         # Use the complete approved composition unchanged; typography is the only overlay.
-        args.update(image_role_mode="both", background_mode="reference", geometry_enabled=False)
+        has_geometry_image = bool(args.get("geometry_image_base64") or (payload.get("assets") or {}).get("geometry_image_base64"))
+        args.update(image_role_mode="background" if has_geometry_image else "both", background_mode="reference")
+        if not has_geometry_image:
+            args["geometry_enabled"] = False
     elif confirmed and not _has_render_brief(args):
         return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "copy_required"}, "next_action": "ask_user_for_copy"}
     assets = payload.get("assets") or {}

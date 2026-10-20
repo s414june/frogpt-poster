@@ -12,6 +12,7 @@ class ImageSource(str, Enum):
 @dataclass(slots=True)
 class PosterAssetSet:
     user_image_paths: list[str] = field(default_factory=list)
+    geometry_image_path: str = ""
     subject_image_paths: list[str] = field(default_factory=list)
     open_source_font_paths: list[str] = field(default_factory=list)
 

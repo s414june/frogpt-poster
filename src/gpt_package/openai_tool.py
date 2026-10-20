@@ -141,6 +141,7 @@ def build_tool_definition() -> dict:
                     "type": "string",
                     "enum": ["auto", "subject", "background", "both"],
                 },
+                "geometry_image_base64": {"type": "string", "description": "GPT-drawn transparent PNG matching final canvas; composited above background and below subject, without recoloring or cropping. Preferred over geometry_layers in GPT."},
                 "geometry_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Explicit geometry in canvas pixels: shape circle|rectangle|line, x/y/width/height, fill/stroke #RRGGBB, opacity 0–1, stroke_width. Behind subject, on any background."},
                 "geometry_enabled": {"type": "boolean"},
                 "subject_mask_mode": {
@@ -405,6 +406,9 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
     b64_images = arguments.get("user_image_base64", payload_assets.get("user_image_base64", []))
     subject_urls = arguments.get("subject_image_urls", payload_assets.get("subject_image_urls", []))
     subject_b64_images = arguments.get("subject_image_base64", payload_assets.get("subject_image_base64", []))
+    geometry_b64 = arguments.get("geometry_image_base64", payload_assets.get("geometry_image_base64"))
+    if geometry_b64 is not None and (not isinstance(geometry_b64, str) or not geometry_b64.strip()):
+        raise ValidationError("geometry_image_base64 must be a nonempty PNG base64 string")
     nested_user_paths = payload_assets.get("user_image_paths", [])
     nested_subject_paths = payload_assets.get("subject_image_paths", [])
     if urls and not isinstance(urls, list):
@@ -420,10 +424,25 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
     if nested_subject_paths and not isinstance(nested_subject_paths, list):
         raise ValidationError("poster_request.assets.subject_image_paths must be an array of strings")
 
-    if not urls and not b64_images and not subject_urls and not subject_b64_images and not nested_user_paths and not nested_subject_paths:
+    if geometry_b64 is None and not urls and not b64_images and not subject_urls and not subject_b64_images and not nested_user_paths and not nested_subject_paths:
         return None
 
     temp_dir = Path(tempfile.mkdtemp(prefix="poster-images-"))
+    if geometry_b64 is not None:
+        path = temp_dir / "geometry.png"
+        try:
+            _decode_base64_image(geometry_b64, path)
+            with Image.open(path) as overlay:
+                if overlay.format != "PNG" or "A" not in overlay.getbands():
+                    raise ValidationError("geometry_image_base64 requires a transparent PNG with alpha")
+                if overlay.size != (request.layout.width, request.layout.height):
+                    raise ValidationError("geometry image must match final canvas dimensions; do not crop transparent margins")
+                if overlay.getchannel("A").getextrema()[0] == 255:
+                    raise ValidationError("geometry image must contain transparent pixels")
+            request.assets.geometry_image_path = str(path)
+        except Exception:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
     materialized: list[str] = []
     for idx, url in enumerate(urls):
         path = temp_dir / f"url-{idx}.img"
@@ -700,6 +719,7 @@ def _has_user_design_customization(arguments: dict, request: PosterRequest) -> b
         "background_color_hint",
         "geometry_enabled",
         "geometry_layers",
+        "geometry_image_base64",
         "subject_mask_mode",
         "subject_border_px",
         "primary_color",
@@ -840,7 +860,7 @@ def _apply_image_role_mode(request: PosterRequest, role_mode: str) -> None:
         if not request.assets.user_image_paths and request.assets.subject_image_paths:
             request.assets.user_image_paths = [request.assets.subject_image_paths[0]]
         request.assets.subject_image_paths = []
-        if not request.style.geometry_layers:
+        if not request.style.geometry_layers and not request.assets.geometry_image_path:
             request.style.geometry_enabled = False
 
 
@@ -1166,7 +1186,7 @@ def handle_tool_call(arguments: dict) -> dict:
             request.assets.subject_image_paths = []
             request.style.background_mode = "reference"
             request.style.image_role_mode = "both"
-            if not request.style.geometry_layers:
+            if not request.style.geometry_layers and not (arguments.get("geometry_image_base64") or ((arguments.get("poster_request") or {}).get("assets") or {}).get("geometry_image_base64")):
                 request.style.geometry_enabled = False
             if not request.style.text_layers:
                 raise ValidationError("design_reference requires text_layers for final typography")

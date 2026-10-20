@@ -1,0 +1,13 @@
+{
+  "brand": "FrogToothpaste",
+  "packaging_lettering": "handwritten English intrinsic to the toothpaste tube",
+  "reference_library_id": "pexels-1527934",
+  "canvas": {"width": 720, "height": 960},
+  "geometry_source": "gpt_transparent_png",
+  "geometry_color": "#000000",
+  "excluded_geometry": ["upper-right outlined circle"],
+  "geometry_brief": "Keep the left translucent filled circle and the bold lower divider, both pure black without green tint. Do not restore the upper-right ring.",
+  "layer_order": ["background", "geometry_image_base64", "subject_image_base64"],
+  "typography": {"headline": "純粹，始於日常。", "headline_size": 58, "subtitle": "讓清新成為每日儀式", "subtitle_size": 28},
+  "credit": "single row, semi-transparent gray, flush to edge, no extra padding"
+}

@@ -6,7 +6,7 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """GPT 幾何裝飾請傳 geometry_layers：shape=circle|rectangle|line，x/y/width/height 為最終畫布像素，fill/stroke=#RRGGBB 或 null，opacity=0–1，stroke_width=1–64。支援 Pexels、上傳圖片與 AI 背景，裝飾先畫、主體後疊、最後排字；geometry_enabled=false 停用。自行安排不遮住主體或文案，不要只設 geometry_enabled 期待固定模板生成精確裝飾。
+ASSISTANT_INSTRUCTIONS = """GPT 環境的額外幾何裝飾優先由 GPT 自行繪製成透明 PNG，再傳 geometry_image_base64（頂層或 poster_request.assets）。PNG 必須含 alpha、尺寸等於最終畫布，保留透明留白，不得裁切或混入背景、主體、標語。API 只疊合：背景 → GPT 幾何透明圖 → 主體，最後排版文字與引用；不自動改色、不額外補形狀。有幾何圖片時優先於 geometry_layers，geometry_enabled=false 全部停用。依使用者指定顏色繪製，純黑就是 #000000，不得自動偏綠。使用者移除的形狀不得自行補回。非 GPT 或明確要求 API 畫幾何時才使用相容的 geometry_layers：shape=circle|rectangle|line、畫布像素座標、fill/stroke=#RRGGBB、opacity=0–1、stroke_width=1–64。
 署名採半透明灰底（alpha=150/255），貼齊右上邊緣（外距 0）、框貼墨跡（padding 0），所有引用維持一排去重。
 排版：未指定字級時主標預設放大約 20%，副標小幅放大；指定 text_layers 時尊重其字級，GPT 應優先給主標較醒目的字級，副標維持或略放大，不得讓長主標裁切或單字孤行。
 主體內建文字例外：商品包裝品牌、標籤、瓶身印字等非海報標語，可由 AI 以自繪或實體印刷字樣生成，並保留曲面、透視、材質；不得把這些字另做平面排版貼在主體上。海報主標、副標、CTA、活動資訊仍交 API 字型排版。下文「無字／text-free」指無額外海報文案，不禁止此類主體內建文字；確認圖檔後可設 generated_background_text_free_confirmed=true。
