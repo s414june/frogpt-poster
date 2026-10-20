@@ -101,6 +101,9 @@ def build_tool_definition() -> dict:
                 "reference_image_urls": {"type": "array", "items": {"type": "string"}},
                 "reference_image_paths": {"type": "array", "items": {"type": "string"}},
                 "reference_image_base64": {"type": "array", "items": {"type": "string"}},
+                "design_variant": {"type": "string", "enum": ["reinterpret", "faithful"], "description": "Default reinterpret: new palette for colorful references, rearrange at least two structural decisions; faithful only when explicitly requested."},
+                "typography_grid": {"type": "boolean", "description": "Default true in reference mode: snap measured text to baseline grid, enforce 5% margin and 2-unit text/subject gaps, bounded repair; report large gaps within group."},
+                "protected_regions": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "GPT visually identifies subject/photo rectangles on the generated visual, in canvas pixels: x, y, width, height. Not automatic detection."},
                 "design_reference": {"type": "boolean"},
                 "reference_style_description": {"type": "string"},
                 "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}},
@@ -260,6 +263,12 @@ def _build_request(arguments: dict) -> PosterRequest:
     if "accent_color" in arguments:
         request.style.accent_color = str(arguments["accent_color"])
 
+    grid = arguments.get("typography_grid", (payload.get("style") or {}).get("typography_grid", bool(arguments.get("design_reference"))))
+    if not isinstance(grid, bool):
+        raise ValidationError("typography_grid must be boolean")
+    request.style.typography_grid = grid
+    from .layout_grid import validate_regions
+    request.style.protected_regions = validate_regions(arguments.get("protected_regions", (payload.get("style") or {}).get("protected_regions", [])), request.layout.width, request.layout.height)
     from .text_layers import validate_text_layers
     request.style.text_layers = validate_text_layers(arguments.get("text_layers", (payload.get("style") or {}).get("text_layers", [])), request.layout.width, request.layout.height)
     return request
@@ -1048,15 +1057,27 @@ def handle_tool_call(arguments: dict) -> dict:
 
         request = _build_request(arguments)
         if arguments.get("design_reference"):
+            variant = arguments.get("design_variant", "reinterpret")
+            if variant not in ("reinterpret", "faithful"):
+                raise ValidationError("design_variant must be reinterpret or faithful")
             description = str(arguments.get("reference_style_description", "")).strip()
+            from .layout_grid import grid_spec
+            variant_instruction = (
+                "Create a distinct variant: change at least two structural decisions (photo placement/scale, headline alignment, secondary block arrangement). For colorful references change the dominant and accent hues while retaining contrast relationships, drawing palette inspiration from the NEW subject image. For neutral references retain restraint but change composition. Never just replace the subject in the same template. "
+                if variant == "reinterpret" else "Keep the user-requested palette and overall composition. "
+            )
             if not _get_generated_background_base64(arguments):
                 return {
                     "ok": True, "rendered": False, "pipeline_stage": "needs_background_generation",
                     "next_action": "analyze_reference_generate_text_free_visual_then_define_text_layers",
+                    "layout_grid": grid_spec(request.layout.width, request.layout.height),
+                    "protected_regions_required_on_retry": "GPT must visually identify subject/photo rectangles from the GENERATED visual; provide x/y/width/height in final canvas pixels. No automatic subject detection is performed.",
+                    "design_variant": variant,
                     "background_generation_prompt": (
                         f"Create an original text-free poster {request.layout.width}x{request.layout.height} for {request.style.subject or request.title}. "
                         f"Visual direction from the user reference: {description}. "
-                        "Interpret the reference contrast relationships, texture, lighting and hierarchy; use a different coherent palette and subtly rearrange the layout unless the user explicitly requests matching colors/layout. "
+                        + variant_instruction +
+                        "Preserve the reference visual rhythm, texture and hierarchy. "
                         "Adapt composition to the new subject; reserve negative space for the planned text layers. "
                         "Do not reproduce original copy, logos or watermarks. No text, letters or numbers."
                     ),
@@ -1179,6 +1200,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "image_source": result.decision.image_source.value,
                 "reason": result.decision.reason,
             },
+            "layout_report": request.style.layout_report,
             "request": request.to_dict(),
             "output_path": result.output_path,
             "output_mime_type": "image/png",

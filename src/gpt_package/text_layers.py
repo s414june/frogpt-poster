@@ -36,27 +36,68 @@ def validate_text_layers(layers, width, height):
             raise ValidationError('Layer line_spacing must be 0–512')
         item['font_family'], _ = resolve_font_family(item.get('font_family', 'sans'))
         item['font_weight'], _ = resolve_font_weight(item['font_family'], item.get('font_weight', 400))
+        tracking = item.setdefault('letter_spacing', 0)
+        if isinstance(tracking, bool) or not isinstance(tracking, (int, float)) or not math.isfinite(tracking) or not 0 <= tracking <= item['font_size'] * .25:
+            raise ValidationError('letter_spacing must be 0–0.25 em in pixels')
+        if not isinstance(item.get('allow_overlap', False), bool):
+            raise ValidationError('allow_overlap must be boolean')
         result.append(item)
     return result
 
 
-def render_text_layers(image, layers):
+def _tracked_glyphs(draw, item, font):
+    lines = item['text'].split('\n')
+    widths = [font.getlength(line) + max(0,len(line)-1)*item['letter_spacing'] for line in lines]
+    maximum = max(widths)
+    asc,desc=font.getmetrics()
+    glyphs=[]; boxes=[]
+    for row,line in enumerate(lines):
+        offset={'left':0,'center':(maximum-widths[row])/2,'right':maximum-widths[row]}[item['align']]
+        baseline=row*(asc+desc+item['line_spacing'])
+        for i,char in enumerate(line):
+            x=offset+font.getlength(line[:i])+i*item['letter_spacing']
+            glyphs.append((char,x,baseline))
+            boxes.append(draw.textbbox((x,baseline),char,font=font,anchor='ls'))
+    box=(min(b[0] for b in boxes),min(b[1] for b in boxes),max(b[2] for b in boxes),max(b[3] for b in boxes))
+    return glyphs,box
+
+
+def render_text_layers(image, layers, style=None):
     layers = validate_text_layers(layers, *image.size)
     draw = ImageDraw.Draw(image)
-    planned = []
+    planned, measured = [], []
     for item in layers:
         _, path = resolve_font_weight(item['font_family'], item['font_weight'])
         font = ImageFont.truetype(path, round(item['font_size']))
-        box = draw.multiline_textbbox((0, 0), item['text'], font=font,
-                                      spacing=item['line_spacing'], align=item['align'])
-        width, height = box[2] - box[0], box[3] - box[1]
+        tracking = item['letter_spacing']
+        if tracking:
+            glyphs, box = _tracked_glyphs(draw,item,font)
+            width,height=box[2]-box[0],box[3]-box[1]
+        else:
+            box = draw.multiline_textbbox((0, 0), item['text'], font=font,
+                                          spacing=item['line_spacing'], align=item['align'])
+            width, height = box[2]-box[0], box[3]-box[1]
         if width > item['width'] or height > item['height']:
             raise ValidationError('Text overflows layer box; reduce font_size, enlarge box or insert newlines')
-        offset = {'left': 0, 'center': (item['width'] - width) / 2,
-                  'right': item['width'] - width}[item['align']]
-        planned.append((item, font, (item['x'] + offset - box[0], item['y'] - box[1])))
-    for item, font, position in planned:
-        draw.multiline_text(position, item['text'], font=font, fill=item['color'],
-                            spacing=item['line_spacing'], align=item['align'])
-    return {'selected_font': 'per-layer registered fonts', 'layout_mode': 'explicit_text_layers',
-            'layout_variant': None}
+        offset = {'left':0, 'center':(item['width']-width)/2, 'right':item['width']-width}[item['align']]
+        measured.append((item,item['x']+offset,item['y'],width,height))
+        planned.append((item,font,box))
+    report = {}
+    if getattr(style, 'typography_grid', False):
+        from .layout_grid import place_ink_boxes
+        placements, report = place_ink_boxes(measured,*image.size,style.protected_regions)
+    else:
+        placements = [(x,y,x+w,y+h) for _,x,y,w,h in measured]
+    for (item,font,box), rect in zip(planned,placements):
+        x,y = rect[:2]
+        if not item['letter_spacing']:
+            draw.multiline_text((x-box[0],y-box[1]),item['text'],font=font,fill=item['color'],
+                                spacing=item['line_spacing'],align=item['align'])
+        else:
+            glyphs,_ = _tracked_glyphs(draw,item,font)
+            for char,gx,gy in glyphs:
+                draw.text((x-box[0]+gx,y-box[1]+gy),char,font=font,fill=item['color'],anchor='ls')
+    if style is not None:
+        style.layout_report = report
+    return {'selected_font':'per-layer registered fonts','layout_mode':'explicit_text_layers',
+            'layout_variant':None,'layout_report':report}
