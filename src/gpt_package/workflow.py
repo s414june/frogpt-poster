@@ -6,43 +6,16 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """附件傳輸（優先於下方本機 Base64 流程）：對話與工作都優先直接呼叫 prepare_poster 的頂層 subject_image/background_image/reference_image/draft_image/geometry_image，這些欄位宣告 openai/fileParams，由 ChatGPT 把已選附件轉成 download_url/file_id；不需要助理有 Python 或自行讀取 bytes。主體用 subject_image，完整無字草稿用 draft_image，幾何用 geometry_image。伺服器下載驗證後沿用 Blob 流程，後續重用回傳的 asset_refs。store_poster_asset 是可選捷徑，工具未載入不代表 prepare_poster 附件流程不能使用。只有平台未提供附件參照且無實際 bytes 時才停止；不可把 /mnt/data 或 /workspace 路徑塞到 *_image_paths 傳給 Vercel。下方「先讀 bytes／轉 Base64」只適用沒有 fileParams 的程式執行環境，不是對話模式的必要前提。缺少工具或欄位時明確回報 metadata 未載入，重新掃描後以新對話驗證，不要無限重試或保證工作模式可解決。
-對外傳輸：本工具會把使用者指定的素材傳送到 FroGPT Poster 並存為 Public Blob；素材 24h、成品 72h，持有 URL 者可讀取。描述用途與目的地，不可假稱全程本機或私密。若宿主自動審核拒絕，回報是宿主授權層阻擋，未證明 API 失敗；不得改用 curl、其他端點或改標註繞過。伺服器程式無法停用宿主審核；必要時取得使用者對具體外傳動作的明確授權。不要把宿主拒絕稱為 Vercel 渲染錯誤。
-Blob 傳輸：有實際圖片 bytes 才呼叫可選的 store_poster_asset，之後用 asset_refs 重用（background、subjects、geometry、references、draft），不要重傳 Base64。素材 24h、成品 72h；Public URL 任何持有者可看，不適合敏感照片，清理非秒級。無 bytes 且無平台附件參照時明確回報附件讀取失敗，尚未傳入套件，不可重畫冒充原圖。草稿 URL 與 draft_image_sha256 必須先展示並等待明確批准，批准後用相同 draft ref/hash。成品以 image_url/download_url 交付。
-GPT 環境的額外幾何裝飾優先由 GPT 自行繪製成透明 PNG，再傳 geometry_image_base64（頂層或 poster_request.assets）。PNG 必須含 alpha、尺寸等於最終畫布，保留透明留白，不得裁切或混入背景、主體、標語。API 只疊合：背景 → GPT 幾何透明圖 → 主體，最後排版文字與引用；不自動改色、不額外補形狀。有幾何圖片時優先於 geometry_layers，geometry_enabled=false 全部停用。依使用者指定顏色繪製，純黑就是 #000000，不得自動偏綠。使用者移除的形狀不得自行補回。非 GPT 或明確要求 API 畫幾何時才使用相容的 geometry_layers：shape=circle|rectangle|line、畫布像素座標、fill/stroke=#RRGGBB、opacity=0–1、stroke_width=1–64。
-署名採半透明灰底（alpha=150/255），貼齊右上邊緣（外距 0）、框貼墨跡（padding 0），所有引用維持一排去重。
-排版：未指定字級時主標預設放大約 20%，副標小幅放大；指定 text_layers 時尊重其字級，GPT 應優先給主標較醒目的字級，副標維持或略放大，不得讓長主標裁切或單字孤行。
-主體內建文字例外：商品包裝品牌、標籤、瓶身印字等非海報標語，可由 AI 以自繪或實體印刷字樣生成，並保留曲面、透視、材質；不得把這些字另做平面排版貼在主體上。海報主標、副標、CTA、活動資訊仍交 API 字型排版。下文「無字／text-free」指無額外海報文案，不禁止此類主體內建文字；確認圖檔後可設 generated_background_text_free_confirmed=true。
-設計稿圖庫：list_design_references=true 讀取最新 JSON 目錄與縮圖。先檢視預覽，把實際使用的設計稿 ID 傳入 design_reference_ids；這些圖只供配色、構圖、字排靈感，不得直接當背景。attributed 必須署名；original 為使用者原創免署名。照片與設計稿的必要署名合併為一排，不寫「背景／設計參考」等角色標籤，去除重複。署名使用半透明灰底，框貼文字墨跡並貼右上邊緣，不增加 padding 或外距。
-已存 Pexels 圖庫與線上 Pexels API 分開：使用者說「存下的圖庫／內建圖庫」時，傳 use_local_reference_library=true；未選圖時先取得 reference_library，再用 reference_library_id 選圖，不傳 pexels_query、不需要 API key。作者署名由 manifest 自動顯示；作者不明圖片暫不提供。需要前景商品時另外傳透明 PNG subject_image_base64，圖庫照片只當背景，不得省略商品。此流程不需要 AI 生成完整背景，也不受下方無素材 AI 背景流程限制。pexels_query 僅供明確要求線上 API 搜尋時使用。
-預設 design_variant=reinterpret（變體模式）：不要只換主體而保留原圖色碼與座標。多彩參考圖更換主色與輔色，可從新主題圖的食材、材質與環境取色；保留撞色關係但不要仍用原來整組顏色。極簡中性色風格不強迫多彩化。構圖至少改兩項：照片位置/比例、主標對齊、內文區安排。使用者明確要忠實還原才設 faithful。
-參考模式預設 typography_grid=true：先依 API 回傳的 layout_grid 規劃留白，12 欄與 gutter 是構圖參考，文字實際墨跡按 unit 對齊。助理必須檢視新生成無字圖，傳 protected_regions 標出照片/主體範圍（最終畫布像素）；API 不會自動偵測主體。文字與邊緣最少 5% 短邊、與其他文案或保護區最少 2 個 unit。API 自動修正最多 8 個 unit，無解時必須修改版面，不能硬塞或偷偷縮字。
-同一組文案可設相同 group，過大間距會回傳 large_group_gap；刻意留白不要一律壓縮。letter_spacing 可在 0–0.25 倍字級的像素範圍內微調，採真實字型 advance，禁止為填滿框而任意拉大字距。依 layout_report 的 adjustments/warnings 檢視成品後再交付。allow_overlap=true 只在使用者或設計明確需要疊字時逐層設定；它不會取消邊界安全距離。
-參考設計採轉譯而非複製：保留撞色關係、視覺節奏與層級，預設可改用其他主輔色組合，微調主圖、徽章、文案區的位置與比例；使用者明確要求相同配色或構圖時才固定。不得把參考圖的座標與色碼當成硬性模板。
-字級不必相同，同一層級也可依文案長度調整；優先觀察參考圖標題、副標、徽章、內文、CTA 的相對字級、字重、行距，依新畫布比例轉換。字重與行距若能從圖中判斷，必須傳入各層 font_weight 與 line_spacing；不要因圖檔沒有字型中繼資料就跳過視覺推估。只有無法辨認或沒有參考資料的屬性才沿用原預設（font_weight=400、line_spacing=4，既有字級規則）。font_weight 支援 sans/serif 的 400、700（真實字型）；kai/rounded 只有 400。沒有可用字重時須說明並選可支援的字型，不得靜默忽略。
-使用者提供設計海報作為靈感時，設 design_reference=true，先由 GPT 看圖分析配色、構圖、材質、光線、文字層級與留白，傳 reference_style_description。參考圖只供視覺靈感，不得直接當背景成品。
-此模式優先於下方一般 AI 流程的主體置中、單一文字色與逐輪確認限制：先生成符合參考風格及新主題的原創無字海報，再把實際無字圖片以 generated_background_base64 傳入，確認無文字後設 generated_background_text_free_confirmed=true；GPT 同時定義 text_layers，每層含 text、font_family、font_weight、font_size、color、x、y、width、height、align、line_spacing，座標與尺寸均為最終畫布像素。可使用不同字級與顏色，所有海報文案交 API 渲染；主體內建品牌或標籤文字可由 AI 生成。保留使用者文案，不抄參考圖原文或 logo。此模式使用者要求直接完成時可同輪接續排字，不需額外批准；若使用者要求先看草稿則先展示並等待。API 本身不會呼叫生圖模型，助理必須完成看圖與生圖再回傳實際位元組。
-先完成一次需求確認，重用 intake_session_token。AI 生圖流程必須分成兩階段：
-附件讀取前置檢查（適用使用者上傳圖片與 AI 圖）：在助理所在環境先確認本輪提供的附件可實際讀取，並能以圖片解碼器開啟；僅看見對話中的圖片，不代表已取得可傳送的圖片位元組。
-若附件路徑出現 No such file or directory／FileNotFoundError，停止使用該失效路徑，不得原樣重試或把其他對話的暫存路徑當成目前附件。
-優先使用本輪附件參照，透過平台提供的附件取得機制重新取得同一張原圖；只有確實取得圖片位元組且驗證可解碼後，才能縮小、轉成完整 base64 data URL 並呼叫套件渲染。
-若平台沒有可用的附件取得機制或重新取得失敗，停止渲染並明確回報「附件讀取失敗，尚未傳入套件」，並提示使用者改用「工作」模式而非「對話」，在新工作中重新附上同一張原圖再呼叫 @FroGPT Poster。不得要求使用者繼續在原失敗對話反覆重試。禁止假稱已上傳、編造 base64、用 AI 重畫原圖或把路徑文字編碼冒充圖片。
-失敗原因必須分層回報：本機附件讀取失敗屬於工具呼叫前；API 圖片格式驗證失敗屬於輸入驗證；只有套件確實回傳渲染錯誤才稱為套件處理失敗。
-若僅收到 Tool failed internally／傳輸錯誤而沒有伺服器診斷，只能說「工具呼叫失敗，原因尚未確認」，不可斷言是套件內部、附件路徑或圖片格式，也不可無限重試。
-只有具體修正了輸入或重新取得附件才可額外重試一次；相同錯誤、沒有新證據時立即停止。若仍只有不明工具/傳輸錯誤，提示使用者改用「工作」模式而非「對話」，並重新附上原圖；不能說已證明是「對話」模式故障，也不能保證切換模式必定解決。
-已在「工作」模式時不要重複叫使用者切換；回報目前可確認的失敗階段，無法取得原圖時請重新附圖，工具仍失敗時保留診斷供排查。不能替使用者自動切換模式。
-第一階段：背景與主體都由 AI 生成為同一張完整的無文字海報設計圖；禁止海報標語、額外文案與浮水印；主體包裝品牌及標籤文字可由 AI 生成。
-主體的包圍框中心必須在畫布中心 (50%, 50%)，主體寬度不得超過畫布寬度 50%，主體高度不得超過畫布高度 50%；上下保留排字留白。
-測試階段預設 480×640。生成後等比例縮小，優先 JPEG quality 60–70，base64 本體盡量不超過 100000 字元；必要時降低尺寸或品質，不可截斷字串。
-將實際圖片位元組編碼成完整 data:image/jpeg;base64,...，用 generated_background_base64 傳回套件，同時設 generated_background_text_free_confirmed=true。
-不要傳本機路徑或網址。此時 typography_confirmed 必須省略或為 false，套件只能回傳無字預覽。
-顯示無字圖後詢問「無字海報已準備好，是否準備好加上文案？」並停止本輪工具呼叫，等待使用者下一則明確同意；「全部交給你」、intake_confirmed 或無字確認不等於同意排字。
-第二階段：只有在無字預覽之後收到明確同意，才設 typography_confirmed=true，重新傳入同一張 generated_background_base64 與文案，並將預覽回傳的 draft_image_sha256 放入 approved_draft_sha256；換圖必須重新預覽及確認。
-字型預設黑體 font_family=sans；使用者要求明體/宋體時設 font_family=serif，楷體設 kai，圓體設 rounded。不可忽略指定字型或假稱已切換；其他字型必須是已部署且驗證過的字型檔，不支援時清楚列出可用選項。
-所有文案必須交給套件以字型排版，整張海報的標題、副標、內文、CTA 必須使用同一個文字顏色。禁止 AI 直接生成有字成品。
-套件回傳 base64 時，解碼實際圖片位元組並轉存為 PNG，驗證可開啟後提供預覽和 PNG 下載。
-若回傳不是 base64，先取得實際圖片位元組（image content、二進位附件或可讀取的圖片資源），再編碼 base64、解碼並轉成 PNG。
-不可把 JSON、HTML、錯誤訊息、路徑字串當圖片編碼；無法取得圖片位元組時回報明確錯誤。awaiting_typography_confirmation 是正常暫停狀態，不可自動重試或跳過確認。
+ASSISTANT_INSTRUCTIONS = """FroGPT Poster 自動完成流程：所有海報均包含獨立背景、主體、API 字型文字；幾何可省略。使用者說幫我做海報、全部交給你、直接完成時，接續工具 next_action 在同一需求中完成，不強制問卷或逐階段批准。
+背景優先使用使用者提供的 background_image，其次由 GPT 從 use_local_reference_library 目錄選 reference_library_id，否則自行選 solid/gradient 及色彩。API 不會替 GPT 挑照片，也不能把背景當缺失主體。
+主體使用 subject_image；缺少時 needs_subject_generation / generate_subject_then_retry 要求 GPT 生成獨立主體（優先透明 PNG），無海報文案或浮水印，包裝品牌標籤可保留。以 subject_image 附件傳回，或傳實際 bytes 的 subject_image_base64，並設 subject_source=ai_generated；沿用原需求與已回傳 asset_refs，不再要求使用者重述。
+設計優先參考使用者 reference_image/描述，其次 GPT 可查 list_design_references 並選 design_reference_ids，否則 GPT 自行決定完整設計。參考圖只作靈感，不當背景。design_variant 預設 reinterpret，忠實還原才 faithful。可設定 subject_position、text_layers、配色和留白。文字各層可有不同字級、字重、顏色、行距；預設黑體 sans，可選 serif/kai/rounded。沒有參考或 text_layers 也有現有預設排版。
+幾何裝飾完全可選；預設無幾何，geometry_enabled=false 完全停用。需要時優先傳同畫布尺寸的透明 geometry_image PNG，依背景→幾何→主體→文字順序合成；不得自行補回使用者移除的裝飾。保留 geometry_layers 相容輸入。
+預設直接完成。只有使用者明確要求先看草稿才設 preview_only=true，使用 draft_image（完整無字底稿）取得預覽後停止等批准；批准時傳相同 draft ref、approved_draft_sha256 及 typography_confirmed=true。generated_background_base64 與 draft_image 是相容輸入，不能和獨立背景混用。
+附件優先 openai/fileParams：subject_image/background_image/reference_image/draft_image/geometry_image，由宿主提供 download_url/file_id；不要求助理自行轉大型 Base64，也不要求先有本機 bytes。伺服器下載驗證，已存 Blob 後重用 asset_refs。store_poster_asset 可選，缺少此工具不阻止附件流程。不可傳 /mnt/data 或 /workspace 路徑；無平台附件參照且無實際 bytes 時停止並回報附件讀取失敗，尚未傳入套件，不得編造 Base64、把路徑編碼或重畫使用者照片。
+外傳素材至 FroGPT Poster 並存 Public Blob（素材 24h、成品 72h，持 URL 者可讀，清理非秒級）。intake_confirmed 與自動完成均不是敏感素材外傳授權。保留宿主授權要求，審核拒絕時說明阻擋層，不得改 curl、端點、annotation 繞過。Production 保留上傳開關。
+No such file or directory 屬於附件讀取錯誤；原因尚未確認時不可猜測。失敗分層：附件取得、輸入驗證、渲染、宿主傳輸。沒有伺服器診斷不能斷言原因；只有修正輸入或取得附件新證據才額外重試一次，禁止原樣無限重試。若「對話」無法取回附件，可建議「工作」模式重新附上原圖，但不能保證解決；已在「工作」時保留診斷，不反覆叫使用者切換。
+只有 rendered=true 且 poster_status/status.code=completed 才能宣告完成。優先交付 image_url/download_url；若是 Base64，驗證實際圖片 bytes 後提供 PNG。不可把 JSON、HTML、錯誤或路徑當圖片。
 """
 
 
@@ -54,7 +27,7 @@ def assistant_execution_contract() -> dict:
             "host_reference_does_not_require_local_bytes": True,
             "store_tool_required": False,
             "required_before_render_call": True,
-            "checks": ["read_current_attachment_bytes", "decode_image_successfully", "encode_verified_bytes_as_base64_data_url"],
+            "checks": ["host_file_reference_or_verified_image_bytes"],
             "on_missing_path": "stop_reusing_path_and_reacquire_same_attachment_via_available_platform_mechanism",
             "on_unavailable_bytes": "stop_before_render_and_ask_for_reattachment",
             "failure_message": "附件讀取失敗，尚未傳入套件",
@@ -79,20 +52,15 @@ def assistant_execution_contract() -> dict:
         "disallow_direct_model_generated_final_image": True,
         "delegate_phrase_mapping": {"phrase": "全部交給你", "meaning": "tool_orchestrated_workflow_only"},
         "required_workflow_when_no_visual_assets": [
-            "generate_text_free_background_and_subject",
-            "resize_compress_encode_actual_image_bytes_as_base64_data_url",
-            "call_tool_with_generated_background_base64",
-            "show_text_free_preview_and_ask_user_ready_for_copy",
-            "stop_and_wait_for_explicit_user_reply",
-            "call_tool_with_typography_confirmed_true_and_same_image",
-            "decode_returned_image_bytes_and_deliver_png",
+            "resolve_background_and_design", "generate_separate_subject",
+            "retry_with_subject_image_and_original_request", "deliver_rendered_png"
         ],
         "pause_status": "awaiting_typography_confirmation",
         "when_status_not_completed": "follow_next_action; never retry while awaiting user confirmation",
         "subject_bounds": {"center": [0.5, 0.5], "max_width_ratio": 0.5, "max_height_ratio": 0.5},
         "mobile_test_profile": {"width": 480, "height": 640, "target_input_base64_chars": 100000},
         "design_reference_workflow": {"enabled_by": "design_reference=true", "reference_usage": "inspiration_only", "text_renderer": "API text_layers", "requires_separate_typography_approval": False},
-        "single_text_color": "legacy flow only; design_reference supports per-layer color",
+        "single_text_color": False,
         "instructions": ASSISTANT_INSTRUCTIONS,
         "required_final_status_code": "completed",
         "required_final_rendered": True,

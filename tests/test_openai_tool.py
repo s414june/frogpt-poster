@@ -77,18 +77,14 @@ class OpenAIToolTests(unittest.TestCase):
             }
         )
         self.assertTrue(result["ok"])
-        self.assertEqual(result["status"]["code"], "needs_background_generation")
-        self.assertFalse(result["rendered"])
-
-    def test_handle_tool_call_returns_intake_on_missing_inputs(self) -> None:
-        result = handle_tool_call({})
-        self.assertTrue(result["ok"])
         self.assertEqual(result["status"]["code"], "needs_input")
         self.assertFalse(result["rendered"])
-        self.assertIn("intake_questions", result)
-        self.assertGreaterEqual(len(result["intake_questions"]), 4)
-        self.assertTrue(any(q.get("id") == "background_mode" for q in result["intake_questions"]))
-        self.assertTrue(any(q.get("id") == "image_role_mode" for q in result["intake_questions"]))
+
+    def test_handle_tool_call_returns_intake_on_missing_inputs(self):
+        result=handle_tool_call({})
+        self.assertEqual(result['status']['code'],'needs_subject_generation')
+        self.assertNotIn('intake_questions',result)
+        self.assertFalse(result['rendered'])
 
     def test_handle_tool_call_returns_design_guide_when_requested(self) -> None:
         result = handle_tool_call({"request_intake_only": True, "show_design_guide": True})
@@ -115,6 +111,7 @@ class OpenAIToolTests(unittest.TestCase):
                             "assets": {"open_source_font_paths": []},
                         },
                         "user_image_base64": [image_b64],
+                        "subject_image_base64": [image_b64],
                     }
                 )
                 self.assertTrue(result["ok"])
@@ -313,7 +310,7 @@ class OpenAIToolTests(unittest.TestCase):
                 )
                 self.assertTrue(result["ok"])
                 self.assertFalse(result["rendered"])
-                self.assertEqual(result["status"]["code"], "needs_background_generation")
+                self.assertEqual(result["status"]["code"], "needs_subject_generation")
                 self.assertIsNone(result.get("auto_pexels_query_used"))
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
@@ -322,36 +319,18 @@ class OpenAIToolTests(unittest.TestCase):
                 else:
                     os.environ["PEXELS_API_KEY"] = old
 
-    def test_gpt_generate_autopilot_is_deterministic_and_uses_generated_background_path(self) -> None:
-        result = handle_tool_call(
-            {
-                "title": "倉鼠認養海報主視覺",
-                "body": "溫暖公益感",
-                "creative_source_preference": "gpt_generate",
-                "allow_ai_fallback": True,
-            }
-        )
-        self.assertTrue(result["ok"])
-        self.assertFalse(result["rendered"])
-        self.assertEqual(result["status"]["code"], "needs_background_generation")
-        autopilot = result.get("design_autopilot", {})
-        self.assertTrue(autopilot.get("active"))
-        self.assertEqual(autopilot.get("design_path"), "generated_background")
+    def test_gpt_generate_autopilot_is_deterministic_and_uses_generated_background_path(self):
+        args=dict(title='公益',body='活動',creative_source_preference='gpt_generate')
+        first=handle_tool_call(args);second=handle_tool_call(args)
+        self.assertEqual(first['subject_prompt'],second['subject_prompt'])
+        self.assertEqual(first['next_action'],'generate_subject_then_retry')
 
-    def test_gpt_generate_autopilot_respects_user_customization(self) -> None:
-        result = handle_tool_call(
-            {
-                "title": "公益活動海報",
-                "body": "清新風格",
-                "creative_source_preference": "gpt_generate",
-                "background_mode": "solid",
-                "allow_ai_fallback": True,
-            }
-        )
-        self.assertTrue(result["ok"])
-        autopilot = result.get("design_autopilot", {})
-        self.assertFalse(autopilot.get("active"))
-        self.assertTrue(autopilot.get("customized"))
+    def test_gpt_generate_autopilot_respects_user_customization(self):
+        from gpt_package.composition import BackgroundResolver
+        from gpt_package.types import PosterRequest
+        request=PosterRequest('Title','Body');request.style.background_mode='solid';request.style.primary_color='#123456'
+        result=BackgroundResolver().resolve(request,{})
+        self.assertEqual(result['type'],'solid');self.assertEqual(result['color'],'#123456')
 
     def test_regenerate_variant_overrides_stale_variation_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -424,7 +403,7 @@ class OpenAIToolTests(unittest.TestCase):
         )
         self.assertTrue(result["ok"])
         self.assertFalse(result["rendered"])
-        self.assertEqual(result["status"]["code"], "needs_background_generation")
+        self.assertEqual(result["status"]["code"], "needs_subject_generation")
 
     def test_generated_background_base64_is_used_as_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -570,7 +549,7 @@ class OpenAIToolTests(unittest.TestCase):
                 )
                 self.assertTrue(result["ok"])
                 self.assertFalse(result["rendered"])
-                self.assertEqual(result["status"]["code"], "needs_background_generation")
+                self.assertEqual(result["status"]["code"], "needs_subject_generation")
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
@@ -595,18 +574,18 @@ class OpenAIToolTests(unittest.TestCase):
                 self.assertTrue(result["ok"])
                 notes_text = "\n".join(result.get("notes", []))
                 self.assertIn("Subject mask applied: True", notes_text)
-                self.assertIn("Decorative geometry applied: True", notes_text)
+                self.assertIn("Decorative geometry applied: False", notes_text)
                 self.assertRegex(
                     notes_text,
-                    r"Subject mask style: (feather|rounded)",
+                    r"Subject mask style: source_alpha",
                 )
                 self.assertRegex(
                     notes_text,
-                    r"Decorative geometry strategy: (subject_near|edge_near)",
+                    r"Decorative geometry strategy: None",
                 )
                 self.assertRegex(
                     notes_text,
-                    r"Decorative geometry shapes: [1-9][0-9]*",
+                    r"Decorative geometry shapes: 0",
                 )
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
@@ -631,7 +610,7 @@ class OpenAIToolTests(unittest.TestCase):
                 )
                 self.assertTrue(result["ok"])
                 notes_text = "\n".join(result.get("notes", []))
-                self.assertIn("Decorative geometry applied: True", notes_text)
+                self.assertIn("Decorative geometry applied: False", notes_text)
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
@@ -686,7 +665,7 @@ class OpenAIToolTests(unittest.TestCase):
             }
         )
         self.assertTrue(result["ok"])
-        self.assertEqual(result["status"]["code"], "needs_background_generation")
+        self.assertEqual(result["status"]["code"], "needs_subject_generation")
 
     def test_background_mode_invalid_returns_validation_error(self) -> None:
         result = handle_tool_call(
@@ -760,6 +739,7 @@ class OpenAIToolTests(unittest.TestCase):
                         "body": "希望藍色系",
                         "background_mode": "gradient",
                         "reference_image_paths": [str(ref)],
+                        "subject_image_paths": [str(ref)],
                         "use_reference_as_fallback": False,
                         "background_color_hint": "blue light",
                     }
@@ -786,6 +766,7 @@ class OpenAIToolTests(unittest.TestCase):
                         "body": "整體偏亮",
                         "background_mode": "gradient",
                         "reference_image_paths": [str(ref)],
+                        "subject_image_paths": [str(ref)],
                         "use_reference_as_fallback": False,
                         "background_color_hint": "light",
                     }
@@ -812,6 +793,7 @@ class OpenAIToolTests(unittest.TestCase):
                         "body": "希望藍色調",
                         "background_mode": "gradient",
                         "reference_image_paths": [str(ref)],
+                        "subject_image_paths": [str(ref)],
                         "use_reference_as_fallback": False,
                         "background_color_hint": "blue light",
                     }

@@ -11,7 +11,7 @@ from gpt_package.typography import TypographyEngine
 
 def call(**args):
     return dispatch({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
-                     'params': {'name': 'prepare_poster', 'arguments': {'intake_confirmed': True, **args}}})['result']
+                     'params': {'name': 'prepare_poster', 'arguments': {'intake_confirmed': True, 'preview_only':True, **args}}})['result']
 
 
 def image_data():
@@ -58,15 +58,12 @@ class StagedWorkflowTests(unittest.TestCase):
         self.assertEqual(output['request']['style']['image_role_mode'], 'both')
         self.assertFalse(output['request']['style']['geometry_enabled'])
 
-    def test_generation_without_copy_has_centered_subject_prompt(self):
-        result = call(subject='三明治')
+    def test_generation_without_copy_requests_independent_subject(self):
+        result = call(subject='三明治', preview_only=False)
         output = result['structuredContent']
-        self.assertEqual(output['status']['code'], 'needs_background_generation')
-        prompt = output['background_generation_prompt']
-        self.assertIn('(50%, 50%)', prompt)
-        self.assertIn('50% of canvas width', prompt)
-        self.assertIn('50% of canvas height', prompt)
-        self.assertIn('480x640', prompt)
+        self.assertEqual(output['status']['code'], 'needs_subject_generation')
+        self.assertIn('三明治', output['subject_prompt'])
+        self.assertTrue(output['subject_requirements']['transparent_background_preferred'])
 
     def test_invalid_image_is_not_shown_as_draft(self):
         result = call(generated_background_base64='data:image/jpeg;base64,bm90IGFuIGltYWdl',

@@ -1,3 +1,4 @@
+from tests.test_composition import data as subject_data
 import json
 import tempfile
 import unittest
@@ -53,6 +54,7 @@ class DesignLibraryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch('gpt_package.design_library.DESIGN_LIBRARY_ROOT', Path(temp)), patch.dict('os.environ', {'POSTER_OUTPUT_DIR': temp}):
             self.setup_library(Path(temp))
             result = handle_tool_call({'title':'Pure','body':'Daily', 'width':480,'height':640,
+                'subject_image_base64':[subject_data()],
                 'poster_request':{'reference_library_id':'pexels-167699',
                     'design_reference_ids':['attributed/one','original/one','attributed/one']}})
             self.assertTrue(result['rendered'],result)

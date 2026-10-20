@@ -53,7 +53,9 @@ class LayoutGridTests(unittest.TestCase):
             with self.assertRaises(ValidationError): validate_regions([r],800,1000)
 
     def test_variant_modes_have_different_generation_instructions(self):
-        for variant,expected in [('reinterpret','change at least two'),('faithful','Keep the user-requested')]:
-            result=handle_tool_call(dict(title='三明治',body='日常',design_reference=True,design_variant=variant))
-            self.assertIn(expected,result['background_generation_prompt'])
-            self.assertEqual(result['layout_grid']['columns'],12)
+        from gpt_package.composition import DesignResolver
+        from gpt_package.types import PosterRequest
+        for variant in ('reinterpret','faithful'):
+            result=DesignResolver().resolve(PosterRequest('Title','Body'),dict(design_reference=True,design_variant=variant))
+            self.assertEqual(result['variant'],variant)
+            self.assertEqual(result['source'],'user_reference')

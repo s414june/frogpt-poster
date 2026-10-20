@@ -29,7 +29,7 @@ class PosterGenerator:
         self.typography = typography or TypographyEngine()
         self.output_dir = Path(output_dir or self._default_output_dir())
 
-    def generate(self, request: PosterRequest) -> PosterResult:
+    def generate(self, request: PosterRequest, render_copy: bool = True) -> PosterResult:
         validate_request(request)
         decision = self.policy.decide(request)
         background = self.image_pipeline.build_background(request, decision)
@@ -39,7 +39,7 @@ class PosterGenerator:
             body=request.body,
             font_paths=request.assets.open_source_font_paths,
             style=request.style,
-        )
+        ) if render_copy else {}
         image_effects = self.image_pipeline.get_last_effects()
         output_path = self._save_image(background)
 

@@ -111,16 +111,16 @@ class BlobTests(unittest.TestCase):
         from gpt_package.mcp_http import _run_staged_call
         env={"FROGPT_BLOB_ENABLED":"true","FROGPT_UPLOAD_ENABLED":"true","FROGPT_FONT_SOURCE":"local"}
         with patch.dict("os.environ",env),patch("gpt_package.blob_workflow.BlobRepository",return_value=self.repo):
-            first=_run_staged_call(dict(generated_background_base64="data:image/png;base64,"+base64.b64encode(png()).decode(),
+            first=_run_staged_call(dict(preview_only=True,generated_background_base64="data:image/png;base64,"+base64.b64encode(png()).decode(),
                     generated_background_text_free_confirmed=True,title="Pure",body="Daily"),True)
             self.assertEqual(first["status"]["code"],"awaiting_typography_confirmation")
             self.assertTrue(first["stored"])
             count=self.backend.puts
-            second=_run_staged_call(dict(asset_refs={"draft":first["draft_ref"]},title="Pure",body="Daily",
+            second=_run_staged_call(dict(preview_only=True,asset_refs={"draft":first["draft_ref"]},title="Pure",body="Daily",
                        generated_background_text_free_confirmed=True,typography_confirmed=True,approved_draft_sha256="bad"),True)
             self.assertEqual(second["status"]["code"],"awaiting_typography_confirmation")
             self.assertEqual(self.backend.puts,count)
-            done=_run_staged_call(dict(asset_refs={"draft":first["draft_ref"]},title="Pure",body="Daily",
+            done=_run_staged_call(dict(preview_only=True,asset_refs={"draft":first["draft_ref"]},title="Pure",body="Daily",
                        generated_background_text_free_confirmed=True,typography_confirmed=True,approved_draft_sha256=first["draft_image_sha256"]),True)
             self.assertTrue(done["rendered"],done);self.assertTrue(done["stored"],done)
             self.assertNotIn("output_image_base64",done)

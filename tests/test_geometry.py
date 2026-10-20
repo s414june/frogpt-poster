@@ -1,3 +1,4 @@
+from tests.test_composition import data as subject_data
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,6 +48,7 @@ class GeometryTests(unittest.TestCase):
     def test_geometry_top_level_reaches_tool_renderer(self):
         with tempfile.TemporaryDirectory() as temp, patch.dict('os.environ',{'POSTER_OUTPUT_DIR':temp}):
             result=handle_tool_call({'title':'Pure','body':'Daily','width':480,'height':640,
+                'subject_image_base64':[subject_data()],
                 'poster_request':{'reference_library_id':'pexels-1527934'},
                 'geometry_layers':[{'shape':'circle','x':10,'y':300,'width':80,'height':80,'stroke':'#000000','opacity':.3}]})
             self.assertTrue(result['rendered'],result)

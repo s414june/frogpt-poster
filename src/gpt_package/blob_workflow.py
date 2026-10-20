@@ -111,12 +111,16 @@ def prepare_inputs(arguments,repo):
             resolved.append("data:image/"+ref.rsplit(".",1)[-1]+";base64,"+base64.b64encode(raw).decode())
             saved.append(ref)
         for value in values:
-            item=repo.put_asset(decode_data_url(value),roles[role],"gpt" if role in ("geometry","draft") else "user")
+            item=repo.put_asset(decode_data_url(value),roles[role],"gpt" if role in ("geometry","draft") or (role=="subjects" and args.get("subject_source")=="ai_generated") else "user")
             # Reload sanitized bytes, so approved digest matches future ref reuse.
             raw=repo.get_asset(item.asset_ref)
             resolved.append("data:"+item.content_type+";base64,"+base64.b64encode(raw).decode())
             saved.append(item.asset_ref)
         if resolved:
+            if role == "background":
+                args["image_role_mode"] = "background"
+            if role == "subjects" and ids and "-gpt-subject." in ids[0]:
+                args["subject_source"] = "ai_generated"
             args[field]=resolved if many else resolved[0]
             if role=="background" and len(saved)>1:
                 raise StorageError("INVALID_IMAGE",400)

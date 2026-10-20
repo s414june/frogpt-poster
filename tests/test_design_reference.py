@@ -13,12 +13,10 @@ class DesignReferenceTests(unittest.TestCase):
                     x=20, y=20, width=200, height=80, **changes)
 
     def test_reference_requests_new_visual(self):
-        output = handle_tool_call(dict(title='測試', body='活動', design_reference=True,
-                                       reference_image_base64=['invalid inspiration bytes'],
-                                       reference_style_description='藍色紙張與非對稱構圖'))
-        self.assertEqual(output['pipeline_stage'], 'needs_background_generation')
-        self.assertTrue(output['reference_is_inspiration_only'])
-        self.assertIn('藍色紙張', output['background_generation_prompt'])
+        output=handle_tool_call(dict(title='測試',body='活動',design_reference=True,reference_style_description='藍色紙張'))
+        self.assertEqual(output['status']['code'],'needs_subject_generation')
+        self.assertEqual(output['next_action'],'generate_subject_then_retry')
+        self.assertFalse(output['rendered'])
 
     def test_full_render_uses_only_generated_image(self):
         buf = io.BytesIO()

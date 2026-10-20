@@ -130,6 +130,10 @@ class ImagePipeline:
         size = (request.layout.width, request.layout.height)
         if decision.image_source == ImageSource.USER_IMAGE:
             background = self._from_user_image(request.assets.user_image_paths[0], size)
+        elif request.style.composition_resolved:
+            top = self._parse_color(request.style.primary_color)
+            bottom = self._parse_color(request.style.secondary_color)
+            background = self._vertical_gradient(size, top, bottom) if request.style.background_mode == 'gradient' else Image.new('RGB', size, top)
         else:
             background = self._generated_fallback(
                 size,
@@ -143,15 +147,20 @@ class ImagePipeline:
         if request.style.text_layers and decision.image_source == ImageSource.USER_IMAGE and not request.assets.subject_image_paths:
             self._render_explicit_geometry(background, request)
             return background
-        background = self._apply_background_hint_variation(background, request, decision)
-        background = self._apply_flat_warm_background_guard(background, request, decision)
+        if not request.style.composition_resolved:
+            background = self._apply_background_hint_variation(background, request, decision)
+            background = self._apply_flat_warm_background_guard(background, request, decision)
 
         planned_box = None
         if request.assets.subject_image_paths:
-            planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
+            if request.style.subject_position:
+                box = request.style.subject_position
+                planned_box = (box['x'], box['y'], box['x']+box['width'], box['y']+box['height'])
+            else:
+                planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
         request.style.subject_focus_box = list(planned_box) if planned_box else []
 
-        if not request.assets.geometry_image_path and not request.style.geometry_layers and self._should_add_geometry(request, decision):
+        if not request.style.composition_resolved and not request.assets.geometry_image_path and not request.style.geometry_layers and self._should_add_geometry(request, decision):
             geo_result = self._add_decorative_geometry(
                 background=background,
                 subject_box=planned_box,
@@ -532,6 +541,15 @@ class ImagePipeline:
         except OSError:
             return None
         width, height = background.size
+        if request.style.subject_position:
+            box = request.style.subject_position
+            subject = ImageOps.contain(subject, (max(1, round(box['width'])), max(1, round(box['height']))), Image.Resampling.LANCZOS)
+            x = round(box['x'] + (box['width'] - subject.width)/2)
+            y = round(box['y'] + (box['height'] - subject.height)/2)
+            base = background.convert('RGBA')
+            base.alpha_composite(subject, (x, y))
+            background.paste(base.convert('RGB'))
+            return 'source_alpha'
         target_h = int(height * 0.46)
         if target_h <= 0:
             return None

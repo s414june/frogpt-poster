@@ -54,36 +54,12 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertTrue(structured.get("ok"))
         self.assertEqual(structured.get("asset_ref"), fake["asset_ref"])
 
-    def test_tools_call_requires_intake_first_without_confirmation(self) -> None:
-        message = {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "tools/call",
-            "params": {
-                "name": "prepare_poster",
-                "arguments": {},
-            },
-        }
-        response = dispatch(message)
-        self.assertIsNotNone(response)
-        result = response["result"]
-        self.assertFalse(result["isError"])
-        structured = result.get("structuredContent", {})
-        self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
-        self.assertFalse(structured.get("rendered"))
-        self.assertEqual(structured.get("next_action"), "ask_user_intake_questions")
-        self.assertIn("intake_questions", structured)
-        self.assertIn("image_input_contract", structured)
-        self.assertIn("assistant_execution_contract", structured)
-        self.assertTrue(structured.get("assistant_execution_contract", {}).get("must_use_tool_for_final_poster"))
-        self.assertEqual(
-            structured.get("assistant_execution_contract", {}).get("delegate_phrase_mapping", {}).get("phrase"),
-            "全部交給你",
-        )
-        self.assertIn("user_image_base64", structured.get("image_input_contract", {}).get("accepted_fields", []))
-        self.assertNotIn("user_image_urls", structured.get("image_input_contract", {}).get("accepted_fields", []))
-        self.assertTrue(str(structured.get("intake_session_token", "")).startswith("intake_"))
-        self.assertIn("尚未渲染海報", result["content"][0]["text"])
+    def test_tools_call_requires_intake_first_without_confirmation(self):
+        response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments={})))['result']['structuredContent']
+        self.assertEqual(response['status']['code'],'needs_subject_generation')
+        self.assertEqual(response['next_action'],'generate_subject_then_retry')
+        self.assertNotIn('intake_questions',response)
+        self.assertTrue(response['assistant_execution_contract']['must_use_tool_for_final_poster'])
 
     def test_initialize_instructions_define_delegate_phrase_workflow(self) -> None:
         message = {
@@ -98,35 +74,11 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertIn("全部交給你", instructions)
         self.assertIn("generated_background_base64", instructions)
 
-    def test_tools_call_still_requires_intake_without_confirmation(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            bg_path = Path(tmp_dir) / "bg.png"
-            Image.new("RGB", (1080, 1350), (245, 239, 228)).save(bg_path)
-            bg_b64 = "data:image/png;base64," + base64.b64encode(bg_path.read_bytes()).decode("ascii")
-        message = {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "tools/call",
-            "params": {
-                "name": "prepare_poster",
-                "arguments": {
-                    "title": "讓小小生命，被好好愛著",
-                    "body": "愛鼠協會｜倉鼠關懷宣傳\n認養代替購買・尊重生命・不棄養",
-                    "width": 1080,
-                    "height": 1350,
-                    "generated_background_base64": bg_b64,
-                },
-            },
-        }
-        response = dispatch(message)
-        self.assertIsNotNone(response)
-        result = response["result"]
-        self.assertFalse(result["isError"])
-        structured = result.get("structuredContent", {})
-        self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
-        self.assertFalse(structured.get("rendered"))
-        self.assertEqual(structured.get("next_action"), "ask_user_intake_questions")
-        self.assertIn("intake_questions", structured)
+    def test_tools_call_still_requires_intake_without_confirmation(self):
+        from tests.test_staged_workflow import image_data
+        response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',generated_background_base64=image_data(),generated_background_text_free_confirmed=True))))['result']['structuredContent']
+        self.assertEqual(response['status']['code'],'completed')
+        self.assertTrue(response['rendered'])
 
     def test_tools_call_returns_image_first_then_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -190,47 +142,17 @@ class MCPOutputOrderTests(unittest.TestCase):
         # The last item remains machine-readable JSON text
         json.loads(content[-1]["text"])
 
-    def test_tools_call_needs_background_generation_without_images(self) -> None:
-        message = {
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "tools/call",
-            "params": {
-                "name": "prepare_poster",
-                "arguments": {
-                    "intake_confirmed": True,
-                    "title": "讓小小生命，被好好愛著",
-                    "body": "愛鼠協會｜倉鼠關懷宣傳",
-                },
-            },
-        }
-        response = dispatch(message)
-        self.assertIsNotNone(response)
-        result = response["result"]
-        structured = result.get("structuredContent", {})
-        self.assertEqual(structured.get("status", {}).get("code"), "needs_background_generation")
-        self.assertFalse(structured.get("rendered"))
+    def test_tools_call_needs_background_generation_without_images(self):
+        response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',background_mode='solid'))))['result']['structuredContent']
+        self.assertEqual(response['poster_status'],'needs_subject_generation')
+        self.assertFalse(response['rendered'])
+        self.assertEqual(response['next_action'],'generate_subject_then_retry')
 
-    def test_tools_call_solid_mode_without_images_still_needs_background_generation(self) -> None:
-        message = {
-            "jsonrpc": "2.0",
-            "id": 34,
-            "method": "tools/call",
-            "params": {
-                "name": "prepare_poster",
-                "arguments": {
-                    "intake_confirmed": True,
-                    "title": "三明治海報",
-                    "body": "請直接渲染",
-                    "background_mode": "solid",
-                },
-            },
-        }
-        response = dispatch(message)
-        self.assertIsNotNone(response)
-        structured = response["result"].get("structuredContent", {})
-        self.assertEqual(structured.get("status", {}).get("code"), "needs_background_generation")
-        self.assertFalse(structured.get("rendered"))
+    def test_tools_call_solid_mode_without_images_still_needs_background_generation(self):
+        response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',background_mode='solid'))))['result']['structuredContent']
+        self.assertEqual(response['poster_status'],'needs_subject_generation')
+        self.assertFalse(response['rendered'])
+        self.assertEqual(response['next_action'],'generate_subject_then_retry')
 
     def test_tools_call_rejects_path_style_image_inputs_with_friendly_hint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

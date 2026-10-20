@@ -53,16 +53,20 @@ urlopen = build_opener(_NoAttachmentRedirects()).open
 SCHEMA = {
     "type": "object",
     "properties": {
+        "preview_only": {"type": "boolean", "description": "Only true when the user asks to preview a draft before adding copy."},
+        "request_intake_only": {"type": "boolean"},
+        "subject_source": {"type": "string", "enum": ["user_upload", "ai_generated"]},
+        "subject_position": {"type": "object", "description": "x/y/width/height in final canvas pixels; image fits preserving aspect ratio."},
         "asset_refs": ASSET_REFS_SCHEMA,
         "intake_confirmed": {"type": "boolean"},
-        "typography_confirmed": {"type": "boolean", "description": "Only true after showing the text-free preview and receiving a NEW explicit user reply approving typography; intake approval is insufficient."},
+        "typography_confirmed": {"type": "boolean", "description": "For preview_only: explicit approval after the same draft preview. Not an upload authorization."},
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
         "poster_request": {"type": "object"},
         "design_variant": {"type": "string", "enum": ["reinterpret", "faithful"], "description": "Default reinterpret: new palette for colorful references, rearrange at least two structural decisions; faithful only when explicitly requested."},
         "typography_grid": {"type": "boolean", "description": "Default true in reference mode: snap measured text to baseline grid, enforce 5% margin and 2-unit text/subject gaps, bounded repair; report large gaps within group."},
         "protected_regions": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "GPT visually identifies subject/photo rectangles on the generated visual, in canvas pixels: x, y, width, height. Not automatic detection."},
-        "design_reference": {"type": "boolean", "description": "Use the user poster as visual inspiration only. Generate a new text-free visual first, then send text_layers for API typography."},
+        "design_reference": {"type": "boolean", "description": "Use the user poster as inspiration only; resolve an independent subject/background and optional text_layers."},
         "reference_style_description": {"type": "string", "description": "GPT visual analysis: palette, composition, texture, lighting, hierarchy and reserved text space."},
         "text_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Exact text overlay definitions in canvas pixels: text, font_family, font_weight (400/700; kai/rounded only 400), font_size (independent per layer), color (#RRGGBB), x, y, width, height, align, line_spacing. Infer weight and spacing visually from reference; defaults only when unknown. Overflow fails explicitly."},
         "font_family": {"type": "string", "description": "Default sans (黑體). Request serif (明體/宋體), kai (楷體), rounded (圓體). Also accepted in poster_request.style.font_family. Unsupported names fail explicitly."},
@@ -116,7 +120,7 @@ SCHEMA = {
         "subject_image": {**FILE_SCHEMA, "description": "Original product attachment; host supplies the file reference. No Base64 conversion tool needed."},
         "background_image": {**FILE_SCHEMA, "description": "Background photo attachment."},
         "reference_image": {**FILE_SCHEMA, "description": "Design inspiration attachment."},
-        "draft_image": {**FILE_SCHEMA, "description": "Complete generated text-free draft; same approval/hash rules as generated_background_base64."},
+        "draft_image": {**FILE_SCHEMA, "description": "Legacy complete text-free draft including background and subject. Separate from background_image/subject_image."},
         "geometry_image": {**FILE_SCHEMA, "description": "Transparent PNG geometry at final canvas size."},
     },
     "required": [],
@@ -201,6 +205,8 @@ def _assistant_execution_contract() -> dict:
 
 def _compact_output(output: dict) -> dict:
     compact = dict(output)
+    code = (output.get("status") or {}).get("code", "failed")
+    compact.setdefault("poster_status", {"needs_input":"needs_user_input", "awaiting_typography_confirmation":"needs_user_input", "needs_background_generation":"needs_user_input"}.get(code, code if code in ("completed", "failed", "needs_subject_generation", "ready_to_render") else "needs_user_input"))
     if output.get("stored") and output.get("image_url"):
         for key in list(compact):
             if "base64" in key or "data_url" in key: compact.pop(key,None)
@@ -466,6 +472,10 @@ def _materialize_attachment_file_inputs(args: dict) -> dict:
         if len(data_urls) != 1:
             raise ValidationError(f"{attachment_key} accepts exactly one file")
         prepared[target_key] = data_urls[0] if ref_key in ("draft", "geometry") else data_urls
+        if attachment_key == "background_image":
+            prepared["image_role_mode"] = "background"
+        if attachment_key == "reference_image":
+            prepared["design_reference"] = True
         # File objects contain signed URLs, which must not leak into render results.
         prepared.pop(attachment_key, None)
         if attachment_key in payload:
@@ -598,7 +608,12 @@ def _run_staged_call(args: dict, intake_completed: bool) -> dict:
 
 
 def _run_staged_call_legacy(args: dict, intake_completed: bool) -> dict:
-    if not intake_completed:
+    args = dict(args)
+    payload = args.get("poster_request") or {}
+    layout = payload.get("layout") or {}
+    args.setdefault("width", layout.get("width", 480))
+    args.setdefault("height", layout.get("height", 640))
+    if not args.get("preview_only", payload.get("preview_only", False)):
         return handle_tool_call(args)
     args = dict(args)
     payload = args.get("poster_request") or {}
@@ -628,7 +643,7 @@ def _run_staged_call_legacy(args: dict, intake_completed: bool) -> dict:
             return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "invalid_generated_image_base64"}, "next_action": "reencode_actual_image_bytes_as_jpeg_or_png_data_url"}
         draft_sha = hashlib.sha256(raw).hexdigest()
         approved_sha = args.get("approved_draft_sha256", payload.get("approved_draft_sha256"))
-        if not args.get("design_reference") and (not confirmed or approved_sha != draft_sha):
+        if not confirmed or approved_sha != draft_sha:
             return {
                 "ok": True, "rendered": False, "pipeline_stage": "awaiting_typography_confirmation",
                 "status": {"code": "awaiting_typography_confirmation", "message": "text_free_draft_ready_wait_for_user"},
@@ -689,7 +704,7 @@ def _dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.3.2"}, "instructions": ASSISTANT_INSTRUCTIONS}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.4.0"}, "instructions": ASSISTANT_INSTRUCTIONS}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
@@ -775,10 +790,7 @@ def _dispatch(message):
                     "isError": False,
                 }
                 return result
-            intake_confirmed = _resolve_intake_confirmed(args)
-            remembered = bool(intake_state.get("intake_completed", False))
-            auto_confirmed = token_from_request and _has_render_brief(args)
-            intake_confirmed_effective = intake_confirmed or remembered or auto_confirmed
+            intake_confirmed_effective = not args.get("request_intake_only", False)
             call_args = dict(args)
             if intake_confirmed_effective and bool(call_args.get("regenerate_variant", False)):
                 call_args.pop("variation_token", None)
@@ -833,31 +845,16 @@ def _dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "尚未渲染海報。請先向使用者詢問以下問題並收集答案，再用同一個對話上下文重新呼叫工具：\n"
+                            "尚未渲染海報。請依 next_action 補齊必要內容並沿用原需求；僅缺必要使用者資料或授權時提問：\n"
                             + "\n".join(question_lines)
                             + "\n\n"
                             + _image_input_contract_text()
-                            + "\n\n禁止直接用 GPT 產生有字成品。無字預覽後必須停止並等使用者同意加文案。"
+                            + "\n\n海報文案由 API 排版；預設繼續完成，只有 preview_only 才等草稿確認。"
                         ),
                     }
                 )
             if status_code == "needs_background_generation":
-                prompt = output.get("background_generation_prompt", "")
-                reqs = output.get("background_generation_requirements", {})
-                required_flag = reqs.get("required_flag_on_retry", "generated_background_text_free_confirmed=true")
-                content.append(
-                    {
-                        "type": "text",
-                        "text": (
-                            "目前需要完整無字海報設計圖，背景與主體皆由 AI 生成；主體置中、寬高各不超過畫布的 50%，禁止文字/logo/浮水印。\n"
-                            "若使用者說「全部交給你」，代表必須走這個工具流程，不能直接回最終海報。\n"
-                            f"重呼叫時請同時帶入: {required_flag}\n"
-                            f"建議提示詞：{prompt}\n\n"
-                            + _image_input_contract_text()
-                            + "\n\n注意：只生成無字設計圖。縮小壓縮後轉成 base64 傳回套件，收到預覽後詢問是否準備好加文案並停止。"
-                        ),
-                    }
-                )
+                content.append({"type":"text", "text":"舊版完整底稿尚未通過無海報文案檢查；依 next_action 檢視同一張圖。預設不需使用者確認；不得將背景當獨立主體。"})
             if status_code == "awaiting_typography_confirmation":
                 content.append({"type": "image", "data": output["output_preview_base64"], "mimeType": "image/jpeg"})
                 content.append({"type": "text", "text": "無字海報已準備好，是否準備好加上文案？\n停止本輪工具呼叫，等待使用者下一則明確同意後才可設定 typography_confirmed=true。"})

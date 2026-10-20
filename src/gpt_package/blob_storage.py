@@ -16,7 +16,7 @@ from .errors import PosterError
 ASSETS = "frogpt/v1/temp/assets/"
 POSTERS = "frogpt/v1/temp/posters/"
 ROLES = ("background", "subject", "geometry", "reference", "draft", "user")
-REF = re.compile(r"frogpt/v1/temp/(assets|posters)/\d{4}/\d{2}/\d{2}/[0-9a-f]{32}(?:-(background|subject|geometry|reference|draft|user))?\.(png|jpeg|webp)")
+REF = re.compile(r"frogpt/v1/temp/(assets|posters)/\d{4}/\d{2}/\d{2}/[0-9a-f]{32}(?:-gpt)?(?:-(background|subject|geometry|reference|draft|user))?\.(png|jpeg|webp)")
 log = logging.getLogger(__name__)
 
 class StorageError(PosterError):
@@ -172,7 +172,7 @@ class BlobRepository:
         if role not in ROLES or source not in ("user", "gpt"):
             raise StorageError("INVALID_IMAGE", 400)
         raw, ext = validate_image(image_bytes, role)
-        path = f"{ASSETS}{self.now():%Y/%m/%d}/{uuid.uuid4().hex}-{role}.{ext}"
+        path = f"{ASSETS}{self.now():%Y/%m/%d}/{uuid.uuid4().hex}{'-gpt' if source == 'gpt' else ''}-{role}.{ext}"
         return self._put(path, raw, "image/"+ext, ASSETS)
     def put_poster(self, png_bytes):
         # A final independently flattened PNG is allowed to exceed the input limit.

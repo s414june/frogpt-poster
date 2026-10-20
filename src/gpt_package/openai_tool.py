@@ -67,6 +67,9 @@ def build_tool_definition() -> dict:
         "parameters": {
             "type": "object",
             "properties": {
+                "preview_only": {"type":"boolean"},
+                "subject_source": {"type":"string", "enum":["user_upload","ai_generated"]},
+                "subject_position": {"type":"object"},
                 "poster_text_file": {
                     "type": "string",
                     "description": (
@@ -288,6 +291,9 @@ def _build_request(arguments: dict) -> PosterRequest:
     request.style.protected_regions = validate_regions(arguments.get("protected_regions", (payload.get("style") or {}).get("protected_regions", [])), request.layout.width, request.layout.height)
     from .text_layers import validate_text_layers
     request.style.text_layers = validate_text_layers(arguments.get("text_layers", (payload.get("style") or {}).get("text_layers", [])), request.layout.width, request.layout.height)
+    if request.style.text_layers:
+        request.title = request.title or request.style.text_layers[0]['text'][:120]
+        request.body = request.body or '\n'.join(layer['text'] for layer in request.style.text_layers)[:4000]
     from .geometry import validate_geometry_layers
     request.style.geometry_layers = validate_geometry_layers(arguments.get("geometry_layers", (payload.get("style") or {}).get("geometry_layers", [])), request.layout.width, request.layout.height)
     return request
@@ -353,7 +359,7 @@ def _from_inline_request(payload: dict) -> PosterRequest:
             title_max_lines=int(style.get("title_max_lines", payload.get("title_max_lines", 2))),
             body_max_lines=int(style.get("body_max_lines", payload.get("body_max_lines", 4))),
             background_shape_count=int(
-                style.get("background_shape_count", payload.get("background_shape_count", 3))
+                style.get("background_shape_count", payload.get("background_shape_count", 0))
             ),
             background_shape_alpha_min=int(
                 style.get(
@@ -497,6 +503,10 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
         selected_path = reference_path(library_id) if blob_fonts() else str(matches[0][0])
         reference_paths.insert(0, selected_path)
     reference_b64 = arguments.get("reference_image_base64", [])
+    if arguments.get("design_reference"):
+        reference_b64 = []
+        reference_paths = [selected_path] if library_id else []
+        references = []
     generated_background_b64 = _get_generated_background_base64(arguments)
     if references and not isinstance(references, list):
         raise ValidationError("reference_image_urls must be an array of strings")
@@ -764,59 +774,6 @@ def _has_user_design_customization(arguments: dict, request: PosterRequest) -> b
     return False
 
 
-def _choose_gpt_autopilot_design_path(arguments: dict, request: PosterRequest) -> str:
-    if _wants_explicit_visual_subject(request):
-        return "generated_background"
-
-    hint = str(getattr(request.style, "background_color_hint", "")).strip().lower()
-    if hint:
-        if any(k in hint for k in ("solid", "單色", "純色", "flat")):
-            return "solid"
-        return "gradient"
-
-    if _is_pexels_available():
-        return "pexels_reference"
-    return "gradient"
-
-
-def _apply_gpt_design_autopilot(arguments: dict, request: PosterRequest) -> dict:
-    preference = _resolve_creative_source_preference(arguments)
-    custom = _has_user_design_customization(arguments, request)
-    active = preference == "gpt_generate" and not custom
-    if not active:
-        return {
-            "active": False,
-            "preference": preference,
-            "customized": custom,
-            "design_path": None,
-        }
-
-    request.style.background_mode = "auto"
-    request.style.geometry_enabled = True
-    request.style.variation_token = ""
-    arguments.pop("variation_token", None)
-
-    design_path = _choose_gpt_autopilot_design_path(arguments, request)
-    if design_path == "pexels_reference":
-        arguments["auto_pexels_fallback"] = True
-        arguments["use_reference_as_fallback"] = True
-        request.style.background_mode = "reference"
-    elif design_path == "solid":
-        request.style.background_mode = "solid"
-    elif design_path == "gradient":
-        request.style.background_mode = "gradient"
-    else:
-        request.style.background_mode = "auto"
-        arguments["auto_pexels_fallback"] = False
-
-    return {
-        "active": True,
-        "preference": preference,
-        "customized": custom,
-        "design_path": design_path,
-    }
-
-
 def _resolve_image_role_mode(request: PosterRequest) -> tuple[str, str]:
     chosen = _normalize_image_role_mode(request.style.image_role_mode)
     if chosen != "auto":
@@ -1005,22 +962,7 @@ def _output_sha256(path: str | None) -> str | None:
 def _needs_intake(arguments: dict) -> bool:
     if bool(arguments.get("request_intake_only", False)):
         return True
-    has_text_file = bool(arguments.get("poster_text_file"))
-    has_inline = isinstance(arguments.get("poster_request"), dict)
-    has_title = bool(str(arguments.get("title", "")).strip())
-    has_body = bool(str(arguments.get("body", "")).strip())
-    return not (has_text_file or has_inline or (has_title and has_body))
-
-
-def _needs_background_generation(arguments: dict, request: PosterRequest, reference_context: dict) -> bool:
-    has_user_image = bool(request.assets.user_image_paths)
-    has_subject_image = bool(request.assets.subject_image_paths)
-    has_reference = bool(reference_context.get("downloaded_paths"))
-    if has_user_image or has_subject_image or has_reference:
-        return False
-    # Hard lock: when no visual input is available, force GPT to generate a text-free
-    # background first, then call back with generated_background_base64.
-    return True
+    return False
 
 
 def _wants_explicit_visual_subject(request: PosterRequest) -> bool:
@@ -1090,11 +1032,18 @@ def _build_background_generation_prompt(request: PosterRequest) -> str:
 
 
 def handle_tool_call(arguments: dict) -> dict:
+    output = _handle_tool_call(arguments)
+    code = output.get("status", {}).get("code", "failed")
+    output.setdefault("poster_status", {"needs_input":"needs_user_input", "needs_background_generation":"needs_user_input", "awaiting_typography_confirmation":"needs_user_input"}.get(code, code if code in ("completed", "failed", "needs_subject_generation", "ready_to_render") else "needs_user_input"))
+    return output
+
+
+def _handle_tool_call(arguments: dict) -> dict:
     temp_dirs: list[str] = []
     try:
         arguments = dict(arguments)
         payload = arguments.get("poster_request") or {}
-        for key in ("use_local_reference_library", "reference_library_id", "list_design_references", "design_reference_ids"):
+        for key in ("use_local_reference_library", "reference_library_id", "list_design_references", "design_reference_ids", "subject_source", "subject_position", "preview_only", "design_reference", "design_variant", "reference_style_description"):
             if key not in arguments and key in payload:
                 arguments[key] = payload[key]
         if arguments.get("list_design_references"):
@@ -1109,6 +1058,12 @@ def handle_tool_call(arguments: dict) -> dict:
         if any(item not in designs for item in design_ids):
             raise ValidationError("Unknown design_reference_ids; list the catalog first")
         selected_designs = [designs[item] for item in dict.fromkeys(design_ids)]
+        user_assets = payload.get("assets") or {}
+        has_background = bool(arguments.get("user_image_base64") or user_assets.get("user_image_base64") or
+                              arguments.get("user_image_paths") or user_assets.get("user_image_paths"))
+        if has_background and arguments.get("image_role_mode", (payload.get("style") or {}).get("image_role_mode")) == "background":
+            for key in ("reference_library_id", "use_local_reference_library", "pexels_query", "auto_pexels_fallback"):
+                arguments.pop(key, None)
         library_requested = bool(arguments.get("use_local_reference_library")) or bool(arguments.get("reference_library_id"))
         if library_requested:
             # Saved files never need an API key, and cannot trigger a remote search.
@@ -1165,47 +1120,16 @@ def handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
-        if arguments.get("design_reference"):
-            variant = arguments.get("design_variant", "reinterpret")
-            if variant not in ("reinterpret", "faithful"):
-                raise ValidationError("design_variant must be reinterpret or faithful")
-            description = str(arguments.get("reference_style_description", "")).strip()
-            from .layout_grid import grid_spec
-            variant_instruction = (
-                "Create a distinct variant: change at least two structural decisions (photo placement/scale, headline alignment, secondary block arrangement). For colorful references change the dominant and accent hues while retaining contrast relationships, drawing palette inspiration from the NEW subject image. For neutral references retain restraint but change composition. Never just replace the subject in the same template. "
-                if variant == "reinterpret" else "Keep the user-requested palette and overall composition. "
-            )
-            if not _get_generated_background_base64(arguments):
-                return {
-                    "ok": True, "rendered": False, "pipeline_stage": "needs_background_generation",
-                    "next_action": "analyze_reference_generate_text_free_visual_then_define_text_layers",
-                    "layout_grid": grid_spec(request.layout.width, request.layout.height),
-                    "protected_regions_required_on_retry": "GPT must visually identify subject/photo rectangles from the GENERATED visual; provide x/y/width/height in final canvas pixels. No automatic subject detection is performed.",
-                    "design_variant": variant,
-                    "background_generation_prompt": (
-                        f"Create an original text-free poster {request.layout.width}x{request.layout.height} for {request.style.subject or request.title}. "
-                        f"Visual direction from the user reference: {description}. "
-                        + variant_instruction +
-                        "Preserve the reference visual rhythm, texture and hierarchy. "
-                        "Adapt composition to the new subject; reserve negative space for the planned text layers. "
-                        "Do not reproduce reference slogans or watermarks. No poster typography; intrinsic product packaging labels may be AI-generated."
-                    ),
-                    "text_layer_contract": "text_layers: [{text, font_family: sans|serif|kai|rounded, font_weight: 400|700, font_size: pixels (per-layer reference hierarchy), color: #RRGGBB, x, y, width, height: pixels, align: left|center|right, line_spacing: pixels (visually inferred from reference, else 4)}]. No equal-size constraint. Use reference weight/spacing before defaults. Explicit newlines are preserved; overflow is rejected.",
-                    "reference_is_inspiration_only": True,
-                }
-            # Only the new text-free image reaches the renderer, never the inspiration poster.
-            for key in list(arguments):
-                if key.startswith(("reference_image_", "user_image_", "subject_image_")):
-                    arguments.pop(key)
-            request.assets.user_image_paths = []
-            request.assets.subject_image_paths = []
-            request.style.background_mode = "reference"
-            request.style.image_role_mode = "both"
-            if not request.style.geometry_layers and not (arguments.get("geometry_image_base64") or ((arguments.get("poster_request") or {}).get("assets") or {}).get("geometry_image_base64")):
-                request.style.geometry_enabled = False
-            if not request.style.text_layers:
-                raise ValidationError("design_reference requires text_layers for final typography")
-        design_autopilot = _apply_gpt_design_autopilot(arguments, request)
+        # vNext resolves independent layers; references no longer replace the subject.
+        original_design_reference = arguments.get("design_reference", False)
+        arguments["design_reference"] = False
+        assets = payload.get("assets") or {}
+        style = payload.get("style") or {}
+        explicit_geometry = bool(arguments.get("geometry_image_base64") or assets.get("geometry_image_base64") or
+                                 arguments.get("geometry_layers") or style.get("geometry_layers"))
+        request.style.geometry_enabled = arguments.get("geometry_enabled", style.get("geometry_enabled", explicit_geometry))
+        request.style.background_shape_count = 0
+        design_autopilot = {"active": False, "design_path": "composition_resolver"}
         if bool(arguments.get("regenerate_variant", False)):
             request.style.variation_token = uuid.uuid4().hex[:12]
         auto_query = _auto_pexels_query(arguments, request)
@@ -1215,6 +1139,7 @@ def handle_tool_call(arguments: dict) -> dict:
         temp_dir = _materialize_remote_images(arguments, request)
         if temp_dir:
             temp_dirs.append(temp_dir)
+        arguments["design_reference"] = original_design_reference
         reference_context = _materialize_reference_images(arguments, request)
         if reference_context["temp_dir"]:
             temp_dirs.append(reference_context["temp_dir"])
@@ -1227,47 +1152,22 @@ def handle_tool_call(arguments: dict) -> dict:
                 "pexels_query": arguments["pexels_query"],
                 "message": "Pexels 未找到可用圖片，請調整搜尋詞；不會自動改用 AI 背景。",
             }
+        # Compatibility: unqualified legacy user_image is a complete visual.
+        # Formal background attachments and saved stock photos never imply subject.
+        draft = bool(_get_generated_background_base64(arguments)) or (
+            bool(request.assets.user_image_paths) and not request.assets.subject_image_paths and
+            request.style.image_role_mode in ("auto", "both") and not library_requested and not wants_pexels)
+        request.style.image_role_mode = "both" if draft and not request.assets.subject_image_paths else "background"
+        from .composition import PosterRequestResolver, PosterRenderer, composition_summary
+        arguments["design_reference"] = original_design_reference
+        palette_from_assets_applied, palette_source_path = _apply_palette_from_assets(arguments, request, reference_context)
+        reference_context["style_from_reference_applied"] = palette_from_assets_applied
+        spec, pending = PosterRequestResolver().resolve(request, arguments)
+        if pending:
+            return pending
         resolved_image_role_mode, image_role_resolution_reason = _resolve_image_role_mode(request)
         _apply_image_role_mode(request, resolved_image_role_mode)
         _validate_pre_render_request(request)
-        palette_from_assets_applied, palette_source_path = _apply_palette_from_assets(
-            arguments, request, reference_context
-        )
-        reference_context["style_from_reference_applied"] = palette_from_assets_applied
-        if _needs_background_generation(arguments, request, reference_context):
-            return {
-                "ok": True,
-                "tool_name": TOOL_NAME,
-                "pipeline_stage": "needs_background_generation",
-                "status": {
-                    "code": "needs_background_generation",
-                    "message": "generate_text_free_background_then_retry",
-                },
-                "next_action": "generate_background_then_retry",
-                "rendered": False,
-                "background_generation_prompt": _build_background_generation_prompt(request),
-                "background_generation_requirements": {
-                    "must_be_text_free": True,
-                    "forbidden_elements": ["poster headlines", "slogans", "floating text", "watermark"],
-                    "required_flag_on_retry": "generated_background_text_free_confirmed=true",
-                },
-                "retry_arguments_hint": {
-                    "generated_background_base64": "data:image/png;base64,...",
-                    "generated_background_text_free_confirmed": True,
-                    "poster_request": request.to_dict(),
-                },
-                "text_overlay_plan": {
-                    "headline_box": {"x": 0.10, "y": 0.08, "w": 0.80, "h": 0.26},
-                    "subject_focus_box": {"x": 0.25, "y": 0.25, "w": 0.50, "h": 0.50},
-                    "cta_box": {"x": 0.12, "y": 0.78, "w": 0.76, "h": 0.12},
-                },
-                "intake_questions": build_intake_questions(),
-                "palette_from_assets_applied": palette_from_assets_applied,
-                "palette_source_path": palette_source_path,
-                "resolved_image_role_mode": resolved_image_role_mode,
-                "image_role_resolution_reason": image_role_resolution_reason,
-                "design_autopilot": design_autopilot,
-            }
         if _needs_text_free_background_confirmation(arguments, request):
             return {
                 "ok": True,
@@ -1303,8 +1203,24 @@ def handle_tool_call(arguments: dict) -> dict:
             reference_context.get("attribution_label", ""),
             *(item["credit_label"] for item in selected_designs if item["credit_required"]),
         ])
-        generator = PosterGenerator()
-        result = generator.generate(request)
+        preview_requested = arguments.get("preview_only", payload.get("preview_only", False))
+        if preview_requested and request.assets.subject_image_paths:
+            visual = PosterRenderer().render(spec, request, render_copy=False)
+            digest = _output_sha256(visual.output_path)
+            approved = arguments.get("approved_draft_sha256", payload.get("approved_draft_sha256"))
+            confirmed = arguments.get("typography_confirmed", payload.get("typography_confirmed", False))
+            if confirmed is not True or approved != digest:
+                preview = _encode_preview_image(visual.output_path)
+                Path(visual.output_path).unlink(missing_ok=True)
+                return dict(ok=True, rendered=False, poster_status="needs_user_input",
+                    status={"code":"awaiting_typography_confirmation", "message":"draft_ready"},
+                    pipeline_stage="awaiting_typography_confirmation",
+                    next_action="show_draft_ask_ready_for_copy_then_stop", draft_image_sha256=digest,
+                    output_preview_base64=preview, output_preview_mime_type="image/jpeg",
+                    composition=composition_summary(spec),
+                    retry_arguments_hint={"preview_only":True,"typography_confirmed":True,"approved_draft_sha256":digest,"reuse_original_request_and_asset_refs":True})
+            Path(visual.output_path).unlink(missing_ok=True)
+        result = PosterRenderer().render(spec, request)
         output_image_base64 = _encode_output_image(result.output_path)
         if not output_image_base64:
             raise ValidationError("render output image is missing or unreadable")
@@ -1315,6 +1231,8 @@ def handle_tool_call(arguments: dict) -> dict:
             "ok": True,
             "tool_name": TOOL_NAME,
             "pipeline_stage": "completed",
+            "poster_status": "completed",
+            "composition": composition_summary(spec),
             "status": {
                 "code": "completed",
                 "message": "poster_render_completed",
