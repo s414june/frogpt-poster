@@ -42,7 +42,7 @@ class handler(BaseHTTPRequestHandler):
         elif path in ("/tool","/api/tool"):
             from gpt_package.openai_tool import build_tool_definition
             self._json(200,build_tool_definition())
-        elif path in ("/mcp","/api/mcp","/api/mcp.py"):
+        elif path in ("/mcp","/api/mcp","/api/mcp.py","/api/index","/api/index.py"):
             self.reply(405)
         elif path=="/api/internal/blob-cleanup":
             from gpt_package.blob_cleanup import authorized,cleanup
@@ -54,7 +54,7 @@ class handler(BaseHTTPRequestHandler):
             self._json(404,{"ok":False,"error":"not_found"})
     def do_POST(self):
         path=self._path()
-        if path in ("","/mcp","/api/mcp","/api/mcp.py"):
+        if path in ("","/mcp","/api/mcp","/api/mcp.py","/api/index","/api/index.py"):
             from gpt_package.mcp_http import handler as MCPHandler
             return MCPHandler.do_POST(self)
         if path=="/api/assets":

@@ -23,7 +23,7 @@ class RoutesTests(unittest.TestCase):
     def test_health_and_mcp_aliases(self):
         for path in ("/health","/api/health"):
             code,data=self.request(path);self.assertEqual(code,200);self.assertEqual(data["service"],"poster-tool-api")
-        for path in ("/mcp","/api/mcp","/mcp/"):
+        for path in ("/mcp","/api/mcp","/mcp/","/api/index","/api/index.py"):
             code,data=self.request(path,{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}})
             self.assertEqual(code,200);self.assertIn("protocolVersion",data["result"])
             code,data=self.request(path,{"jsonrpc":"2.0","id":2,"method":"tools/list"})
