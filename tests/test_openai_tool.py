@@ -212,7 +212,7 @@ class OpenAIToolTests(unittest.TestCase):
             finally:
                 os.environ.pop("POSTER_OUTPUT_DIR", None)
 
-    def test_pexels_query_is_ignored_when_pexels_feature_is_disabled(self) -> None:
+    def test_explicit_pexels_reports_missing_configuration_when_disabled(self) -> None:
         old_key = os.environ.pop("PEXELS_API_KEY", None)
         old_flag = os.environ.pop("FROGPT_ENABLE_PEXELS", None)
         try:
@@ -223,15 +223,81 @@ class OpenAIToolTests(unittest.TestCase):
                     "pexels_query": "hamster charity poster",
                 }
             )
-            self.assertTrue(result["ok"])
+            self.assertFalse(result["ok"])
             self.assertFalse(result["rendered"])
-            self.assertEqual(result["status"]["code"], "needs_background_generation")
+            self.assertEqual(result["status"]["code"], "pexels_unavailable")
+            self.assertEqual(result["missing_configuration"], ["FROGPT_ENABLE_PEXELS=true", "PEXELS_API_KEY"])
             self.assertIsNone(result.get("auto_pexels_query_used"))
         finally:
             if old_key is not None:
                 os.environ["PEXELS_API_KEY"] = old_key
             if old_flag is not None:
                 os.environ["FROGPT_ENABLE_PEXELS"] = old_flag
+
+    def test_pexels_background_preserves_foreground_subject(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(os.environ, {
+            "FROGPT_ENABLE_PEXELS": "true", "PEXELS_API_KEY": "test-only",
+            "POSTER_OUTPUT_DIR": tmp_dir,
+        }):
+            subject = Path(tmp_dir) / "toothpaste.png"
+            Image.new("RGBA", (80, 160), (230, 30, 40, 255)).save(subject)
+            def download(url, path):
+                Image.new("RGB", (480, 640), (20, 30, 50)).save(path, format="PNG")
+            with patch("gpt_package.openai_tool.fetch_pexels_references", return_value=[{
+                "source": "pexels", "url": "https://images.pexels.com/test.jpg",
+                "photographer": "Test Photographer", "page_url": "https://www.pexels.com/photo/1/",
+            }]) as fetch, patch("gpt_package.openai_tool._download_image", side_effect=download):
+                result = handle_tool_call({
+                    "title": "Pure", "body": "Daily ritual", "width": 480, "height": 640,
+                    "pexels_query": "dark stone", "background_mode": "reference",
+                    "image_role_mode": "background", "geometry_enabled": False,
+                    "subject_image_base64": [base64.b64encode(subject.read_bytes()).decode()],
+                })
+            self.assertTrue(result["rendered"], result)
+            fetch.assert_called_once()
+            self.assertEqual(result["source_credits"][0]["source"], "pexels")
+            self.assertTrue(result["request"]["assets"]["subject_image_paths"])
+            with Image.open(result["output_path"]) as output:
+                self.assertTrue(any(r > 180 and g < 80 and b < 80 for r, g, b in output.convert("RGB").getdata()))
+
+    def test_pexels_empty_results_do_not_fall_back_to_ai(self) -> None:
+        with patch.dict(os.environ, {"FROGPT_ENABLE_PEXELS": "true", "PEXELS_API_KEY": "test-only"}), patch(
+            "gpt_package.openai_tool.fetch_pexels_references", return_value=[]
+        ):
+            result = handle_tool_call({"title": "Pure", "body": "Daily", "pexels_query": "dark stone"})
+        self.assertFalse(result["rendered"])
+        self.assertEqual(result["status"]["message"], "pexels_no_results")
+
+    def test_saved_library_lists_without_api_or_network(self) -> None:
+        with patch.dict(os.environ, {"FROGPT_ENABLE_PEXELS": "false", "PEXELS_API_KEY": ""}), patch(
+            "gpt_package.openai_tool.fetch_pexels_references"
+        ) as fetch:
+            result = handle_tool_call({"use_local_reference_library": True, "pexels_query": "ignored"})
+        fetch.assert_not_called()
+        self.assertEqual(result["status"]["message"], "select_saved_reference")
+        self.assertGreater(len(result["reference_library"]), 0)
+        self.assertTrue(all(item["photographer"] != "Unknown" for item in result["reference_library"]))
+
+    def test_saved_library_composes_product_and_displays_author_without_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir, patch.dict(os.environ, {
+            "FROGPT_ENABLE_PEXELS": "false", "PEXELS_API_KEY": "", "POSTER_OUTPUT_DIR": tmp_dir,
+        }), patch("gpt_package.openai_tool.fetch_pexels_references") as fetch:
+            subject = Path(tmp_dir) / "tube.png"
+            Image.new("RGBA", (60, 140), (230, 20, 30, 255)).save(subject)
+            result = handle_tool_call({
+                "title": "Pure", "body": "Daily ritual", "width": 480, "height": 640,
+                "poster_request": {"reference_library_id": "pexels-13392284"},
+                "pexels_query": "must not call API",
+                "subject_image_base64": [base64.b64encode(subject.read_bytes()).decode()],
+            })
+            fetch.assert_not_called()
+            self.assertTrue(result["rendered"], result)
+            self.assertEqual(result["source_credit_overlay_text"], "Niklas Jeromin/Pexels")
+            self.assertTrue(result["source_credit_overlay_applied"])
+            self.assertEqual(result["source_credits"][0]["photographer"], "Niklas Jeromin")
+            self.assertTrue(result["request"]["assets"]["subject_image_paths"])
+            with Image.open(result["output_path"]) as output:
+                self.assertTrue(any(r > 180 and g < 80 and b < 80 for r, g, b in output.convert("RGB").getdata()))
 
     def test_auto_pexels_disabled_by_default(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

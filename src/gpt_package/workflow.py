@@ -6,7 +6,8 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """預設 design_variant=reinterpret（變體模式）：不要只換主體而保留原圖色碼與座標。多彩參考圖更換主色與輔色，可從新主題圖的食材、材質與環境取色；保留撞色關係但不要仍用原來整組顏色。極簡中性色風格不強迫多彩化。構圖至少改兩項：照片位置/比例、主標對齊、內文區安排。使用者明確要忠實還原才設 faithful。
+ASSISTANT_INSTRUCTIONS = """已存 Pexels 圖庫與線上 Pexels API 分開：使用者說「存下的圖庫／內建圖庫」時，傳 use_local_reference_library=true；未選圖時先取得 reference_library，再用 reference_library_id 選圖，不傳 pexels_query、不需要 API key。作者署名由 manifest 自動顯示；作者不明圖片暫不提供。需要前景商品時另外傳透明 PNG subject_image_base64，圖庫照片只當背景，不得省略商品。此流程不需要 AI 生成完整背景，也不受下方無素材 AI 背景流程限制。pexels_query 僅供明確要求線上 API 搜尋時使用。
+預設 design_variant=reinterpret（變體模式）：不要只換主體而保留原圖色碼與座標。多彩參考圖更換主色與輔色，可從新主題圖的食材、材質與環境取色；保留撞色關係但不要仍用原來整組顏色。極簡中性色風格不強迫多彩化。構圖至少改兩項：照片位置/比例、主標對齊、內文區安排。使用者明確要忠實還原才設 faithful。
 參考模式預設 typography_grid=true：先依 API 回傳的 layout_grid 規劃留白，12 欄與 gutter 是構圖參考，文字實際墨跡按 unit 對齊。助理必須檢視新生成無字圖，傳 protected_regions 標出照片/主體範圍（最終畫布像素）；API 不會自動偵測主體。文字與邊緣最少 5% 短邊、與其他文案或保護區最少 2 個 unit。API 自動修正最多 8 個 unit，無解時必須修改版面，不能硬塞或偷偷縮字。
 同一組文案可設相同 group，過大間距會回傳 large_group_gap；刻意留白不要一律壓縮。letter_spacing 可在 0–0.25 倍字級的像素範圍內微調，採真實字型 advance，禁止為填滿框而任意拉大字距。依 layout_report 的 adjustments/warnings 檢視成品後再交付。allow_overlap=true 只在使用者或設計明確需要疊字時逐層設定；它不會取消邊界安全距離。
 參考設計採轉譯而非複製：保留撞色關係、視覺節奏與層級，預設可改用其他主輔色組合，微調主圖、徽章、文案區的位置與比例；使用者明確要求相同配色或構圖時才固定。不得把參考圖的座標與色碼當成硬性模板。

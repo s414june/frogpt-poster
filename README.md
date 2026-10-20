@@ -351,3 +351,26 @@ GPT 看新圖後以 `protected_regions=[{"x":0,"y":80,"width":530,"height":500}]
 每層可設定 `group`，連續同組區塊的垂直間距超過 2 倍較大字級時提示過鬆，
 不自動壓縮刻意留白。`letter_spacing` 支援 0–0.25 em 的像素值，保留字型原始 advance
 與標點基線，不強制左右撐滿。結果 `layout_report` 回報網格、修正位置與警告。
+
+### Explicit Pexels backgrounds
+
+An explicit `pexels_query` or `auto_pexels_fallback=true` never silently switches
+to AI generation. If configuration is incomplete, the tool returns
+`pexels_unavailable` and `missing_configuration` (environment variable names only).
+Enable `FROGPT_ENABLE_PEXELS=true` and configure `PEXELS_API_KEY` on the server.
+Empty searches return `pexels_no_results` so the assistant can revise the query.
+For a stock background plus a foreground product, pass `pexels_query`,
+`background_mode="reference"`, `image_role_mode="background"`, and a transparent
+PNG in `subject_image_base64`. The product is composited over the photo and
+Pexels photographer attribution is retained.
+
+### 已存 Pexels 圖庫（不使用 API）
+
+`use_local_reference_library=true` 列出已存圖片 ID、作者和來源連結；
+選定後傳 `reference_library_id="pexels-13392284"`。也支援放在 `poster_request`。
+這條流程直接讀取 repo 的圖片與 manifest，不需要 API key、不呼叫網路，
+也不會被 `FROGPT_ENABLE_PEXELS` 影響；同時傳入的線上搜尋參數會被忽略。
+圖片作為背景，商品使用 `subject_image_base64` 疊在前景，保留作者/Pexels 署名。
+Windows manifest 路徑會轉為跨平台路徑，以 repo 根目錄解析。
+目前 manifest 中作者為 Unknown 的圖片暫不提供，待補齊真實作者後即可使用。
+線上 API 搜尋則單獨使用 `pexels_query` 與伺服器環境設定。

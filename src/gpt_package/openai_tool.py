@@ -32,7 +32,7 @@ _CREATIVE_SOURCE_MODES = {"auto", "real_image_priority", "gpt_generate"}
 _DEFAULT_PRIMARY_COLOR = "#F6F1E8"
 _DEFAULT_SECONDARY_COLOR = "#A8BFA8"
 _DEFAULT_ACCENT_COLOR = "#6D8A72"
-_LOCAL_REFERENCE_MANIFEST = Path("assets") / "reference-library" / "pexels" / "manifest.json"
+_LOCAL_REFERENCE_MANIFEST = Path(__file__).resolve().parents[2] / "assets" / "reference-library" / "pexels" / "manifest.json"
 _LOCAL_REFERENCE_INDEX: dict[str, dict] | None = None
 
 
@@ -112,7 +112,9 @@ def build_tool_definition() -> dict:
                     "type": "boolean",
                     "description": "Set true only when the generated background is confirmed text-free (no letters/numbers/logo/watermark).",
                 },
-                "pexels_query": {"type": "string"},
+                "use_local_reference_library": {"type": "boolean", "description": "Use saved Pexels photos without API/network. Omit reference_library_id to list available photos."},
+                "reference_library_id": {"type": "string", "description": "Saved photo ID from the local library manifest; independent of Pexels API."},
+                "pexels_query": {"type": "string", "description": "Online Pexels API search only; not the saved library."},
                 "pexels_orientation": {"type": "string"},
                 "pexels_per_page": {"type": "integer", "minimum": 1, "maximum": 10},
                 "auto_pexels_fallback": {
@@ -450,7 +452,13 @@ def _materialize_remote_images(arguments: dict, request: PosterRequest) -> str |
 
 def _materialize_reference_images(arguments: dict, request: PosterRequest) -> dict:
     references = arguments.get("reference_image_urls", [])
-    reference_paths = arguments.get("reference_image_paths", [])
+    reference_paths = list(arguments.get("reference_image_paths", []))
+    library_id = str(arguments.get("reference_library_id", "")).strip()
+    if library_id:
+        matches = [(path, item) for path, item in _local_library_items() if item.get("id") == library_id]
+        if not matches:
+            raise ValidationError("Unknown or unavailable reference_library_id; list the saved library first")
+        reference_paths.insert(0, str(matches[0][0]))
     reference_b64 = arguments.get("reference_image_base64", [])
     generated_background_b64 = _get_generated_background_base64(arguments)
     if references and not isinstance(references, list):
@@ -918,10 +926,21 @@ def _load_local_reference_index() -> dict[str, dict]:
         local_path = str(item.get("local_path", "")).strip()
         if not local_path:
             continue
-        resolved = str((Path.cwd() / local_path).resolve()).replace("/", "\\").lower()
+        resolved = str((Path(__file__).resolve().parents[2] / local_path.replace("\\", "/")).resolve()).replace("/", "\\").lower()
         index[resolved] = item
     _LOCAL_REFERENCE_INDEX = index
     return _LOCAL_REFERENCE_INDEX
+
+
+def _local_library_items() -> list[tuple[Path, dict]]:
+    # Resolve only manifest entries, never arbitrary client-supplied paths.
+    result = []
+    for item in _load_local_reference_index().values():
+        path = Path(__file__).resolve().parents[2] / str(item["local_path"]).replace("\\", "/")
+        author = str(item.get("photographer", "")).strip()
+        if path.is_file() and author and author.lower() != "unknown":
+            result.append((path, item))
+    return result
 
 
 def _output_filename(path: str | None) -> str:
@@ -954,8 +973,7 @@ def _needs_background_generation(arguments: dict, request: PosterRequest, refere
     has_user_image = bool(request.assets.user_image_paths)
     has_subject_image = bool(request.assets.subject_image_paths)
     has_reference = bool(reference_context.get("downloaded_paths"))
-    has_pexels_query = bool(str(arguments.get("pexels_query", "")).strip())
-    if has_user_image or has_subject_image or has_reference or has_pexels_query:
+    if has_user_image or has_subject_image or has_reference:
         return False
     # Hard lock: when no visual input is available, force GPT to generate a text-free
     # background first, then call back with generated_background_base64.
@@ -1032,11 +1050,47 @@ def handle_tool_call(arguments: dict) -> dict:
     temp_dirs: list[str] = []
     try:
         arguments = dict(arguments)
-        if not _is_pexels_available():
-            arguments.pop("pexels_query", None)
-            arguments.pop("pexels_orientation", None)
-            arguments.pop("pexels_per_page", None)
-            arguments.pop("auto_pexels_fallback", None)
+        payload = arguments.get("poster_request") or {}
+        for key in ("use_local_reference_library", "reference_library_id"):
+            if key not in arguments and key in payload:
+                arguments[key] = payload[key]
+        library_requested = bool(arguments.get("use_local_reference_library")) or bool(arguments.get("reference_library_id"))
+        if library_requested:
+            # Saved files never need an API key, and cannot trigger a remote search.
+            for key in ("pexels_query", "auto_pexels_fallback", "pexels_orientation", "pexels_per_page"):
+                arguments.pop(key, None)
+            if not arguments.get("reference_library_id"):
+                return {
+                    "ok": True, "rendered": False, "pipeline_stage": "image_selection",
+                    "status": {"code": "needs_input", "message": "select_saved_reference"},
+                    "next_action": "select_reference_library_id_then_retry_with_foreground_subject",
+                    "reference_library": [{"id": item["id"], "photographer": item["photographer"],
+                        "page_url": item.get("page_url"), "credit_label": item.get("credit_label") or build_credit_label(item)}
+                        for _, item in _local_library_items()],
+                    "message": "選擇已存圖庫背景；需要商品前景時另傳 subject_image_base64。作者不明的圖片暫不列入。",
+                }
+            request_style = dict(payload.get("style") or {})
+            request_style.update(background_mode="reference", image_role_mode="background")
+            arguments["poster_request"] = {**payload, "style": request_style}
+            arguments.update(background_mode="reference", image_role_mode="background", use_reference_as_fallback=True)
+        # An explicit stock-photo request must never silently become AI generation.
+        wants_pexels = bool(str(arguments.get("pexels_query", "")).strip()) or bool(
+            arguments.get("auto_pexels_fallback", False)
+        )
+        if wants_pexels and not _is_pexels_available():
+            missing = []
+            if not _is_pexels_enabled():
+                missing.append("FROGPT_ENABLE_PEXELS=true")
+            if not _has_pexels_api_key():
+                missing.append("PEXELS_API_KEY")
+            return {
+                "ok": False, "rendered": False,
+                "pipeline_stage": "configuration",
+                "status": {"code": "pexels_unavailable", "message": "pexels_configuration_required"},
+                "next_action": "configure_pexels_then_retry_same_request",
+                "missing_configuration": missing,
+                "message": "Pexels 尚未設定完成；請設定缺少的環境變數，不要改用 AI 背景。",
+            }
         show_design_guide = bool(arguments.get("show_design_guide", False))
         if _needs_intake(arguments):
             payload = {
@@ -1108,6 +1162,15 @@ def handle_tool_call(arguments: dict) -> dict:
         reference_context = _materialize_reference_images(arguments, request)
         if reference_context["temp_dir"]:
             temp_dirs.append(reference_context["temp_dir"])
+        if arguments.get("pexels_query") and not reference_context["downloaded_paths"]:
+            return {
+                "ok": True, "rendered": False,
+                "pipeline_stage": "image_selection",
+                "status": {"code": "needs_input", "message": "pexels_no_results"},
+                "next_action": "adjust_pexels_query_then_retry",
+                "pexels_query": arguments["pexels_query"],
+                "message": "Pexels 未找到可用圖片，請調整搜尋詞；不會自動改用 AI 背景。",
+            }
         resolved_image_role_mode, image_role_resolution_reason = _resolve_image_role_mode(request)
         _apply_image_role_mode(request, resolved_image_role_mode)
         _validate_pre_render_request(request)
