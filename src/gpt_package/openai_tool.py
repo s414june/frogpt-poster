@@ -98,6 +98,7 @@ def build_tool_definition() -> dict:
                 "user_image_base64": {"type": "array", "items": {"type": "string"}},
                 "subject_image_paths": {"type": "array", "items": {"type": "string"}},
                 "subject_image_urls": {"type": "array", "items": {"type": "string"}},
+                "asset_refs": {"type":"object","description":"Server-issued Blob asset refs; use prepare_poster MCP or /api/poster for TTL-checked resolution."},
                 "subject_image_base64": {"type": "array", "items": {"type": "string"}},
                 "reference_image_urls": {"type": "array", "items": {"type": "string"}},
                 "reference_image_paths": {"type": "array", "items": {"type": "string"}},
@@ -483,7 +484,9 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
         matches = [(path, item) for path, item in _local_library_items() if item.get("id") == library_id]
         if not matches:
             raise ValidationError("Unknown or unavailable reference_library_id; list the saved library first")
-        reference_paths.insert(0, str(matches[0][0]))
+        from .font_provider import blob_fonts, reference_path
+        selected_path = reference_path(library_id) if blob_fonts() else str(matches[0][0])
+        reference_paths.insert(0, selected_path)
     reference_b64 = arguments.get("reference_image_base64", [])
     generated_background_b64 = _get_generated_background_base64(arguments)
     if references and not isinstance(references, list):
@@ -545,6 +548,8 @@ def _materialize_reference_images(arguments: dict, request: PosterRequest) -> di
             raise ValidationError(f"reference image path does not exist: {raw}")
         downloaded_paths.append(str(path))
         local_credit = _lookup_local_reference_credit(path)
+        if library_id and str(path) == selected_path:
+            local_credit = dict(matches[0][1])
         if local_credit:
             source_credits.append(local_credit)
         else:
@@ -966,7 +971,8 @@ def _local_library_items() -> list[tuple[Path, dict]]:
     for item in _load_local_reference_index().values():
         path = Path(__file__).resolve().parents[2] / str(item["local_path"]).replace("\\", "/")
         author = str(item.get("photographer", "")).strip()
-        if path.is_file() and author and author.lower() != "unknown":
+        from .font_provider import blob_fonts
+        if (path.is_file() or blob_fonts()) and author and author.lower() != "unknown":
             result.append((path, item))
     return result
 
@@ -1357,6 +1363,9 @@ def handle_tool_call(arguments: dict) -> dict:
             payload["design_guide"] = build_design_guide()
         return payload
     except PosterError as exc:
+        from .blob_storage import StorageError
+        if isinstance(exc, StorageError):
+            return exc.result()
         payload = {
             "ok": False,
             "tool_name": TOOL_NAME,

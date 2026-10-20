@@ -1,5 +1,5 @@
 import unittest
-from api.mcp import dispatch, _rewrite_failed_output_for_retry
+from gpt_package.mcp_http import dispatch, _rewrite_failed_output_for_retry
 from gpt_package.workflow import assistant_execution_contract
 
 

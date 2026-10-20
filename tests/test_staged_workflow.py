@@ -5,7 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from PIL import Image, ImageDraw
-from api.mcp import dispatch
+from gpt_package.mcp_http import dispatch
 from gpt_package.typography import TypographyEngine
 
 
@@ -22,7 +22,7 @@ def image_data():
 
 class StagedWorkflowTests(unittest.TestCase):
     def test_image_only_draft_pauses_without_invoking_renderer(self):
-        with patch('api.mcp.handle_tool_call') as renderer:
+        with patch('gpt_package.mcp_http.handle_tool_call') as renderer:
             result = call(generated_background_base64=image_data(), generated_background_text_free_confirmed=True)
         renderer.assert_not_called()
         output = result['structuredContent']
@@ -75,7 +75,7 @@ class StagedWorkflowTests(unittest.TestCase):
         self.assertFalse(any(c['type'] == 'image' for c in result['content']))
 
     def test_approval_requires_copy_and_survives_fresh_server_instance(self):
-        from api.mcp import _INTAKE_SESSIONS
+        from gpt_package.mcp_http import _INTAKE_SESSIONS
         _INTAKE_SESSIONS.clear()
         result = call(typography_confirmed=True,
                       approved_draft_sha256=hashlib.sha256(base64.b64decode(image_data().split(",")[1])).hexdigest(), generated_background_base64=image_data(),

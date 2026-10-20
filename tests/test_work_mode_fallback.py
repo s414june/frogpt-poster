@@ -1,5 +1,5 @@
 import unittest
-from api.mcp import dispatch
+from gpt_package.mcp_http import dispatch
 from gpt_package.workflow import assistant_execution_contract
 
 

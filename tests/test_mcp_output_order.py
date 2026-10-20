@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from api.mcp import dispatch
+from gpt_package.mcp_http import dispatch
 from PIL import Image
 
 

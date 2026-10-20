@@ -11,9 +11,10 @@ import uuid
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
 from gpt_package.openai_tool import handle_tool_call, _get_generated_background_base64, _is_generated_background_text_free_confirmed
 from gpt_package.workflow import ASSISTANT_INSTRUCTIONS, assistant_execution_contract
+from gpt_package.blob_workflow import STORE_TOOL, ASSET_REFS_SCHEMA, store_asset, run_with_storage
 
 NAME = "prepare_poster"
 _INTAKE_SESSION_MAX = 512
@@ -26,6 +27,7 @@ _MAX_STRUCTURED_FULLSIZE_BASE64 = 5_500_000
 SCHEMA = {
     "type": "object",
     "properties": {
+        "asset_refs": ASSET_REFS_SCHEMA,
         "intake_confirmed": {"type": "boolean"},
         "typography_confirmed": {"type": "boolean", "description": "Only true after showing the text-free preview and receiving a NEW explicit user reply approving typography; intake approval is insufficient."},
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
@@ -100,6 +102,8 @@ TOOL = {
 def _image_input_contract() -> dict:
     return {
         "accepted_fields": [
+            "asset_refs",
+            "geometry_image_base64",
             "user_image_base64",
             "subject_image_base64",
             "reference_image_base64",
@@ -117,13 +121,13 @@ def _image_input_contract() -> dict:
             "data:image/jpeg;base64,...",
             "data:image/png;base64,...",
         ],
-        "rule": "Only send image bytes as base64 data URL. Do not send filesystem paths or URLs.",
+        "rule": "Use store_poster_asset once, then asset_refs; base64 data URLs remain supported. No arbitrary paths or URLs.",
     }
 
 
 def _image_input_contract_text() -> str:
     return (
-        "圖片輸入規則：只接受 base64（data URL）。\n"
+        "圖片輸入規則：優先傳 store_poster_asset 回傳的 asset_refs，也接受實際 base64（data URL）。\n"
         "不要傳本機/沙箱路徑，也不要傳圖片網址（URL）。\n"
         "正確示例：subject_image_base64: [\"data:image/jpeg;base64,...\"]"
     )
@@ -135,6 +139,12 @@ def _assistant_execution_contract() -> dict:
 
 def _compact_output(output: dict) -> dict:
     compact = dict(output)
+    if output.get("stored") and output.get("image_url"):
+        for key in list(compact):
+            if "base64" in key or "data_url" in key: compact.pop(key,None)
+        compact.pop("request",None)
+        compact.pop("output_path",None)
+        return compact
     image_b64 = compact.pop("output_image_base64", None)
     preview_b64 = compact.pop("output_preview_base64", None)
     data_url = compact.pop("output_image_data_url", None)
@@ -381,6 +391,10 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
 
 
 def _run_staged_call(args: dict, intake_completed: bool) -> dict:
+    return run_with_storage(args, intake_completed, _run_staged_call_legacy)
+
+
+def _run_staged_call_legacy(args: dict, intake_completed: bool) -> dict:
     if not intake_completed:
         return handle_tool_call(args)
     args = dict(args)
@@ -461,9 +475,14 @@ def dispatch(message):
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":
-        result["result"] = {"tools": [TOOL]}
+        result["result"] = {"tools": [TOOL, STORE_TOOL]}
     elif method == "tools/call":
         args = params.get("arguments", {})
+        if params.get("name") == "store_poster_asset":
+            output=store_asset(args)
+            result["result"]={"content":[{"type":"text","text":json.dumps(output,ensure_ascii=False)}],
+                              "structuredContent":output,"isError":not output.get("ok")}
+            return result
         if params.get("name") != NAME:
             result["error"] = {"code": -32602, "message": "Unknown tool"}
         elif not isinstance(args, dict) or set(args) - set(SCHEMA["properties"]):
@@ -507,6 +526,18 @@ def dispatch(message):
                 call_args["request_intake_only"] = True
                 call_args["show_design_guide"] = True
             output = _run_staged_call(call_args, intake_confirmed_effective)
+            if output.get("stored") and output.get("image_url"):
+                compact_output=_compact_output(output)
+                preview=output.get("output_preview_base64")
+                content=[]
+                if preview:
+                    content.append({"type":"image","data":preview,"mimeType":"image/jpeg"})
+                content.append({"type":"text","text":json.dumps(compact_output,ensure_ascii=False)})
+                result["result"]={"content":content,"structuredContent":compact_output,"isError":not output.get("ok")}
+                compact_output["intake_session_token"]=intake_session_token
+                if output.get("pipeline_stage")=="awaiting_typography_confirmation":
+                    content.append({"type":"text","text":"無字海報已準備好，是否準備好加上文案？停止並等待使用者明確同意。"})
+                return result
             output = _rewrite_failed_output_for_retry(output)
             output["image_input_contract"] = _image_input_contract()
             output["assistant_execution_contract"] = _assistant_execution_contract()

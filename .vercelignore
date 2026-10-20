@@ -2,31 +2,8 @@ outputs/
 docs/
 examples/
 tests/
-scripts/
-
-# Exact runtime font allowlist: no duplicate variable/SC versions or unused weights.
-assets/fonts/*
-!assets/fonts/Chiron_GoRound_TC/
-assets/fonts/Chiron_GoRound_TC/*
-!assets/fonts/Chiron_GoRound_TC/OFL.txt
-!assets/fonts/Chiron_GoRound_TC/static/
-assets/fonts/Chiron_GoRound_TC/static/*
-!assets/fonts/Chiron_GoRound_TC/static/ChironGoRoundTC-Regular.ttf
-!assets/fonts/LXGW_WenKai_TC/
-assets/fonts/LXGW_WenKai_TC/*
-!assets/fonts/LXGW_WenKai_TC/OFL.txt
-!assets/fonts/LXGW_WenKai_TC/LXGWWenKaiTC-Regular.ttf
-!assets/fonts/Noto_Sans_TC/
-assets/fonts/Noto_Sans_TC/*
-!assets/fonts/Noto_Sans_TC/OFL.txt
-!assets/fonts/Noto_Sans_TC/static/
-assets/fonts/Noto_Sans_TC/static/*
-!assets/fonts/Noto_Sans_TC/static/NotoSansTC-Bold.ttf
-!assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf
-!assets/fonts/Noto_Serif_TC/
-assets/fonts/Noto_Serif_TC/*
-!assets/fonts/Noto_Serif_TC/OFL.txt
-!assets/fonts/Noto_Serif_TC/static/
-assets/fonts/Noto_Serif_TC/static/*
-!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Bold.ttf
-!assets/fonts/Noto_Serif_TC/static/NotoSerifTC-Regular.ttf
+__pycache__/
+**/__pycache__/
+*.pyc
+# Static source binaries stay available to migration builds, but are excluded from
+# the deployed Function by vercel.json excludeFiles. Never delete original assets.

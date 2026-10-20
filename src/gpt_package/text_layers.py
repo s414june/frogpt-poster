@@ -68,7 +68,8 @@ def render_text_layers(image, layers, style=None):
     planned, measured = [], []
     for item in layers:
         _, path = resolve_font_weight(item['font_family'], item['font_weight'])
-        font = ImageFont.truetype(path, round(item['font_size']))
+        from .font_provider import materialize_font
+        font = ImageFont.truetype(materialize_font(path), round(item['font_size']))
         tracking = item['letter_spacing']
         if tracking:
             glyphs, box = _tracked_glyphs(draw,item,font)

@@ -69,6 +69,11 @@ def validate_request(request: PosterRequest) -> None:
                 )
             raise ValidationError(f"subject image does not exist: {path}")
     for path in request.assets.open_source_font_paths:
+        if str(path).startswith("blobfont://"):
+            from .font_registry import FONT_FAMILIES
+            if str(path)[11:] not in [p for group in FONT_FAMILIES.values() for p in group]:
+                raise ValidationError("Unknown Blob font")
+            continue
         font_path = Path(path)
         if not font_path.is_file():
             raise ValidationError(f"open-source font does not exist: {path}")

@@ -372,8 +372,12 @@ class TypographyEngine:
             key=lambda item: self._font_priority(item, sample_text, role=role),
         ):
             try:
-                return ImageFont.truetype(path, size=size)
+                from .font_provider import materialize_font
+                return ImageFont.truetype(materialize_font(path), size=size)
             except OSError:
+                if str(path).startswith("blobfont://"):
+                    from .blob_storage import StorageError
+                    raise StorageError("FONT_UNAVAILABLE") from None
                 continue
         return ImageFont.load_default()
 

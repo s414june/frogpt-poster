@@ -1,30 +1,19 @@
-"""Verify deployment ignore rules select exactly the renderer's font registry."""
-import shutil
-import subprocess
-import tempfile
+"""Source assets survive migration; the sole Function excludes every binary."""
+import json
 import unittest
 from pathlib import Path
-from gpt_package.font_registry import FONT_FAMILIES
-
-
 class FontBundleTests(unittest.TestCase):
-    @unittest.skipUnless(shutil.which('git'), 'git required to evaluate ignore rules')
-    def test_bundle_contains_only_registered_fonts_and_licenses(self):
-        repo = Path(__file__).resolve().parents[1]
-        actual = sorted(p.relative_to(repo).as_posix() for p in (repo/'assets/fonts').rglob('*')
-                        if p.is_file() and p.suffix.lower() in ('.ttf', '.otf', '.ttc'))
-        expected = {'assets/fonts/'+p for group in FONT_FAMILIES.values() for p in group}
-        licenses = {'assets/fonts/'+p.split('/')[0]+'/OFL.txt' for group in FONT_FAMILIES.values() for p in group}
-        paths = actual + sorted(licenses)
-        with tempfile.TemporaryDirectory() as tmp:
-            subprocess.run(['git','init','-q',tmp],check=True)
-            Path(tmp,'.gitignore').write_text((repo/'.vercelignore').read_text())
-            for name in paths:
-                p=Path(tmp,name);p.parent.mkdir(parents=True,exist_ok=True);p.touch()
-            result=subprocess.run(['git','-C',tmp,'check-ignore','--no-index','--stdin'],
-                input='\n'.join(paths)+'\n',text=True,capture_output=True)
-            self.assertIn(result.returncode,(0,1))
-            included=set(paths)-set(result.stdout.splitlines())
-        self.assertEqual(included,expected|licenses)
-        total=sum((repo/p).stat().st_size for p in expected)
-        self.assertLess(total,80_000_000,'Fonts alone must leave runtime headroom under the deployment limit')
+    def test_single_function_excludes_binary_assets(self):
+        root=Path(__file__).resolve().parents[1]
+        config=json.loads((root/"vercel.json").read_text())
+        self.assertEqual(list(config["functions"]),["api/index.py"])
+        self.assertEqual(list((root/"api").glob("*.py")),[root/"api/index.py"])
+        excludes=config["functions"]["api/index.py"]["excludeFiles"]
+        self.assertIn("assets/fonts/**",excludes)
+        self.assertIn("assets/reference-library/**/*.jpeg",excludes)
+        self.assertTrue(all(r["destination"]=="/api/index.py" for r in config["rewrites"]))
+        manifest=json.loads((root/"assets/blob-manifest.json").read_text())
+        self.assertEqual(len(manifest["fonts"]),6)
+        for e in manifest["fonts"]:
+            self.assertTrue((root/e["license"]).is_file())
+            self.assertTrue((root/e["source"]).is_file())

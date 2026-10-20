@@ -19,6 +19,9 @@ def resolve_font_family(value):
     name = ALIASES.get(name, name)
     if name not in FONT_FAMILIES:
         raise ValidationError('Unsupported font_family. Available: sans (黑體), serif (明體), kai (楷體), rounded (圓體).')
+    from .font_provider import blob_fonts, font_uri
+    if blob_fonts():
+        return name, [font_uri(p) for p in FONT_FAMILIES[name]]
     paths = [str(Path('assets/fonts') / p) for p in FONT_FAMILIES[name]]
     if not all(Path(p).is_file() for p in paths):
         raise ValidationError(f'Requested font family is not deployed: {name}; do not substitute another font.')
