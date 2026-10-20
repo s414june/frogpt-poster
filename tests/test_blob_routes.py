@@ -45,3 +45,19 @@ class RoutesTests(unittest.TestCase):
     def test_rest_rejects_arbitrary_urls(self):
         status,result=self.request("/api/poster",{"arguments":{"user_image_urls":["http://127.0.0.1/private"]}})
         self.assertEqual(status,422);self.assertEqual(result["status"]["code"],"INVALID_ASSET_REF")
+
+    def test_rest_rejects_non_data_url_base64(self):
+        status,result=self.request("/api/poster",{"arguments":{"user_image_base64":["iVBORw0KGgo="]}})
+        self.assertEqual(status,422)
+        self.assertEqual(result["status"]["code"],"INVALID_IMAGE")
+
+    def test_api_assets_requires_bearer_and_calls_store(self):
+        self.assertEqual(self.request("/api/assets",{"image_data_url":"x","role":"user","source":"user"})[0],401)
+        with patch.dict("os.environ",{"FROGPT_ASSET_UPLOAD_TOKEN":"secret"}),patch(
+            "gpt_package.blob_workflow.store_asset",
+            return_value={"ok":True,"asset_ref":"frogpt/v1/temp/assets/2026/10/20/fake-user.png","http_status":200},
+        ):
+            code,data=self.request("/api/assets",{"image_data_url":"x","role":"user","source":"user"},
+                                   headers={"Content-Type":"application/json","Authorization":"Bearer secret"})
+            self.assertEqual(code,200)
+            self.assertTrue(data["ok"])

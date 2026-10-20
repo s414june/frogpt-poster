@@ -3,6 +3,7 @@ import json
 import base64
 import io
 import hashlib
+import re
 
 from PIL import Image, UnidentifiedImageError
 import sys
@@ -24,6 +25,7 @@ _MAX_REQUEST_BYTES = 16 * 1024 * 1024
 _MAX_EMBED_FULLSIZE_BASE64 = 5_500_000
 _MAX_STRUCTURED_PREVIEW_BASE64 = 2_000_000
 _MAX_STRUCTURED_FULLSIZE_BASE64 = 5_500_000
+_DATA_URL_IMAGE_PREFIX = re.compile(r"^data:image/(jpeg|png|webp);base64,", re.IGNORECASE)
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -304,6 +306,33 @@ def _has_non_base64_image_inputs(args: dict) -> bool:
     return False
 
 
+def _has_invalid_image_data_url_inputs(args: dict) -> bool:
+    def _as_list(value):
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        return [value]
+
+    def _invalid_data_url(value) -> bool:
+        return not isinstance(value, str) or not _DATA_URL_IMAGE_PREFIX.match(value.strip())
+
+    payload = args.get("poster_request")
+    payload_assets = payload.get("assets", {}) if isinstance(payload, dict) and isinstance(payload.get("assets"), dict) else {}
+    checks = [
+        _as_list(args.get("user_image_base64", payload_assets.get("user_image_base64"))),
+        _as_list(args.get("subject_image_base64", payload_assets.get("subject_image_base64"))),
+        _as_list(args.get("reference_image_base64", payload.get("reference_image_base64") if isinstance(payload, dict) else None)),
+        _as_list(args.get("generated_background_base64", payload.get("generated_background_base64") if isinstance(payload, dict) else None)),
+        _as_list(args.get("geometry_image_base64", payload_assets.get("geometry_image_base64"))),
+    ]
+    for group in checks:
+        for item in group:
+            if item and _invalid_data_url(item):
+                return True
+    return False
+
+
 def _build_non_base64_input_rejection(token: str, intake_completed: bool) -> dict:
     contract = _image_input_contract()
     return {
@@ -312,7 +341,7 @@ def _build_non_base64_input_rejection(token: str, intake_completed: bool) -> dic
         "pipeline_stage": "intake",
         "status": {
             "code": "needs_input",
-            "message": "image_upload_required_use_base64_only",
+            "message": "image_upload_required_use_data_url_base64",
         },
         "next_action": "reupload_image_as_base64_only",
         "rendered": False,
@@ -503,6 +532,30 @@ def dispatch(message):
                         "text": (
                             "目前只接受 base64 圖片（data URL）。\n"
                             "請改用圖片上傳（base64）後重試，不要使用 paths 或 URLs。\n"
+                            + _image_input_contract_text()
+                            + "\n\n禁止直接用 GPT 產生有字成品；修正圖片格式後依分段流程繼續。"
+                        ),
+                    },
+                    {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
+                ]
+                result["result"] = {
+                    "content": content,
+                    "structuredContent": _compact_output(output),
+                    "isError": False,
+                }
+                return result
+            if _has_invalid_image_data_url_inputs(args):
+                output = _build_non_base64_input_rejection(
+                    token=intake_session_token,
+                    intake_completed=bool(intake_state.get("intake_completed", False)),
+                )
+                output["assistant_execution_contract"] = _assistant_execution_contract()
+                content = [
+                    {
+                        "type": "text",
+                        "text": (
+                            "收到的圖片不是 data URL base64。\n"
+                            "請改用 data:image/jpeg;base64,... 或 data:image/png;base64,... 格式重試。\n"
                             + _image_input_contract_text()
                             + "\n\n禁止直接用 GPT 產生有字成品；修正圖片格式後依分段流程繼續。"
                         ),

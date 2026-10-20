@@ -1,5 +1,7 @@
 """The only deployed Python Function. Health imports no Pillow, fonts or Blob SDK."""
 import json
+import hmac
+import os
 import sys
 from http.server import BaseHTTPRequestHandler
 from pathlib import Path
@@ -21,6 +23,15 @@ class handler(BaseHTTPRequestHandler):
         return MCPHandler.reply(self,status,payload)
     def _path(self):
         return urlparse(self.path).path.rstrip("/")
+    def _authorized_asset_upload(self):
+        expected=os.getenv("FROGPT_ASSET_UPLOAD_TOKEN","").strip()
+        if not expected:
+            return False
+        auth=(self.headers.get("Authorization") or "").strip()
+        if not auth.startswith("Bearer "):
+            return False
+        token=auth[7:].strip()
+        return hmac.compare_digest(token, expected)
     def do_GET(self):
         path=self._path()
         if path=="":
@@ -46,6 +57,21 @@ class handler(BaseHTTPRequestHandler):
         if path in ("","/mcp","/api/mcp","/api/mcp.py"):
             from gpt_package.mcp_http import handler as MCPHandler
             return MCPHandler.do_POST(self)
+        if path=="/api/assets":
+            if not self._authorized_asset_upload():
+                return self._json(401,{"ok":False,"status":{"code":"UNAUTHORIZED"}})
+            try:
+                size=int(self.headers.get("Content-Length","0"))
+                if size<1 or size>16*1024*1024:
+                    return self._json(413 if size>0 else 400,{"ok":False,"error":"invalid_body_size"})
+                payload=json.loads(self.rfile.read(size))
+                if not isinstance(payload,dict):
+                    raise ValueError()
+            except (ValueError,AttributeError,UnicodeDecodeError):
+                return self._json(400,{"ok":False,"error":"invalid_json"})
+            from gpt_package.blob_workflow import store_asset
+            result=store_asset(payload)
+            return self._json(result.get("http_status",200),result)
         if path not in ("/poster","/api/poster"):
             return self._json(404,{"ok":False,"error":"not_found"})
         try:
@@ -57,9 +83,11 @@ class handler(BaseHTTPRequestHandler):
             if not isinstance(args,dict): raise ValueError()
         except (ValueError,AttributeError,UnicodeDecodeError):
             return self._json(400,{"ok":False,"error":"invalid_json"})
-        from gpt_package.mcp_http import _has_non_base64_image_inputs,_run_staged_call,_compact_output
+        from gpt_package.mcp_http import _has_non_base64_image_inputs,_has_invalid_image_data_url_inputs,_run_staged_call,_compact_output
         if _has_non_base64_image_inputs(args):
             return self._json(422,{"ok":False,"status":{"code":"INVALID_ASSET_REF"}})
+        if _has_invalid_image_data_url_inputs(args):
+            return self._json(422,{"ok":False,"status":{"code":"INVALID_IMAGE"}})
         result=_run_staged_call(args,True)
         if result.get("stored"): result=_compact_output(result)
         self._json(result.get("http_status",200),{"tool_name":"prepare_poster","result":result})

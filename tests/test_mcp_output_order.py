@@ -243,7 +243,7 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertFalse(result["isError"])
         structured = result.get("structuredContent", {})
         self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
-        self.assertEqual(structured.get("next_action"), "retry_with_base64_only")
+        self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_only")
         self.assertIn("user_friendly_hint", structured)
         self.assertNotIn("error", structured)
         self.assertNotIn("error_type", structured)
@@ -269,6 +269,29 @@ class MCPOutputOrderTests(unittest.TestCase):
         self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
         self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_only")
         self.assertIn("user_image_urls", structured.get("user_friendly_hint", {}).get("not_accepted_fields", []))
+
+    def test_tools_call_rejects_non_data_url_base64_input(self) -> None:
+        raw_png = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode("ascii")
+        message = {
+            "jsonrpc": "2.0",
+            "id": 41,
+            "method": "tools/call",
+            "params": {
+                "name": "prepare_poster",
+                "arguments": {
+                    "intake_confirmed": True,
+                    "title": "data url test",
+                    "body": "must be data url",
+                    "user_image_base64": [raw_png],
+                },
+            },
+        }
+        response = dispatch(message)
+        self.assertIsNotNone(response)
+        structured = response["result"].get("structuredContent", {})
+        self.assertEqual(structured.get("status", {}).get("code"), "needs_input")
+        self.assertEqual(structured.get("status", {}).get("message"), "image_upload_required_use_data_url_base64")
+        self.assertEqual(structured.get("next_action"), "reupload_image_as_base64_only")
 
     def test_tools_call_can_reuse_token_without_intake_confirmed(self) -> None:
         first = {

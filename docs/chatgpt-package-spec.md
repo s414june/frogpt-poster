@@ -126,3 +126,55 @@ print(result["ok"], result["decision"]["image_source"])
    完成字體階層、留白、配色規則與模板系統。
 4. **M4：AI 備援與品質迭代**  
    接入 AI 生成備援與風格一致性優化。
+
+---
+
+## 12. v1.1 功能收斂補充（依目前程式實作，強制需求）
+
+### 12.1 MCP 輸入與流程鎖定
+1. **MCP 僅接受圖片 base64（data URL）**：  
+   `user_image_base64`、`subject_image_base64`、`reference_image_base64`、`generated_background_base64`。  
+   `*_image_urls`、`*_image_paths`、`reference_image_urls`、`reference_image_paths` 於 MCP 一律拒收並回 `needs_input`。
+2. **首輪 intake 後仍維持工具流程閉環**：  
+   非 `completed + rendered=true` 不可直接產出最終海報回覆，助理必須持續 tool-call。
+3. **「全部交給你」語意綁定**：  
+   視為「僅可使用工具編排」；不可直接以模型圖片替代最終成品。
+4. **無素材時強制進入無字背景階段**：  
+   只要沒有可用視覺素材（不論 `background_mode` 是 `solid/gradient/auto/reference`），皆回 `needs_background_generation`。
+
+### 12.2 Base64 解碼與錯誤可恢復性
+1. **Base64 解碼後立即驗圖**：  
+   需先移除 `data:*;base64,` 前綴、處理空白字元，再 `b64decode(validate=True)`。  
+   解碼後必須以 Pillow 驗證為可讀圖片（非圖片位元組直接判為 `ValidationError`）。
+2. **失敗回應改寫策略（MCP 層）**：  
+   工具失敗不得讓對話停在不可行狀態；需改寫為可重試的 `needs_input`，附帶 base64-only 的修正指引與可執行下一步。
+3. **禁止偽造圖片內容**：  
+   不可將檔名、路徑、JSON、HTML 或錯誤訊息編碼後冒充圖片 base64。
+
+### 12.3 Pexels 啟用策略
+1. **預設關閉且僅環境變數可控**：  
+   需同時滿足 `FROGPT_ENABLE_PEXELS=true` 與 `PEXELS_API_KEY` 才視為可用。
+2. **未啟用時不得外顯 key 缺失訊息給使用者流程**：  
+   需回落到既有流程（例如 `needs_background_generation` 或既有可行路徑），避免暴露設定細節造成 GPT 迴圈失敗。
+
+### 12.4 色彩調校硬規則（目前實作）
+1. **背景橘色（background only）**：  
+   彩度下修一階（避免過飽和壓迫感），但維持可讀明度下限。
+2. **黃色防髒黃規則**：  
+   低彩或低明度黃色需被提亮/提彩，必要時可替換為鄰近乾淨色（橘或綠）。
+3. **幾何亮暖背景增彩**：  
+   在亮黃/亮橘背景下，僅提升幾何彩度，不改背景。
+4. **咖啡色（低明度橘）幾何強制增彩**：  
+   若幾何為低明度橘，需強制提高彩度，避免髒灰感。
+5. **例外條件（僅明確要求時）**：  
+   使用者或 GPT 明確要求 `pastel/低彩/柔和` 時，才允許較低彩黃色策略。
+
+### 12.5 UAT 與字體測試
+1. `scripts\uat_run_tool.py` 支援隨機字體注入：  
+   - JSON 內 `open_source_font_paths: ["__RANDOM__"]`，或  
+   - CLI 加 `--random-font`  
+   會從 `assets\fonts` 隨機挑選字體並回傳 `uat_selected_font` 供比對。
+2. UAT 產物需保留 JPG 預覽輸出，便於快速人工視覺驗收。
+
+### 12.6 規格優先序（衝突解決）
+當舊章節與本節衝突時，以 **12. v1.1 功能收斂補充** 為準；後續版本再將舊章節整併重編。
