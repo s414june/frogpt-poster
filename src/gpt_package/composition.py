@@ -130,6 +130,9 @@ class PosterRenderer:
         request.style.geometry_layers = [layer for layer in spec.geometry if 'assetRef' not in layer]
         if all('strategy' not in layer for layer in spec.typography):
             request.style.text_layers = spec.typography
+        if request.style.design_rules_v1:
+            from .design_layout import DesignCompositionPipeline
+            return DesignCompositionPipeline().generate(request, spec, render_copy=render_copy)
         from .client import PosterGenerator
         return PosterGenerator().generate(request, render_copy=render_copy)
 

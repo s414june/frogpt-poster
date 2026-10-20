@@ -1,0 +1,25 @@
+{
+  "ok": false,
+  "rendered": false,
+  "error_code": "LAYOUT_OUT_OF_BOUNDS",
+  "diagnostics": [
+    {
+      "ruleId": "GRID-002",
+      "level": "error",
+      "severity": "error",
+      "elementId": "poster",
+      "original": null,
+      "resolved": null,
+      "before": null,
+      "after": null,
+      "reason": "Important content extends outside canvas"
+    }
+  ],
+  "designVersion": "1.0.0",
+  "errors": [
+    {
+      "code": "LAYOUT_OUT_OF_BOUNDS",
+      "message": "No candidate passed the hard gate"
+    }
+  ]
+}

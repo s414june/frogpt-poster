@@ -146,3 +146,14 @@ and the five `openai/fileParams` fields; a version label alone is insufficient.
 Deployment does not invalidate the host's cached tool schema.
 
 See `docs/vnext-validation.md` for scope, automated checks and remaining live UAT.
+
+## Optional design guidelines v1
+
+Enable `design_rules_v1=true` per request or `POSTER_DESIGN_RULES_V1=true` on the
+server (default false). Adds schema-validated design tokens, normalized intent,
+measured glyph layouts, alpha collision checks and composited contrast validation.
+Soft art-direction overrides cannot bypass hard checks. Existing vNext remains
+the default; the same attachment/Blob interfaces are retained.
+
+See [migration and usage](docs/design-rules-v1-migration.md), the six documents in
+`design-guidelines/`, and reproducible examples in `examples/design-rules-v1/`.

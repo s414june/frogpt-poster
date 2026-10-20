@@ -52,6 +52,10 @@ class PosterStyle:
     background_shape_alpha_max: int = 28
     variation_token: str = ""
     source_credit_text: str = ""
+    design_rules_v1: bool = False
+    design_intent: dict = field(default_factory=dict)
+    design_report: dict = field(default_factory=dict)
+    explicit_subject_position: bool = False
     composition_resolved: bool = False
     subject_position: dict = field(default_factory=dict)
     subject_focus_box: list[int] = field(default_factory=list)

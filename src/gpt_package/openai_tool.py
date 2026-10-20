@@ -67,6 +67,8 @@ def build_tool_definition() -> dict:
         "parameters": {
             "type": "object",
             "properties": {
+                "design_rules_v1": {"type":"boolean", "description":"Opt in to measured design safety rules v1."},
+                "design_intent": {"type":"object", "description":"Normalized design intent, preset, soft rule overrides and asset rights provenance."},
                 "preview_only": {"type":"boolean"},
                 "subject_source": {"type":"string", "enum":["user_upload","ai_generated"]},
                 "subject_position": {"type":"object"},
@@ -1043,7 +1045,7 @@ def _handle_tool_call(arguments: dict) -> dict:
     try:
         arguments = dict(arguments)
         payload = arguments.get("poster_request") or {}
-        for key in ("use_local_reference_library", "reference_library_id", "list_design_references", "design_reference_ids", "subject_source", "subject_position", "preview_only", "design_reference", "design_variant", "reference_style_description"):
+        for key in ("use_local_reference_library", "reference_library_id", "list_design_references", "design_reference_ids", "subject_source", "subject_position", "preview_only", "design_reference", "design_variant", "reference_style_description", "design_rules_v1", "design_intent"):
             if key not in arguments and key in payload:
                 arguments[key] = payload[key]
         if arguments.get("list_design_references"):
@@ -1120,6 +1122,18 @@ def _handle_tool_call(arguments: dict) -> dict:
             return payload
 
         request = _build_request(arguments)
+        flag = arguments.get("design_rules_v1", os.getenv("POSTER_DESIGN_RULES_V1", "false").lower() == "true")
+        if not isinstance(flag, bool):
+            raise ValidationError("design_rules_v1 must be boolean")
+        request.style.design_rules_v1 = flag
+        request.style.design_intent = arguments.get("design_intent", {})
+        if flag and isinstance(request.style.design_intent, dict):
+            intent_layers = request.style.design_intent.get("typography", [])
+            texts = [item.get("text", "") for item in intent_layers if isinstance(item, dict) and isinstance(item.get("text"), str)] if isinstance(intent_layers, list) else []
+            if texts:
+                request.title = request.title or texts[0][:120]
+                request.body = request.body or "\n".join(texts)[:4000]
+        request.style.explicit_subject_position = bool(arguments.get("subject_position"))
         # vNext resolves independent layers; references no longer replace the subject.
         original_design_reference = arguments.get("design_reference", False)
         arguments["design_reference"] = False
@@ -1243,6 +1257,7 @@ def _handle_tool_call(arguments: dict) -> dict:
                 "reason": result.decision.reason,
             },
             "layout_report": request.style.layout_report,
+            "design_report": request.style.design_report,
             "request": request.to_dict(),
             "output_path": result.output_path,
             "output_mime_type": "image/png",
@@ -1306,6 +1321,8 @@ def _handle_tool_call(arguments: dict) -> dict:
             "error": str(exc),
             "intake_questions": build_intake_questions(),
         }
+        if hasattr(exc, "diagnostics"):
+            payload.update(error_code=exc.code, diagnostics=exc.diagnostics, designVersion="1.0.0", errors=[{"code":exc.code,"message":str(exc)}])
         if bool(arguments.get("show_design_guide", False)):
             payload["design_guide"] = build_design_guide()
         return payload

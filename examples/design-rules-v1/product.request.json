@@ -1,0 +1,54 @@
+{
+  "width": 720,
+  "height": 900,
+  "title": "把日常，\n留給美好。",
+  "body": "A SIMPLE DAILY RITUAL\n簡單配方，清爽生活。",
+  "subject_source": "user_upload",
+  "primary_color": "#F5F1E8",
+  "design_rules_v1": true,
+  "geometry_enabled": false,
+  "design_intent": {
+    "stylePreset": "editorial",
+    "subjectPosition": {
+      "x": 0.56,
+      "y": 0.25,
+      "width": 0.36,
+      "height": 0.5
+    },
+    "assetProvenance": {
+      "subject": {
+        "source": "project_original",
+        "license": "FroGPT original test fixture",
+        "rightsConfirmed": true,
+        "posterTextFree": true
+      }
+    },
+    "typography": [
+      {
+        "id": "headline",
+        "role": "headline",
+        "text": "把日常，\n留給美好。",
+        "fontSizeRelativeToShortSide": 0.08,
+        "box": {
+          "x": 0.08,
+          "y": 0.08,
+          "width": 0.42,
+          "height": 0.32
+        }
+      },
+      {
+        "id": "body",
+        "role": "body",
+        "text": "A SIMPLE DAILY RITUAL\n簡單配方，清爽生活。",
+        "fontSizeRelativeToShortSide": 0.033,
+        "box": {
+          "x": 0.08,
+          "y": 0.5,
+          "width": 0.4,
+          "height": 0.15
+        }
+      }
+    ]
+  },
+  "fixtureSubject": "subject-original.png; script encodes actual bytes at runtime"
+}

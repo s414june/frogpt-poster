@@ -1,0 +1,430 @@
+{
+  "ok": true,
+  "designVersion": "1.0.0",
+  "feature": "design-rules-v1",
+  "candidate": "top-copy",
+  "candidatesEvaluated": 3,
+  "grid": {
+    "safePx": 57.6,
+    "safeX": 0.08,
+    "safeY": 0.064,
+    "columns": 4,
+    "gutterPx": 18.0,
+    "columnWidthPx": 137.7,
+    "keyLinesPx": [
+      57.6,
+      213.29999999999998,
+      369.0,
+      524.6999999999999
+    ]
+  },
+  "scores": {
+    "experimental": true,
+    "measuredScore": 1.0,
+    "components": {
+      "color": 1,
+      "interaction": 1
+    },
+    "foregroundPixelCoverage": 0.0741,
+    "disabled": [
+      "hierarchy",
+      "whitespace",
+      "alignment",
+      "reference",
+      "opticalBalance",
+      "salience"
+    ],
+    "weightsUsed": {
+      "color": 10,
+      "interaction": 20
+    }
+  },
+  "diagnostics": [
+    {
+      "ruleId": "GRID-003",
+      "level": "info",
+      "severity": "info",
+      "elementId": "tokens",
+      "original": 0.06,
+      "resolved": 0.08,
+      "before": 0.06,
+      "after": 0.08,
+      "reason": "Override from preset"
+    },
+    {
+      "ruleId": "GRID-004",
+      "level": "info",
+      "severity": "info",
+      "elementId": "tokens",
+      "original": 6,
+      "resolved": 4,
+      "before": 6,
+      "after": 4,
+      "reason": "Override from preset"
+    },
+    {
+      "ruleId": "TYPO-004",
+      "level": "info",
+      "severity": "info",
+      "elementId": "tokens",
+      "original": 0.1,
+      "resolved": 0.1,
+      "before": 0.1,
+      "after": 0.1,
+      "reason": "Override from preset"
+    },
+    {
+      "ruleId": "GRID-006",
+      "level": "info",
+      "severity": "info",
+      "elementId": "subject",
+      "original": {
+        "x": 0.25,
+        "y": 0.27,
+        "width": 0.5,
+        "height": 0.46
+      },
+      "resolved": {
+        "x": 0.25,
+        "y": 0.52,
+        "width": 0.5,
+        "height": 0.35
+      },
+      "before": {
+        "x": 0.25,
+        "y": 0.27,
+        "width": 0.5,
+        "height": 0.46
+      },
+      "after": {
+        "x": 0.25,
+        "y": 0.52,
+        "width": 0.5,
+        "height": 0.35
+      },
+      "reason": "Resolved candidate placement; explicit subject positions are retained"
+    }
+  ],
+  "measurements": [
+    {
+      "id": "headline",
+      "role": "headline",
+      "color": "#111111",
+      "fontSize": 72,
+      "fontWeight": 700,
+      "lineHeight": 1.1,
+      "repairRounds": 0,
+      "metrics": {
+        "width": 432,
+        "height": 69,
+        "advance": 79,
+        "ascender": 84,
+        "descender": 21
+      },
+      "measuredLines": [
+        "剛剛好的日常"
+      ],
+      "requestedFont": "sans",
+      "resolvedFont": [
+        "sans"
+      ],
+      "bbox": {
+        "x": 58,
+        "y": 58,
+        "width": 432,
+        "height": 69
+      },
+      "text": "剛剛好的日常",
+      "contrast": 14.657361363714056
+    },
+    {
+      "id": "body",
+      "role": "body",
+      "color": "#111111",
+      "fontSize": 24,
+      "fontWeight": 400,
+      "lineHeight": 1.4,
+      "repairRounds": 0,
+      "metrics": {
+        "width": 372,
+        "height": 18,
+        "advance": 34,
+        "ascender": 28,
+        "descender": 7
+      },
+      "measuredLines": [
+        "MAKE ROOM FOR SIMPLE THINGS"
+      ],
+      "requestedFont": "sans",
+      "resolvedFont": [
+        "sans"
+      ],
+      "bbox": {
+        "x": 58,
+        "y": 322,
+        "width": 372,
+        "height": 18
+      },
+      "text": "MAKE ROOM FOR SIMPLE THINGS",
+      "contrast": 14.657361363714056
+    }
+  ],
+  "errors": [],
+  "rejectedCandidates": [],
+  "resolvedDesignTokens": {
+    "values": {
+      "TYPO-001": 1,
+      "TYPO-002": true,
+      "TYPO-003": true,
+      "TYPO-004": 0.1,
+      "TYPO-005": {
+        "secondary": [
+          0.3,
+          0.5
+        ],
+        "body": [
+          0.18,
+          0.34
+        ]
+      },
+      "TYPO-006": {
+        "headline": [
+          0.9,
+          1.15
+        ],
+        "body": [
+          1.15,
+          1.6
+        ]
+      },
+      "TYPO-007": {
+        "families": 2,
+        "weights": 3
+      },
+      "TYPO-008": [
+        2,
+        4
+      ],
+      "TYPO-009": true,
+      "TYPO-010": true,
+      "GRID-001": "normalized-top-left",
+      "GRID-002": true,
+      "GRID-003": 0.08,
+      "GRID-004": 4,
+      "GRID-005": 0.025,
+      "GRID-006": true,
+      "GRID-007": 0.025,
+      "GRID-008": true,
+      "GRID-009": true,
+      "HIER-001": "subject",
+      "HIER-002": 2,
+      "HIER-003": true,
+      "HIER-004": [
+        0.1,
+        0.3
+      ],
+      "HIER-005": 0.12,
+      "HIER-006": true,
+      "COLOR-001": true,
+      "COLOR-002": {
+        "normal": 4.5,
+        "large": 3.0
+      },
+      "COLOR-003": {
+        "primary": 1,
+        "support": 1,
+        "accent": 1,
+        "neutral": true
+      },
+      "COLOR-004": 0.2,
+      "COLOR-005": true,
+      "COLOR-006": true,
+      "COLOR-007": true,
+      "COMP-001": [
+        "background",
+        "subject",
+        "typography"
+      ],
+      "COMP-002": true,
+      "COMP-003": [
+        "background",
+        "geometry",
+        "subject",
+        "typography"
+      ],
+      "COMP-004": true,
+      "COMP-005": [
+        0.35,
+        0.7
+      ],
+      "COMP-006": 0.025,
+      "COMP-007": [
+        0,
+        3
+      ],
+      "COMP-008": true,
+      "COMP-009": true,
+      "COMP-010": true,
+      "VAL-001": true,
+      "VAL-002": true,
+      "VAL-003": true,
+      "VAL-004": true,
+      "VAL-005": {
+        "hierarchy": 25,
+        "whitespace": 20,
+        "interaction": 20,
+        "alignment": 15,
+        "color": 10,
+        "reference": 10
+      },
+      "VAL-006": [
+        2,
+        4
+      ],
+      "VAL-007": 2,
+      "VAL-008": true,
+      "VAL-009": true
+    },
+    "provenance": {
+      "TYPO-001": "default",
+      "TYPO-002": "default",
+      "TYPO-003": "default",
+      "TYPO-004": "preset",
+      "TYPO-005": "default",
+      "TYPO-006": "default",
+      "TYPO-007": "default",
+      "TYPO-008": "default",
+      "TYPO-009": "default",
+      "TYPO-010": "default",
+      "GRID-001": "default",
+      "GRID-002": "default",
+      "GRID-003": "preset",
+      "GRID-004": "preset",
+      "GRID-005": "default",
+      "GRID-006": "default",
+      "GRID-007": "default",
+      "GRID-008": "default",
+      "GRID-009": "default",
+      "HIER-001": "default",
+      "HIER-002": "default",
+      "HIER-003": "default",
+      "HIER-004": "default",
+      "HIER-005": "default",
+      "HIER-006": "default",
+      "COLOR-001": "default",
+      "COLOR-002": "default",
+      "COLOR-003": "default",
+      "COLOR-004": "default",
+      "COLOR-005": "default",
+      "COLOR-006": "default",
+      "COLOR-007": "default",
+      "COMP-001": "default",
+      "COMP-002": "default",
+      "COMP-003": "default",
+      "COMP-004": "default",
+      "COMP-005": "default",
+      "COMP-006": "default",
+      "COMP-007": "default",
+      "COMP-008": "default",
+      "COMP-009": "default",
+      "COMP-010": "default",
+      "VAL-001": "default",
+      "VAL-002": "default",
+      "VAL-003": "default",
+      "VAL-004": "default",
+      "VAL-005": "default",
+      "VAL-006": "default",
+      "VAL-007": "default",
+      "VAL-008": "default",
+      "VAL-009": "default"
+    },
+    "history": [
+      {
+        "ruleId": "GRID-003",
+        "level": "info",
+        "severity": "info",
+        "elementId": "tokens",
+        "original": 0.06,
+        "resolved": 0.08,
+        "before": 0.06,
+        "after": 0.08,
+        "reason": "Override from preset"
+      },
+      {
+        "ruleId": "GRID-004",
+        "level": "info",
+        "severity": "info",
+        "elementId": "tokens",
+        "original": 6,
+        "resolved": 4,
+        "before": 6,
+        "after": 4,
+        "reason": "Override from preset"
+      },
+      {
+        "ruleId": "TYPO-004",
+        "level": "info",
+        "severity": "info",
+        "elementId": "tokens",
+        "original": 0.1,
+        "resolved": 0.1,
+        "before": 0.1,
+        "after": 0.1,
+        "reason": "Override from preset"
+      }
+    ]
+  },
+  "assetProvenance": {
+    "subject": {
+      "source": "project_original",
+      "license": "FroGPT original test fixture",
+      "rightsConfirmed": true,
+      "posterTextFree": true
+    }
+  },
+  "fontProvenance": {
+    "source": "registered project font manifest",
+    "license": "SIL Open Font License",
+    "validation": "cmap coverage and actual Pillow metrics; registered font license references",
+    "entries": [
+      {
+        "family": "sans",
+        "source": "assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf",
+        "license": "assets/fonts/Noto_Sans_TC/OFL.txt"
+      },
+      {
+        "family": "sans",
+        "source": "assets/fonts/Noto_Sans_TC/static/NotoSansTC-Bold.ttf",
+        "license": "assets/fonts/Noto_Sans_TC/OFL.txt"
+      }
+    ]
+  },
+  "visualReview": {
+    "enabled": true,
+    "requiredForAestheticJudgment": true
+  },
+  "hardRulesChecked": [
+    "TYPO-001",
+    "TYPO-002",
+    "TYPO-003",
+    "TYPO-009",
+    "GRID-001",
+    "GRID-002",
+    "GRID-009",
+    "COLOR-001",
+    "COLOR-002",
+    "COLOR-007",
+    "COMP-001",
+    "COMP-002",
+    "COMP-003",
+    "COMP-004",
+    "COMP-008",
+    "COMP-010",
+    "VAL-001",
+    "VAL-002",
+    "VAL-003",
+    "VAL-004",
+    "VAL-007",
+    "VAL-008"
+  ]
+}

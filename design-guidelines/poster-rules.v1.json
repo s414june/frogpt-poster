@@ -1,0 +1,1099 @@
+{
+  "schemaVersion": "1.0.0",
+  "coordinateSystem": "normalized-top-left",
+  "units": {
+    "relativeToShortSide": "min(canvas.width,canvas.height)",
+    "normalized": "fraction-of-axis"
+  },
+  "rules": [
+    {
+      "id": "TYPO-001",
+      "category": "typography",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 1,
+      "unit": "count",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "空白、只有空格、字型不支援且無 fallback 均不得成功渲染",
+      "overridePolicy": "never",
+      "operator": "typo_001",
+      "documentation": "至少 1 個有效文字元素",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-002",
+      "category": "typography",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "不可自動刪字、改字、截斷；自動換行可以，必須可回報",
+      "overridePolicy": "never",
+      "operator": "typo_002",
+      "documentation": "保留原文與標點",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-003",
+      "category": "typography",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "以實際字型 metrics、換行結果判斷；非單靠 fontSize",
+      "overridePolicy": "never",
+      "operator": "typo_003",
+      "documentation": "glyph bounding box 在文字安全區內",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-004",
+      "category": "typography",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.1,
+      "unit": "relativeToShortSide",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "由字數與空間自動縮放，允許風格覆蓋",
+      "overridePolicy": "style",
+      "operator": "typo_004",
+      "documentation": "headline size 0.07–0.14 × 短邊；初始 0.10",
+      "enforcement": "executable",
+      "range": {
+        "min": 0.07,
+        "max": 0.14
+      }
+    },
+    {
+      "id": "TYPO-005",
+      "category": "typography",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "secondary": [
+          0.3,
+          0.5
+        ],
+        "body": [
+          0.18,
+          0.34
+        ]
+      },
+      "unit": "relativeToHeadline",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "僅做比例初始範圍；可超出但需記錄",
+      "overridePolicy": "style",
+      "operator": "typo_005",
+      "documentation": "secondary/title 0.30–0.50 × headline；body 0.18–0.34",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-006",
+      "category": "typography",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "headline": [
+          0.9,
+          1.15
+        ],
+        "body": [
+          1.15,
+          1.6
+        ]
+      },
+      "unit": "lineHeightMultiplier",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "以字體實際 metrics 校驗；繁體中文避免過度擠壓",
+      "overridePolicy": "style",
+      "operator": "typo_006",
+      "documentation": "headline lineHeight 0.90–1.15、body 1.15–1.60，倍率",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-007",
+      "category": "typography",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "families": 2,
+        "weights": 3
+      },
+      "unit": "count",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "參考設計可覆蓋，顯示 warning",
+      "overridePolicy": "style",
+      "operator": "typo_007",
+      "documentation": "同張海報字族預設最多 2 組，字重最多 3 種",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-008",
+      "category": "typography",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        2,
+        4
+      ],
+      "unit": "count",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "少字海報僅有 headline 也合法；不是強制四種層級",
+      "overridePolicy": "style",
+      "operator": "typo_008",
+      "documentation": "優先使用 2–4 層文字層級",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-009",
+      "category": "typography",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "對中英文混排逐 run 量測，fallback 必須實際可用，不能靠瀏覽器未知替換",
+      "overridePolicy": "never",
+      "operator": "typo_009",
+      "documentation": "font glyph coverage + fallback",
+      "enforcement": "executable"
+    },
+    {
+      "id": "TYPO-010",
+      "category": "typography",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/typography/overview",
+      "rationale": "不在標點前產生孤行、不隨意拆固定詞組；可允許刻意設計",
+      "overridePolicy": "conditional",
+      "operator": "typo_010",
+      "documentation": "兩行中文標題考慮語意斷行",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "GRID-001",
+      "category": "grid-layout",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": "normalized-top-left",
+      "unit": "normalized",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "必須可在不同畫板比例換算，負寬高或 NaN 拒絕",
+      "overridePolicy": "never",
+      "operator": "grid_001",
+      "documentation": "座標規格 x/y/w/h 為 0–1 normalized",
+      "enforcement": "executable"
+    },
+    {
+      "id": "GRID-002",
+      "category": "grid-layout",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "藝術性 bleed 只針對明示可裁切的裝飾素材",
+      "overridePolicy": "never",
+      "operator": "grid_002",
+      "documentation": "重要內容（文字／完整產品主體的保護區）不得超出 canvas",
+      "enforcement": "executable"
+    },
+    {
+      "id": "GRID-003",
+      "category": "grid-layout",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.06,
+      "unit": "relativeToShortSide",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "換算為畫布 x/y 軸分別不同的 normalized margin",
+      "overridePolicy": "style",
+      "operator": "grid_003",
+      "documentation": "四周 safe margin = 0.05–0.08 × 短邊，預設 0.06",
+      "enforcement": "executable",
+      "range": {
+        "min": 0.05,
+        "max": 0.08
+      }
+    },
+    {
+      "id": "GRID-004",
+      "category": "grid-layout",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 6,
+      "unit": "count",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "依構圖密度選擇，非必須對齊每條格線",
+      "overridePolicy": "style",
+      "operator": "grid_004",
+      "documentation": "4、6 或 12 欄，預設 6 欄",
+      "enforcement": "executable",
+      "choices": [
+        4,
+        6,
+        12
+      ]
+    },
+    {
+      "id": "GRID-005",
+      "category": "grid-layout",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.025,
+      "unit": "relativeToShortSide",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "可用風格 override",
+      "overridePolicy": "style",
+      "operator": "grid_005",
+      "documentation": "gutter = 短邊 0.015–0.035，預設 0.025",
+      "enforcement": "executable",
+      "range": {
+        "min": 0.015,
+        "max": 0.035
+      }
+    },
+    {
+      "id": "GRID-006",
+      "category": "grid-layout",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "以 offset/距離評分，不可強迫主體置中",
+      "overridePolicy": "style",
+      "operator": "grid_006",
+      "documentation": "內容群組共享 key lines；同組可有一致左緣／基線",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "GRID-007",
+      "category": "grid-layout",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.025,
+      "unit": "relativeToShortSide",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "文字間距遵循實際 glyph box，不以看不見的容器框代替",
+      "overridePolicy": "style",
+      "operator": "grid_007",
+      "documentation": "區塊最小間距 = 短邊 0.02；初始 0.025",
+      "enforcement": "experimental",
+      "range": {
+        "min": 0.02,
+        "max": 0.025
+      },
+      "notAutomaticallyTestable": "Tokens/measurements are available, but optical spacing, perceived focus, palette roles and aesthetic quality are not automatically established."
+    },
+    {
+      "id": "GRID-008",
+      "category": "grid-layout",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "不應以 `center everything` 當 fallback",
+      "overridePolicy": "conditional",
+      "operator": "grid_008",
+      "documentation": "可使用非對稱、偏心及留白構圖",
+      "enforcement": "executable"
+    },
+    {
+      "id": "GRID-009",
+      "category": "grid-layout",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.carbondesignsystem.com/building-blocks/foundations/2x-grid/overview",
+      "rationale": "相同尺寸、字型、素材及 seed 的結果一致",
+      "overridePolicy": "never",
+      "operator": "grid_009",
+      "documentation": "輸出像素座標必須 deterministic",
+      "enforcement": "executable"
+    },
+    {
+      "id": "HIER-001",
+      "category": "visual-hierarchy",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": "subject",
+      "unit": "enum",
+      "source": "FroGPT original",
+      "rationale": "GPT 根據目的、文字量、reference 選擇；不強制哪個較大",
+      "overridePolicy": "style",
+      "operator": "hier_001",
+      "documentation": "必須指定 `primaryFocus` = subject/headline",
+      "enforcement": "experimental",
+      "choices": [
+        "subject",
+        "headline"
+      ],
+      "notAutomaticallyTestable": "Tokens/measurements are available, but optical spacing, perceived focus, palette roles and aesthetic quality are not automatically established."
+    },
+    {
+      "id": "HIER-002",
+      "category": "visual-hierarchy",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 2,
+      "unit": "count",
+      "source": "FroGPT original",
+      "rationale": "可由實驗型 style preset 覆蓋",
+      "overridePolicy": "style",
+      "operator": "hier_002",
+      "documentation": "畫面中明顯競爭的主要焦點預設不超過 2 個",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "HIER-003",
+      "category": "visual-hierarchy",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "不要求一定用不同字級，允許粗細與色彩實現",
+      "overridePolicy": "style",
+      "operator": "hier_003",
+      "documentation": "subordinate text 與 primary focus 區分大小、權重或對比",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "HIER-004",
+      "category": "visual-hierarchy",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        0.1,
+        0.3
+      ],
+      "unit": "areaRatio",
+      "source": "FroGPT original",
+      "rationale": "只做密度診斷；不是強制空白面積，背景紋理不算前景佔用",
+      "overridePolicy": "style",
+      "operator": "hier_004",
+      "documentation": "最小可見負空間偏好：10–30% 的非主要內容區域",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "HIER-005",
+      "category": "visual-hierarchy",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.12,
+      "unit": "ratio",
+      "source": "FroGPT original",
+      "rationale": "以視覺質量估計（面積×對比×顯著性），分數僅做排序，不能宣稱客觀美學",
+      "overridePolicy": "style",
+      "operator": "hier_005",
+      "documentation": "`opticalBalanceTolerance` 預設 0.12",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "HIER-006",
+      "category": "visual-hierarchy",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "不應以完全幾何對稱代替視覺平衡",
+      "overridePolicy": "conditional",
+      "operator": "hier_006",
+      "documentation": "留白可以不均勻、主體可偏移",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COLOR-001",
+      "category": "color-theory",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "支援標準 HEX 或既有 renderer 的色彩格式，無效值拒絕",
+      "overridePolicy": "never",
+      "operator": "color_001",
+      "documentation": "所有輸入色碼可解析且在有效色域",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COLOR-002",
+      "category": "color-theory",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "normal": 4.5,
+        "large": 3.0
+      },
+      "unit": "contrastRatio",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "預設一般文字 ≥4.5:1、大字 ≥3:1；在非均勻背景按文字占用區採樣，必要時加底板／陰影／改位置",
+      "overridePolicy": "never",
+      "operator": "color_002",
+      "documentation": "重要文字與實際背後區域有可讀性",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COLOR-003",
+      "category": "color-theory",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "primary": 1,
+        "support": 1,
+        "accent": 1,
+        "neutral": true
+      },
+      "unit": "count",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "不強制所有海報都剛好三色；單色／多彩風格可覆蓋",
+      "overridePolicy": "style",
+      "operator": "color_003",
+      "documentation": "初始 1 主色 + 1 輔色 + 1 強調色 + 中性色",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COLOR-004",
+      "category": "color-theory",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.2,
+      "unit": "areaRatio",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "只計前景重點色，不對照片像素做簡單面積禁令",
+      "overridePolicy": "style",
+      "operator": "color_004",
+      "documentation": "強調色覆蓋率初始 ≤0.20",
+      "enforcement": "experimental",
+      "range": {
+        "min": 0,
+        "max": 0.2
+      },
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COLOR-005",
+      "category": "color-theory",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "設計模型可調 hue / lightness / saturation，避免照抄整張參考圖",
+      "overridePolicy": "style",
+      "operator": "color_005",
+      "documentation": "可從主體或參考萃取 palette",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COLOR-006",
+      "category": "color-theory",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "`background`, `foreground`, `accent`, `support` 等語意 token",
+      "overridePolicy": "conditional",
+      "operator": "color_006",
+      "documentation": "記錄 palette 的來源及色彩角色",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Tokens/measurements are available, but optical spacing, perceived focus, palette roles and aesthetic quality are not automatically established."
+    },
+    {
+      "id": "COLOR-007",
+      "category": "color-theory",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html",
+      "rationale": "透明材質、陰影或文字底色須以實際 composited pixel 計算",
+      "overridePolicy": "never",
+      "operator": "color_007",
+      "documentation": "alpha compositing 後驗證對比",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-001",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        "background",
+        "subject",
+        "typography"
+      ],
+      "unit": "layers",
+      "source": "FroGPT original",
+      "rationale": "Background = solid/gradient/image；Subject = user/AI；Typography = 有效文字",
+      "overridePolicy": "never",
+      "operator": "comp_001",
+      "documentation": "Background / Subject / Typography 三者必須有效",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-002",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "不得因 geometry 缺席而要求補圖或報錯",
+      "overridePolicy": "never",
+      "operator": "comp_002",
+      "documentation": "Geometry 可完全沒有",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-003",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        "background",
+        "geometry",
+        "subject",
+        "typography"
+      ],
+      "unit": "zOrder",
+      "source": "FroGPT original",
+      "rationale": "使用明確 `zIndex`，不可由輸入上傳先後決定",
+      "overridePolicy": "never",
+      "operator": "comp_003",
+      "documentation": "預設圖層序：background < geometry < subject < typography",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-004",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "除非明確要求保留使用者原圖中的既有文字；新增文字一定用 Typography",
+      "overridePolicy": "never",
+      "operator": "comp_004",
+      "documentation": "不得把文字當成主體圖片的一部分渲染",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-005",
+      "category": "composition",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        0.35,
+        0.7
+      ],
+      "unit": "relativeToCanvasWidth",
+      "source": "FroGPT original",
+      "rationale": "不是硬限制；更高或更窄的產品可突破，保護主體重要部分",
+      "overridePolicy": "style",
+      "operator": "comp_005",
+      "documentation": "Subject 寬度初始 0.35–0.70 × canvasWidth",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-006",
+      "category": "composition",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 0.025,
+      "unit": "relativeToShortSide",
+      "source": "FroGPT original",
+      "rationale": "使用可見 alpha mask／非透明輪廓計算，不僅看影像矩形 bbox",
+      "overridePolicy": "style",
+      "operator": "comp_006",
+      "documentation": "主體與文字的最小光學間距 = 短邊 0.025",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COMP-007",
+      "category": "composition",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        0,
+        3
+      ],
+      "unit": "count",
+      "source": "FroGPT original",
+      "rationale": "若遮擋主體／搶奪焦點，優先移除；純黑幾何、粗細可由 style 指定",
+      "overridePolicy": "style",
+      "operator": "comp_007",
+      "documentation": "geometry group 預設 0–3 組",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-008",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "僅接受實際 bytes / 已儲存 assetRef / 允許的 URL 來源，不傳本機 sandbox 路徑",
+      "overridePolicy": "never",
+      "operator": "comp_008",
+      "documentation": "asset 必須能由遠端渲染器取得且可解碼",
+      "enforcement": "executable"
+    },
+    {
+      "id": "COMP-009",
+      "category": "composition",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "擷取結構、配色策略、留白、字級關係；避免重製商標／獨特設計元素",
+      "overridePolicy": "conditional",
+      "operator": "comp_009",
+      "documentation": "reference 只抽取 abstract tokens",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "id": "COMP-010",
+      "category": "composition",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "記錄來源、授權、作者要求之署名；授權不明應拒用或換素材",
+      "overridePolicy": "never",
+      "operator": "comp_010",
+      "documentation": "不得未授權使用第三方受限素材",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-001",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "任一不可修正錯誤阻止成功輸出",
+      "overridePolicy": "never",
+      "operator": "val_001",
+      "documentation": "檢查全部啟用的 hard rules",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-002",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "用 glyph/alpha mask + protection zones，非光看 bbox",
+      "overridePolicy": "never",
+      "operator": "val_002",
+      "documentation": "重要文字與禁止遮蔽區無碰撞",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-003",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "輸入文字與渲染文字一致，斷行不改原意、不可少字",
+      "overridePolicy": "never",
+      "operator": "val_003",
+      "documentation": "渲染後對文字完整性比對",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-004",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "無法證實時產生具體錯誤",
+      "overridePolicy": "never",
+      "operator": "val_004",
+      "documentation": "素材授權、來源、字型可用及可解碼已驗證",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-005",
+      "category": "validation",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": {
+        "hierarchy": 25,
+        "whitespace": 20,
+        "interaction": 20,
+        "alignment": 15,
+        "color": 10,
+        "reference": 10
+      },
+      "unit": "scoreWeight",
+      "source": "FroGPT original",
+      "rationale": "權重：hierarchy 25 / whitespace 20 / interaction 20 / alignment 15 / color 10 / reference 10，合計 100，屬實驗初始值",
+      "overridePolicy": "style",
+      "operator": "val_005",
+      "documentation": "候選方案使用可解釋分數",
+      "enforcement": "experimental",
+      "notAutomaticallyTestable": "Tokens/measurements are available, but optical spacing, perceived focus, palette roles and aesthetic quality are not automatically established."
+    },
+    {
+      "id": "VAL-006",
+      "category": "validation",
+      "severity": "soft",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": [
+        2,
+        4
+      ],
+      "unit": "count",
+      "source": "FroGPT original",
+      "rationale": "先過 hard gate 再計 soft score；不是嘗試無上限重生",
+      "overridePolicy": "style",
+      "operator": "val_006",
+      "documentation": "生成候選 2–4 個並選有效方案",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-007",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": 2,
+      "unit": "rounds",
+      "source": "FroGPT original",
+      "rationale": "明確終止，避免過度消耗模型／API；必要回傳失敗與診斷",
+      "overridePolicy": "never",
+      "operator": "val_007",
+      "documentation": "correction loop 最多 2 輪",
+      "enforcement": "executable",
+      "range": {
+        "min": 0,
+        "max": 2
+      }
+    },
+    {
+      "id": "VAL-008",
+      "category": "validation",
+      "severity": "hard",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "至少輸出 ruleId, severity, elementId, before, after, reason",
+      "overridePolicy": "never",
+      "operator": "val_008",
+      "documentation": "diagnostics 可追溯",
+      "enforcement": "executable"
+    },
+    {
+      "id": "VAL-009",
+      "category": "validation",
+      "severity": "advisory",
+      "enabled": true,
+      "appliesTo": [
+        "poster"
+      ],
+      "default": true,
+      "unit": "boolean",
+      "source": "FroGPT original",
+      "rationale": "允許人工或視覺模型提出建議，但不得偽稱分數為設計品質真值",
+      "overridePolicy": "conditional",
+      "operator": "val_009",
+      "documentation": "保留 visual-review hook",
+      "enforcement": "executable"
+    }
+  ],
+  "presets": {
+    "minimal": {
+      "GRID-003": 0.08,
+      "GRID-004": 4,
+      "TYPO-004": 0.1
+    },
+    "editorial": {
+      "GRID-003": 0.06,
+      "GRID-004": 6,
+      "TYPO-004": 0.1
+    },
+    "bold-commercial": {
+      "GRID-003": 0.05,
+      "GRID-004": 6,
+      "TYPO-004": 0.14,
+      "HIER-001": "headline"
+    },
+    "tech": {
+      "GRID-003": 0.06,
+      "GRID-004": 12,
+      "TYPO-004": 0.1
+    }
+  },
+  "runtime": {
+    "largeTextRelativeToShortSide": 0.07,
+    "contrastLowCoverageLimit": 0,
+    "alphaProtectionThreshold": 1,
+    "candidateCount": 3,
+    "minimumFontSizeRelativeToShortSide": 0.0125,
+    "fitAttemptsPerRound": 12,
+    "maxTextLength": 4000,
+    "fallbackFamilies": [
+      "sans"
+    ],
+    "defaultTextColor": "#111111",
+    "defaultLineHeight": {
+      "headline": 1.1,
+      "body": 1.4
+    },
+    "fontWeight": {
+      "headline": 700,
+      "body": 400
+    },
+    "repairColorChoices": [
+      "#000000",
+      "#FFFFFF"
+    ],
+    "defaultSubjectPosition": {
+      "x": 0.54,
+      "y": 0.27,
+      "width": 0.38,
+      "height": 0.5
+    },
+    "defaultBackgroundColor": "#F5F1E8",
+    "maxCanvasPixels": 16777216,
+    "creditFontSizeRelativeToShortSide": 0.025,
+    "creditBoxHeightRelativeToShortSide": 0.06,
+    "backdropAlpha": 0.9,
+    "backdropPaddingRelativeToShortSide": 0.0125,
+    "textSplit": {
+      "headlineHeightRatio": 0.63,
+      "bodyOffsetRatio": 0.7,
+      "bodyHeightRatio": 0.3
+    },
+    "leftTextBottom": 0.7,
+    "layoutTemplates": [
+      {
+        "id": "left-copy",
+        "subject": {
+          "x": "rightX",
+          "y": 0.28,
+          "width": "rightWidth",
+          "height": 0.44
+        },
+        "text": {
+          "x": "safeX",
+          "y": "safeY",
+          "width": "leftWidth",
+          "height": "leftTextHeight"
+        }
+      },
+      {
+        "id": "top-copy",
+        "subject": {
+          "x": 0.25,
+          "y": 0.52,
+          "width": 0.5,
+          "height": 0.35
+        },
+        "text": {
+          "x": "safeX",
+          "y": "safeY",
+          "width": "fullWidth",
+          "height": 0.42
+        }
+      },
+      {
+        "id": "editorial",
+        "subject": {
+          "x": "safeX",
+          "y": 0.42,
+          "width": 0.46,
+          "height": 0.45
+        },
+        "text": {
+          "x": "rightX",
+          "y": "safeY",
+          "width": "rightWidth",
+          "height": 0.34
+        }
+      }
+    ]
+  }
+}

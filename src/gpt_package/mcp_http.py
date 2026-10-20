@@ -53,6 +53,8 @@ urlopen = build_opener(_NoAttachmentRedirects()).open
 SCHEMA = {
     "type": "object",
     "properties": {
+        "design_rules_v1": {"type":"boolean", "description":"Optional strict measured rules. Defaults to POSTER_DESIGN_RULES_V1=false; preserves existing workflow."},
+        "design_intent": {"type":"object", "description":"stylePreset, normalized typography/subjectPosition, referenceOverrides/userOverrides (soft Rule IDs only), assetProvenance. Rights confirmations must come from actual user/source evidence."},
         "preview_only": {"type": "boolean", "description": "Only true when the user asks to preview a draft before adding copy."},
         "request_intake_only": {"type": "boolean"},
         "subject_source": {"type": "string", "enum": ["user_upload", "ai_generated"]},
@@ -704,7 +706,7 @@ def _dispatch(message):
     if method == "initialize":
         versions = ("2025-03-26", "2025-06-18", "2025-11-25")
         version = params.get("protocolVersion")
-        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.4.0"}, "instructions": ASSISTANT_INSTRUCTIONS}
+        result["result"] = {"protocolVersion": version if version in versions else versions[0], "capabilities": {"tools": {"listChanged": False}}, "serverInfo": {"name": "FroGPT Poster", "version": "0.4.1"}, "instructions": ASSISTANT_INSTRUCTIONS}
     elif method == "ping":
         result["result"] = {}
     elif method == "tools/list":

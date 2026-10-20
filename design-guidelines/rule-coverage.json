@@ -1,0 +1,292 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "ruleId": "TYPO-001",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_single_explicit_headline_is_legal"
+      ]
+    },
+    {
+      "ruleId": "TYPO-002",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_measured_wrapping_preserves_40_char_title"
+      ]
+    },
+    {
+      "ruleId": "TYPO-003",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_overflow_and_out_of_bounds_fail",
+        "tests.test_design_guidelines.DesignPipelineTests.test_important_lines_cannot_overlap"
+      ]
+    },
+    {
+      "ruleId": "TYPO-004",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_long_title_has_diagnostics_and_no_lost_characters"
+      ]
+    },
+    {
+      "ruleId": "TYPO-005",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "TYPO-006",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "TYPO-007",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "TYPO-008",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "TYPO-009",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_registered_cmap_and_fallback_runs",
+        "tests.test_design_guidelines.DesignPipelineTests.test_unmeasurable_font_fails_without_success"
+      ]
+    },
+    {
+      "ruleId": "TYPO-010",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "GRID-001",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_normalized_units_invalid_hex_nonfinite"
+      ]
+    },
+    {
+      "ruleId": "GRID-002",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_overflow_and_out_of_bounds_fail"
+      ]
+    },
+    {
+      "ruleId": "GRID-003",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_safe_margins_and_columns_artboards"
+      ]
+    },
+    {
+      "ruleId": "GRID-004",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_safe_margins_and_columns_artboards"
+      ]
+    },
+    {
+      "ruleId": "GRID-005",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_safe_margins_and_columns_artboards"
+      ]
+    },
+    {
+      "ruleId": "GRID-006",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "GRID-007",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "GRID-008",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "GRID-009",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_success_normalized_intent_deterministic_no_geometry"
+      ]
+    },
+    {
+      "ruleId": "HIER-001",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "HIER-002",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "HIER-003",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "HIER-004",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "HIER-005",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "HIER-006",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COLOR-001",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_normalized_units_invalid_hex_nonfinite"
+      ]
+    },
+    {
+      "ruleId": "COLOR-002",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_low_contrast_unrepairable_fails_with_code"
+      ]
+    },
+    {
+      "ruleId": "COLOR-003",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COLOR-004",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COLOR-005",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COLOR-006",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "COLOR-007",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_composited_photo_backdrop_and_repair_budget"
+      ]
+    },
+    {
+      "ruleId": "COMP-001",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_invisible_subject_is_not_a_valid_required_layer",
+        "tests.test_composition.CompositionTests.test_background_never_replaces_subject"
+      ]
+    },
+    {
+      "ruleId": "COMP-002",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_success_normalized_intent_deterministic_no_geometry"
+      ]
+    },
+    {
+      "ruleId": "COMP-003",
+      "tests": [
+        "tests.test_geometry.GeometryTests.test_gpt_png_preserves_alpha_and_sits_below_subject"
+      ]
+    },
+    {
+      "ruleId": "COMP-004",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_unknown_license_and_burned_copy_require_evidence"
+      ]
+    },
+    {
+      "ruleId": "COMP-005",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "COMP-006",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COMP-007",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    },
+    {
+      "ruleId": "COMP-008",
+      "tests": [
+        "tests.test_openai_tool.OpenAIToolTests.test_handle_tool_call_rejects_non_image_base64_payload"
+      ]
+    },
+    {
+      "ruleId": "COMP-009",
+      "tests": [],
+      "notAutomaticallyTestable": "Semantic/optical quality is not established by geometric metrics; disabled from objective scoring."
+    },
+    {
+      "ruleId": "COMP-010",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_unknown_license_and_burned_copy_require_evidence"
+      ]
+    },
+    {
+      "ruleId": "VAL-001",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_reference_and_style_do_not_bypass_hard_rules"
+      ]
+    },
+    {
+      "ruleId": "VAL-002",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_collision_uses_visible_alpha_not_image_box"
+      ]
+    },
+    {
+      "ruleId": "VAL-003",
+      "tests": [
+        "tests.test_design_guidelines.RuleDataTests.test_measured_wrapping_preserves_40_char_title"
+      ]
+    },
+    {
+      "ruleId": "VAL-004",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_unknown_license_and_burned_copy_require_evidence",
+        "tests.test_design_guidelines.DesignPipelineTests.test_unmeasurable_font_fails_without_success"
+      ]
+    },
+    {
+      "ruleId": "VAL-005",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_success_normalized_intent_deterministic_no_geometry"
+      ]
+    },
+    {
+      "ruleId": "VAL-006",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_portrait_square_landscape_a4"
+      ]
+    },
+    {
+      "ruleId": "VAL-007",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_composited_photo_backdrop_and_repair_budget"
+      ]
+    },
+    {
+      "ruleId": "VAL-008",
+      "tests": [
+        "tests.test_design_guidelines.DesignPipelineTests.test_composited_photo_backdrop_and_repair_budget"
+      ]
+    },
+    {
+      "ruleId": "VAL-009",
+      "tests": [],
+      "notAutomaticallyTestable": "Soft/advisory art direction is retained in tokens; behavioral aesthetics evaluation is not enabled in v1. Registry/schema drift is tested."
+    }
+  ]
+}

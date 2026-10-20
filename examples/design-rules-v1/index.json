@@ -1,0 +1,45 @@
+[
+  {
+    "name": "product",
+    "image": "product.png",
+    "candidate": "explicit",
+    "sha256": "4258d1acd5c6e224b0519c162aa410ec790a0f1fe1a6ee49c8bd5a8a7ed51388",
+    "source_credits": [],
+    "rendered": true
+  },
+  {
+    "name": "type-led",
+    "image": "type-led.png",
+    "candidate": "top-copy",
+    "sha256": "9b56fce1289b54471ccf133604e9ea4e273070b68828908f0581dee428293385",
+    "source_credits": [],
+    "rendered": true
+  },
+  {
+    "name": "photo-background",
+    "image": "photo-background.png",
+    "candidate": "top-copy",
+    "sha256": "6d7822330d4735003d981b85eab9346c6205ab0e78146d58dab1a4b562621277",
+    "source_credits": [
+      {
+        "id": "pexels-167699",
+        "source": "pexels",
+        "photo_id": 167699,
+        "photographer": "Lum3n",
+        "credit_label": "Lum3n/Pexels",
+        "page_url": "https://www.pexels.com/zh-tw/photo/167699/",
+        "image_url": "https://images.pexels.com/photos/167699/pexels-photo-167699.jpeg",
+        "local_path": "assets\\reference-library\\pexels\\pexels-167699.jpeg"
+      }
+    ],
+    "rendered": true
+  },
+  {
+    "name": "no-geometry",
+    "image": "no-geometry.png",
+    "candidate": "top-copy",
+    "sha256": "e70e9c37e43ba66d056424ec414e3995ae8601f21829e00c03e01ba51fd4f8a0",
+    "source_credits": [],
+    "rendered": true
+  }
+]

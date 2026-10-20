@@ -1,0 +1,21 @@
+name: Poster design rules
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: src
+      FROGPT_FONT_SOURCE: local
+      FROGPT_BLOB_ENABLED: 'false'
+      POSTER_DESIGN_RULES_V1: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - run: python scripts/validate_design_rules.py
+      - run: python -m unittest discover -s tests
+      - run: python scripts/verify_blob_manifest.py

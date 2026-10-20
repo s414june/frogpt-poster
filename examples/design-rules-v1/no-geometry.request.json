@@ -1,0 +1,22 @@
+{
+  "width": 720,
+  "height": 900,
+  "title": "剛剛好的日常",
+  "body": "MAKE ROOM FOR SIMPLE THINGS",
+  "subject_source": "user_upload",
+  "primary_color": "#DBE9EA",
+  "design_rules_v1": true,
+  "geometry_enabled": false,
+  "design_intent": {
+    "stylePreset": "minimal",
+    "assetProvenance": {
+      "subject": {
+        "source": "project_original",
+        "license": "FroGPT original test fixture",
+        "rightsConfirmed": true,
+        "posterTextFree": true
+      }
+    }
+  },
+  "fixtureSubject": "subject-original.png; script encodes actual bytes at runtime"
+}

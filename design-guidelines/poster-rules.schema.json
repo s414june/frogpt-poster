@@ -1,0 +1,2137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://frogpt-poster.vercel.app/schemas/poster-rules.v1.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "coordinateSystem",
+    "units",
+    "rules",
+    "presets",
+    "runtime"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0.0"
+    },
+    "coordinateSystem": {
+      "const": "normalized-top-left"
+    },
+    "units": {
+      "type": "object"
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 51,
+      "maxItems": 51,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "severity",
+          "enabled",
+          "appliesTo",
+          "default",
+          "unit",
+          "source",
+          "rationale",
+          "overridePolicy",
+          "operator",
+          "documentation",
+          "enforcement"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(TYPO|GRID|HIER|COLOR|COMP|VAL)-[0-9]{3}$",
+            "enum": [
+              "TYPO-001",
+              "TYPO-002",
+              "TYPO-003",
+              "TYPO-004",
+              "TYPO-005",
+              "TYPO-006",
+              "TYPO-007",
+              "TYPO-008",
+              "TYPO-009",
+              "TYPO-010",
+              "GRID-001",
+              "GRID-002",
+              "GRID-003",
+              "GRID-004",
+              "GRID-005",
+              "GRID-006",
+              "GRID-007",
+              "GRID-008",
+              "GRID-009",
+              "HIER-001",
+              "HIER-002",
+              "HIER-003",
+              "HIER-004",
+              "HIER-005",
+              "HIER-006",
+              "COLOR-001",
+              "COLOR-002",
+              "COLOR-003",
+              "COLOR-004",
+              "COLOR-005",
+              "COLOR-006",
+              "COLOR-007",
+              "COMP-001",
+              "COMP-002",
+              "COMP-003",
+              "COMP-004",
+              "COMP-005",
+              "COMP-006",
+              "COMP-007",
+              "COMP-008",
+              "COMP-009",
+              "COMP-010",
+              "VAL-001",
+              "VAL-002",
+              "VAL-003",
+              "VAL-004",
+              "VAL-005",
+              "VAL-006",
+              "VAL-007",
+              "VAL-008",
+              "VAL-009"
+            ]
+          },
+          "category": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "operator": {
+            "type": "string"
+          },
+          "documentation": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "hard",
+              "soft",
+              "advisory"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "appliesTo": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "poster"
+              ]
+            }
+          },
+          "default": {},
+          "overridePolicy": {
+            "enum": [
+              "never",
+              "reference",
+              "user",
+              "style",
+              "conditional"
+            ]
+          },
+          "range": {
+            "type": "object",
+            "required": [
+              "min",
+              "max"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "min": {
+                "type": "number"
+              },
+              "max": {
+                "type": "number"
+              }
+            }
+          },
+          "choices": {
+            "type": "array",
+            "minItems": 1
+          },
+          "enforcement": {
+            "enum": [
+              "executable",
+              "experimental",
+              "blocked"
+            ]
+          },
+          "notAutomaticallyTestable": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToShortSide"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToHeadline"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "secondary",
+                    "body"
+                  ],
+                  "properties": {
+                    "secondary": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "body": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "lineHeightMultiplier"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "headline",
+                    "body"
+                  ],
+                  "properties": {
+                    "headline": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      ]
+                    },
+                    "body": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "prefixItems": [
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-007"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "families",
+                    "weights"
+                  ],
+                  "properties": {
+                    "families": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "weights": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-008"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-009"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "TYPO-010"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "typography"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "normalized"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToShortSide"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToShortSide"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-007"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToShortSide"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-008"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "GRID-009"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "grid-layout"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "enum"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "areaRatio"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "ratio"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "HIER-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "visual-hierarchy"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "contrastRatio"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "normal",
+                    "large"
+                  ],
+                  "properties": {
+                    "normal": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "large": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "primary",
+                    "support",
+                    "accent",
+                    "neutral"
+                  ],
+                  "properties": {
+                    "primary": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "support": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "accent": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "neutral": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "areaRatio"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COLOR-007"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "color-theory"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "layers"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "zOrder"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 4,
+                  "maxItems": 4,
+                  "prefixItems": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToCanvasWidth"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "relativeToShortSide"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-007"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-008"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-009"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "COMP-010"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "composition"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-001"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-002"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-003"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-004"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-005"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "scoreWeight"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "hierarchy",
+                    "whitespace",
+                    "interaction",
+                    "alignment",
+                    "color",
+                    "reference"
+                  ],
+                  "properties": {
+                    "hierarchy": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "whitespace": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "interaction": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "alignment": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "color": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "reference": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-006"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "count"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "soft"
+                },
+                "default": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-007"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "rounds"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-008"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "hard"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "const": "VAL-009"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "unit": {
+                  "const": "boolean"
+                },
+                "category": {
+                  "const": "validation"
+                },
+                "severity": {
+                  "const": "advisory"
+                },
+                "default": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "presets": {
+      "type": "object",
+      "required": [
+        "minimal",
+        "editorial",
+        "bold-commercial",
+        "tech"
+      ],
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "largeTextRelativeToShortSide",
+        "contrastLowCoverageLimit",
+        "alphaProtectionThreshold",
+        "candidateCount",
+        "minimumFontSizeRelativeToShortSide",
+        "fitAttemptsPerRound",
+        "maxTextLength",
+        "fallbackFamilies",
+        "defaultTextColor",
+        "defaultLineHeight",
+        "fontWeight",
+        "repairColorChoices",
+        "defaultSubjectPosition",
+        "defaultBackgroundColor",
+        "maxCanvasPixels",
+        "creditFontSizeRelativeToShortSide",
+        "creditBoxHeightRelativeToShortSide",
+        "backdropAlpha",
+        "backdropPaddingRelativeToShortSide",
+        "textSplit",
+        "leftTextBottom",
+        "layoutTemplates"
+      ],
+      "properties": {
+        "largeTextRelativeToShortSide": {
+          "type": "number",
+          "minimum": 0
+        },
+        "contrastLowCoverageLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "alphaProtectionThreshold": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
+        },
+        "candidateCount": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 4
+        },
+        "minimumFontSizeRelativeToShortSide": {
+          "type": "number",
+          "minimum": 0
+        },
+        "fitAttemptsPerRound": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
+        "maxTextLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fallbackFamilies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultTextColor": {
+          "type": "string"
+        },
+        "defaultLineHeight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "headline",
+            "body"
+          ],
+          "properties": {
+            "headline": {
+              "type": "number",
+              "minimum": 0
+            },
+            "body": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "fontWeight": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "headline",
+            "body"
+          ],
+          "properties": {
+            "headline": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "body": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "repairColorChoices": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "defaultSubjectPosition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y",
+            "width",
+            "height"
+          ],
+          "properties": {
+            "x": {
+              "type": "number",
+              "minimum": 0
+            },
+            "y": {
+              "type": "number",
+              "minimum": 0
+            },
+            "width": {
+              "type": "number",
+              "minimum": 0
+            },
+            "height": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        "defaultBackgroundColor": {
+          "type": "string"
+        },
+        "maxCanvasPixels": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "creditFontSizeRelativeToShortSide": {
+          "type": "number",
+          "minimum": 0
+        },
+        "creditBoxHeightRelativeToShortSide": {
+          "type": "number",
+          "minimum": 0
+        },
+        "backdropAlpha": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "backdropPaddingRelativeToShortSide": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "textSplit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "headlineHeightRatio",
+            "bodyOffsetRatio",
+            "bodyHeightRatio"
+          ],
+          "properties": {
+            "headlineHeightRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "bodyOffsetRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "bodyHeightRatio": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        },
+        "leftTextBottom": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "layoutTemplates": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "subject",
+              "text"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "subject": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "x": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "y": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "width": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "height": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              },
+              "text": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "x",
+                  "y",
+                  "width",
+                  "height"
+                ],
+                "properties": {
+                  "x": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "y": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "width": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  },
+                  "height": {
+                    "oneOf": [
+                      {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      {
+                        "enum": [
+                          "safeX",
+                          "safeY",
+                          "rightX",
+                          "rightWidth",
+                          "leftWidth",
+                          "fullWidth",
+                          "leftTextHeight"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

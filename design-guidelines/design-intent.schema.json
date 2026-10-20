@@ -1,0 +1,318 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "stylePreset": {
+      "enum": [
+        "minimal",
+        "editorial",
+        "bold-commercial",
+        "tech"
+      ]
+    },
+    "referenceOverrides": {
+      "type": "object"
+    },
+    "userOverrides": {
+      "type": "object"
+    },
+    "typography": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text",
+          "box"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "headline",
+              "secondary",
+              "body",
+              "decorative"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "box": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "x",
+              "y",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "x": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "y": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "width": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              },
+              "height": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "fontFamily": {
+            "enum": [
+              "sans",
+              "serif",
+              "kai",
+              "rounded"
+            ]
+          },
+          "fontWeight": {
+            "enum": [
+              400,
+              700
+            ]
+          },
+          "fontSizeRelativeToShortSide": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          },
+          "lineHeight": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 3
+          },
+          "letterSpacingEm": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.25
+          },
+          "align": {
+            "enum": [
+              "left",
+              "center",
+              "right"
+            ]
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          }
+        }
+      }
+    },
+    "subjectPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "y": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "width": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "height": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "protectionZones": {
+      "type": "array",
+      "maxItems": 24,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "x",
+          "y",
+          "width",
+          "height"
+        ],
+        "properties": {
+          "x": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "y": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "width": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          },
+          "height": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "assetProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "background": {
+          "type": "object",
+          "required": [
+            "source",
+            "license"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "user",
+                "ai_generated",
+                "pexels_library",
+                "project_original"
+              ]
+            },
+            "license": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rightsConfirmed": {
+              "type": "boolean"
+            },
+            "posterTextFree": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string"
+            },
+            "attribution": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        },
+        "subject": {
+          "type": "object",
+          "required": [
+            "source",
+            "license"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "user",
+                "ai_generated",
+                "pexels_library",
+                "project_original"
+              ]
+            },
+            "license": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rightsConfirmed": {
+              "type": "boolean"
+            },
+            "posterTextFree": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string"
+            },
+            "attribution": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        },
+        "geometry": {
+          "type": "object",
+          "required": [
+            "source",
+            "license"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "user",
+                "ai_generated",
+                "pexels_library",
+                "project_original"
+              ]
+            },
+            "license": {
+              "type": "string",
+              "minLength": 1
+            },
+            "rightsConfirmed": {
+              "type": "boolean"
+            },
+            "posterTextFree": {
+              "type": "boolean"
+            },
+            "author": {
+              "type": "string"
+            },
+            "attribution": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "allowColorRepair": {
+      "type": "boolean"
+    },
+    "allowBackdrop": {
+      "type": "boolean"
+    },
+    "version": {
+      "const": "1.0.0"
+    }
+  }
+}

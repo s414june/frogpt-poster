@@ -1,0 +1,24 @@
+{
+  "width": 720,
+  "height": 900,
+  "title": "把日常，\n留給美好。",
+  "body": "A SIMPLE DAILY RITUAL\n簡單配方，清爽生活。",
+  "subject_source": "user_upload",
+  "primary_color": "#F5F1E8",
+  "design_rules_v1": true,
+  "geometry_enabled": false,
+  "reference_library_id": "pexels-167699",
+  "design_intent": {
+    "stylePreset": "minimal",
+    "allowBackdrop": true,
+    "assetProvenance": {
+      "subject": {
+        "source": "project_original",
+        "license": "FroGPT original test fixture",
+        "rightsConfirmed": true,
+        "posterTextFree": true
+      }
+    }
+  },
+  "fixtureSubject": "subject-original.png; script encodes actual bytes at runtime"
+}

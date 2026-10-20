@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-20",
+  "testsRun": 202,
+  "failures": 0,
+  "errors": 0,
+  "elapsedSeconds": 25.08,
+  "rules": 51,
+  "guidelineDocuments": 6,
+  "fixtures": 4,
+  "renderedArtboards": [
+    [
+      1200,
+      1500
+    ],
+    [
+      1080,
+      1080
+    ],
+    [
+      1920,
+      1080
+    ],
+    [
+      2480,
+      3508
+    ]
+  ],
+  "checks": {
+    "unitAndIntegration": "passed locally",
+    "documentSchemaAndRuleDrift": "passed",
+    "staticManifest": "passed",
+    "gitDiffCheck": "passed",
+    "visualReview": "four fixtures inspected; heuristic aesthetics are not certified",
+    "hostedCI": "not run",
+    "realChatGPTAttachmentFlow": "not run",
+    "productionDeployment": "not performed"
+  },
+  "defaultFeatureEnabled": false
+}
