@@ -8,6 +8,7 @@ import os
 import re
 import time
 import uuid
+from contextlib import nullcontext
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from .errors import PosterError
@@ -109,11 +110,17 @@ def sdk_session():
 
 class SDKBackend:
     """Official vercel 0.12 / vercel-blob 0.5 synchronous API."""
+    def _use_session(self):
+        # Prefer explicit read-write token auth when present; OIDC session is for linked runtimes.
+        return bool(os.getenv("VERCEL_OIDC_TOKEN")) and not bool(os.getenv("BLOB_READ_WRITE_TOKEN"))
+
     def _call(self, method, *args, **kwargs):
         from vercel.blob import sync
         try:
-            with sdk_session():
-                return getattr(sync, method)(*args, **kwargs)
+            if self._use_session():
+                with sdk_session():
+                    return getattr(sync, method)(*args, **kwargs)
+            return getattr(sync, method)(*args, **kwargs)
         except Exception as exc:
             name = type(exc).__name__
             code, status = ("ASSET_NOT_FOUND", 404) if "NotFound" in name else ("BLOB_UNAVAILABLE", 503)
@@ -130,15 +137,16 @@ class SDKBackend:
     def read(self, ref, limit):
         from vercel.blob import sync
         try:
-            with sdk_session(), sync.stream_blob(ref, access="public") as download:
-                if download.metadata.size and download.metadata.size > limit:
-                    raise StorageError("FILE_TOO_LARGE", 413)
-                buf = bytearray()
-                for chunk in download:
-                    buf.extend(chunk)
-                    if len(buf) > limit:
+            with (sdk_session() if self._use_session() else nullcontext()):
+                with sync.stream_blob(ref, access="public") as download:
+                    if download.metadata.size and download.metadata.size > limit:
                         raise StorageError("FILE_TOO_LARGE", 413)
-                return bytes(buf)
+                    buf = bytearray()
+                    for chunk in download:
+                        buf.extend(chunk)
+                        if len(buf) > limit:
+                            raise StorageError("FILE_TOO_LARGE", 413)
+                    return bytes(buf)
         except StorageError:
             raise
         except Exception:
@@ -146,7 +154,10 @@ class SDKBackend:
     def listing(self, prefix):
         from vercel.blob import sync
         try:
-            with sdk_session():
+            if self._use_session():
+                with sdk_session():
+                    yield from sync.query_blobs(prefix=prefix, page_size=100)
+            else:
                 yield from sync.query_blobs(prefix=prefix, page_size=100)
         except Exception:
             raise StorageError("BLOB_UNAVAILABLE") from None

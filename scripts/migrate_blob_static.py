@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import io
 import json
+import time
 import traceback
 from pathlib import Path
 from PIL import Image
@@ -19,6 +20,32 @@ from gpt_package.blob_storage import SDKBackend, StorageError
 from gpt_package.font_registry import FONT_FAMILIES
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def _head_with_retry(backend, pathname, attempts=5, delay=0.4):
+    last = None
+    for idx in range(attempts):
+        try:
+            return backend.head(pathname)
+        except StorageError as exc:
+            last = exc
+            if exc.code != "ASSET_NOT_FOUND" or idx == attempts - 1:
+                raise
+            time.sleep(delay)
+    raise last  # pragma: no cover
+
+
+def _read_with_retry(backend, pathname, limit, attempts=5, delay=0.4):
+    last = None
+    for idx in range(attempts):
+        try:
+            return backend.read(pathname, limit)
+        except StorageError as exc:
+            last = exc
+            if exc.code != "ASSET_NOT_FOUND" or idx == attempts - 1:
+                raise
+            time.sleep(delay)
+    raise last  # pragma: no cover
 
 def inventory():
     fonts=[]
@@ -47,8 +74,8 @@ def check_access(backend=None):
     data=out.getvalue()
     backend.put(probe_pathname,data,"image/png",60)
     try:
-        meta=backend.head(probe_pathname)
-        read=backend.read(probe_pathname,len(data)+1)
+        meta=_head_with_retry(backend, probe_pathname)
+        read=_read_with_retry(backend, probe_pathname, len(data)+1)
         if read != data:
             raise RuntimeError("Blob probe read mismatch")
         return {"ok":True,"pathname":meta.pathname}
@@ -65,16 +92,16 @@ def migrate(backend=None):
     for category in ("fonts","references"):
         for entry in result[category]:
             try:
-                backend.head(entry["pathname"])
+                _head_with_retry(backend, entry["pathname"])
             except StorageError as exc:
                 if exc.code != "ASSET_NOT_FOUND":
                     raise
                 backend.put(entry["pathname"],(ROOT/entry["source"]).read_bytes(),
                             "font/ttf" if category=="fonts" else "image/jpeg",31536000)
-            data=backend.read(entry["pathname"],entry["size_bytes"]+1)
+            data=_read_with_retry(backend, entry["pathname"], entry["size_bytes"]+1)
             if hashlib.sha256(data).hexdigest()!=entry["sha256"] or len(data)!=entry["size_bytes"]:
                 raise RuntimeError(f"Static verification failed: {entry['pathname']}")
-            meta=backend.head(entry["pathname"])
+            meta=_head_with_retry(backend, entry["pathname"])
             entry.update(verified=True,url=meta.url)
     target=ROOT/"assets/blob-manifest.json"
     temp=target.with_suffix(".part")

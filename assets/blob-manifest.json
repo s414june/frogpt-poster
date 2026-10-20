@@ -9,8 +9,8 @@
       "pathname": "frogpt/v1/static/fonts/sans/400/add35d53f70727657b45.ttf",
       "sha256": "add35d53f70727657b4509531677c4e3712b67df3d54661efdee5d3a0c16d954",
       "size_bytes": 7109460,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/sans/400/add35d53f70727657b45.ttf"
     },
     {
       "family": "sans",
@@ -20,8 +20,8 @@
       "pathname": "frogpt/v1/static/fonts/sans/700/ed4ae6ed781e34d0beee.ttf",
       "sha256": "ed4ae6ed781e34d0beee896e9be5d835a938ac7adabbcc1b6b6904290006f372",
       "size_bytes": 7104212,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/sans/700/ed4ae6ed781e34d0beee.ttf"
     },
     {
       "family": "serif",
@@ -31,8 +31,8 @@
       "pathname": "frogpt/v1/static/fonts/serif/400/b0acf9799d5dc656cdef.ttf",
       "sha256": "b0acf9799d5dc656cdeff077d36b2ee9032b762e05b3f8a7b76c81dee4eec08c",
       "size_bytes": 9956844,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/serif/400/b0acf9799d5dc656cdef.ttf"
     },
     {
       "family": "serif",
@@ -42,8 +42,8 @@
       "pathname": "frogpt/v1/static/fonts/serif/700/98c207d0254a6b0b4b56.ttf",
       "sha256": "98c207d0254a6b0b4b5611dd8d5bcc37af4482494477d43eba6b2409ed083140",
       "size_bytes": 9959636,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/serif/700/98c207d0254a6b0b4b56.ttf"
     },
     {
       "family": "kai",
@@ -53,8 +53,8 @@
       "pathname": "frogpt/v1/static/fonts/kai/400/4e1da195be9a243a1f49.ttf",
       "sha256": "4e1da195be9a243a1f49679c4c98332ca8b0e5ce6229e143df42b2bc3268af17",
       "size_bytes": 13109228,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/kai/400/4e1da195be9a243a1f49.ttf"
     },
     {
       "family": "rounded",
@@ -64,8 +64,8 @@
       "pathname": "frogpt/v1/static/fonts/rounded/400/1206884b03616042a167.ttf",
       "sha256": "1206884b03616042a167f8c7ff0aa5fdcda230f762c112550517b71da4841177",
       "size_bytes": 27411872,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/fonts/rounded/400/1206884b03616042a167.ttf"
     }
   ],
   "references": [
@@ -81,8 +81,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-460621-1a9c4c098daba3d5c3a6.jpg",
       "sha256": "1a9c4c098daba3d5c3a6180a44e44c0a5d20ab92ed08c6c2ab2b3042b358cf48",
       "size_bytes": 4340348,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-460621-1a9c4c098daba3d5c3a6.jpg"
     },
     {
       "id": "pexels-13392284",
@@ -96,8 +96,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-13392284-9a4c028bc81b0ded8425.jpg",
       "sha256": "9a4c028bc81b0ded84250b67f4c29408c6d8e8dafac6ec6f72eafe5c0bb817b6",
       "size_bytes": 2135643,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-13392284-9a4c028bc81b0ded8425.jpg"
     },
     {
       "id": "pexels-167699",
@@ -111,8 +111,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-167699-71440bc0d5ed35f57b44.jpg",
       "sha256": "71440bc0d5ed35f57b44bf08642e908cae075251ea59cda4d590ec2852354659",
       "size_bytes": 2837882,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-167699-71440bc0d5ed35f57b44.jpg"
     },
     {
       "id": "pexels-1527934",
@@ -126,8 +126,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-1527934-108ad3f1a2e19cc0d17f.jpg",
       "sha256": "108ad3f1a2e19cc0d17fcd30f5d036a8191547fea877a54c64405a7a74658fbb",
       "size_bytes": 7497619,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-1527934-108ad3f1a2e19cc0d17f.jpg"
     },
     {
       "id": "pexels-40213797",
@@ -141,8 +141,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-40213797-dab4364e4fe7d24dc722.jpg",
       "sha256": "dab4364e4fe7d24dc722e931cff956f8f13673a6e869d2e48fb00c55ab3e98f8",
       "size_bytes": 967139,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-40213797-dab4364e4fe7d24dc722.jpg"
     },
     {
       "id": "pexels-1435752",
@@ -156,8 +156,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-1435752-619e5093491367cc6627.jpg",
       "sha256": "619e5093491367cc66273b957daece237a12a9ad3c0dffcf09a8799ed54bec4d",
       "size_bytes": 7097604,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-1435752-619e5093491367cc6627.jpg"
     },
     {
       "id": "pexels-38661110",
@@ -171,8 +171,8 @@
       "pathname": "frogpt/v1/static/references/pexels/pexels-38661110-c1bee73e6840469e8017.jpg",
       "sha256": "c1bee73e6840469e8017f9cf54168424a4d56bc2b1e2be2f9447a71de7b87876",
       "size_bytes": 1326856,
-      "verified": false,
-      "url": null
+      "verified": true,
+      "url": "https://hjaoukzk7a4eyz63.public.blob.vercel-storage.com/frogpt/v1/static/references/pexels/pexels-38661110-c1bee73e6840469e8017.jpg"
     }
   ]
 }
