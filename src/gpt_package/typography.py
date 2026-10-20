@@ -82,7 +82,6 @@ class TypographyEngine:
         draw = ImageDraw.Draw(image, "RGBA")
         title_lines = self._wrap_text(draw, title.strip(), title_font, text_width)
         body_lines_major = self._wrap_text(draw, body.strip(), title_font, text_width)
-        body_lines_minor = self._wrap_text(draw, body.strip(), minor_font, text_width)
 
         title_max_lines = int(getattr(style, "title_max_lines", 2)) if style else 2
         body_max_lines = int(getattr(style, "body_max_lines", 4)) if style else 4
@@ -144,16 +143,36 @@ class TypographyEngine:
             box = draw.textbbox((0, 0), line, font=title_font)
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
-            draw.text((x, y), line, fill=title_color, font=title_font)
+            self._draw_complete_line(draw, image.size, (x, y), line, title_color, title_font)
             y += title_step
 
         y = self._snap8(int(height * body_ratio))
         # Two-size policy: body first line uses major size; remaining lines use minor size.
+        # Prefer keeping a short subtitle together instead of leaving a few
+        # trailing characters alone on a much smaller second line.
+        subtitle_font = title_font
+        first_paragraph = body.strip().split('\n', 1)[0]
+        while subtitle_font.size > minor_font.size:
+            box = draw.textbbox((0, 0), first_paragraph, font=subtitle_font)
+            if box[2] - box[0] <= text_width:
+                break
+            subtitle_font = self._load_font(
+                [heading_font_path] if heading_font_path else font_paths,
+                size=subtitle_font.size - 1, sample_text=sample_text, role='heading')
+        body_lines_major = self._wrap_text(draw, body.strip(), subtitle_font, text_width)
+        subtitle_step = self._line_step(subtitle_font.size)
         subtitle_line = body_lines_major[0] if body_lines_major else ""
-        rest_lines = body_lines_minor[1:] if len(body_lines_minor) > 1 else []
+        # Consume exactly the characters rendered by the major line before
+        # rewrapping the remainder at the minor size. Independently wrapped
+        # lists have different boundaries and cannot share a line index.
+        remainder = body.strip()[len(subtitle_line):].lstrip() if subtitle_line else body.strip()
+        rest_lines = self._wrap_text(draw, remainder, minor_font, text_width) if remainder else []
+        if len(title_lines) > title_max_lines or len(rest_lines) > body_max_lines - 1:
+            from .errors import ValidationError
+            raise ValidationError('Copy exceeds default layout capacity; use smaller explicit text_layers or fewer characters')
         body_block_h = 0
         if subtitle_line:
-            body_block_h += title_step
+            body_block_h += subtitle_step
         if rest_lines:
             body_block_h += major_gap
             body_block_h += minor_step * max(1, min(len(rest_lines), max(1, body_max_lines - 1)))
@@ -181,18 +200,18 @@ class TypographyEngine:
                 y,
                 self._snap8(int(height * title_ratio)) + (title_step * max(1, len(title_lines[:title_max_lines]))) + major_gap,
             )
-            box = draw.textbbox((0, 0), subtitle_line, font=title_font)
+            box = draw.textbbox((0, 0), subtitle_line, font=subtitle_font)
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
-            draw.text((x, y), subtitle_line, fill=body_color, font=title_font)
-            y += title_step
+            self._draw_complete_line(draw, image.size, (x, y), subtitle_line, body_color, subtitle_font)
+            y += subtitle_step
         if subtitle_line and rest_lines:
             y += major_gap
         for line in rest_lines[: max(1, body_max_lines - 1)]:
             box = draw.textbbox((0, 0), line, font=minor_font)
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
-            draw.text((x, y), line, fill=body_color, font=minor_font)
+            self._draw_complete_line(draw, image.size, (x, y), line, body_color, minor_font)
             y += minor_step
 
         credit_text = (
@@ -210,12 +229,21 @@ class TypographyEngine:
             "layout_variant": variant_index,
             "major_font_size": title_font.size,
             "minor_font_size": minor_font.size,
+            "subtitle_font_size": subtitle_font.size,
             "focus_box": focus_box,
             "focus_clearance": focus_clearance,
             "title_start_y": title_start_y,
             "title_block_h": title_block_h,
             "body_start_y": body_start_y,
+            "body_lines": ([subtitle_line] if subtitle_line else []) + rest_lines,
         }
+
+    def _draw_complete_line(self, draw, canvas_size, position, text, color, font):
+        box = draw.textbbox(position, text, font=font)
+        if box[0] < 0 or box[1] < 0 or box[2] > canvas_size[0] or box[3] > canvas_size[1]:
+            from .errors import ValidationError
+            raise ValidationError('Text would be clipped by canvas; adjust layout before rendering')
+        draw.text(position, text, fill=color, font=font)
 
     def _apply_focus_aware_two_size(
         self,
@@ -300,7 +328,7 @@ class TypographyEngine:
             box = draw.textbbox((0, 0), line, font=hero_font)
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
-            draw.text((x, hero_start_y), line, fill=hero_color, font=hero_font)
+            self._draw_complete_line(draw, image.size, (x, hero_start_y), line, hero_color, hero_font)
             hero_start_y += self._line_step(hero_font.size)
 
         minor_start_y = minor_region[1]
@@ -308,7 +336,7 @@ class TypographyEngine:
             box = draw.textbbox((0, 0), line, font=minor_font)
             line_w = box[2] - box[0]
             x = self._aligned_text_x(style, width, margin, box)
-            draw.text((x, minor_start_y), line, fill=minor_color, font=minor_font)
+            self._draw_complete_line(draw, image.size, (x, minor_start_y), line, minor_color, minor_font)
             minor_start_y += self._line_step(minor_font.size)
 
         credit_text = (
