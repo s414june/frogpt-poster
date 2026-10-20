@@ -5,6 +5,7 @@ transport layer. Missing inputs describe the next assistant action, never succes
 """
 from dataclasses import dataclass, asdict
 import math
+import re
 from .errors import ValidationError
 from .text_layers import validate_text_layers
 
@@ -30,8 +31,11 @@ class BackgroundResolver:
                 'pexels_api' if arguments.get('pexels_query') else 'user_upload')
             return dict(type='image', source=source, assetRef=request.assets.user_image_paths[0])
         mode = 'gradient' if request.style.background_mode == 'gradient' else 'solid'
-        return dict(type=mode, source='ai_auto', color=request.style.primary_color,
-                    gradient={'start': request.style.primary_color, 'end': request.style.secondary_color} if mode == 'gradient' else None)
+        hint = request.style.background_color_hint.strip()
+        # A concrete background color is independent of the design's primary color.
+        color = hint if re.fullmatch(r'#[0-9a-fA-F]{6}', hint) else request.style.primary_color
+        return dict(type=mode, source='ai_auto', color=color,
+                    gradient={'start': color, 'end': request.style.secondary_color} if mode == 'gradient' else None)
 
 
 class SubjectResolver:
