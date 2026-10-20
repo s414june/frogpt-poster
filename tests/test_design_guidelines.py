@@ -82,10 +82,11 @@ class RuleDataTests(unittest.TestCase):
         with self.assertRaises(DesignRuleError):measurer.runs('\U0010ffff')
     def test_measured_wrapping_preserves_40_char_title(self):
         text='繁體中文標題，Mixed English! '*4
-        measurer=GlyphMeasurer('sans',400,30,['sans']);lines=measurer.wrap(text,180)
+        measurer=GlyphMeasurer('sans',400,30,['sans']);lines=measurer.wrap(text,180,tracking=1)
         self.assertEqual(''.join(lines),text)
         self.assertTrue(all(not line.startswith('，') for line in lines))
-        mask,metrics=measurer.raster(lines,1,1.1,'left');self.assertEqual(mask.size,(metrics['width'],metrics['height']))
+        # Mixed CJK/Latin ink needs sufficient leading on the pinned Pillow 11 renderer.
+        mask,metrics=measurer.raster(lines,1,1.4,'left');self.assertEqual(mask.size,(metrics['width'],metrics['height']))
 
 
 class DesignPipelineTests(unittest.TestCase):
