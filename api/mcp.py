@@ -51,6 +51,7 @@ SCHEMA = {
         "subject": {"type": "string"},
         "background_mode": {"type": "string", "enum": ["auto", "solid", "gradient", "reference"]},
         "image_role_mode": {"type": "string", "enum": ["auto", "subject", "background", "both"]},
+        "geometry_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "GPT geometry behind subject on any background: shape circle|rectangle|line, canvas x/y/width/height, fill/stroke #RRGGBB, opacity 0–1, stroke_width."},
         "geometry_enabled": {"type": "boolean"},
         "subject_mask_mode": {"type": "string", "enum": ["rounded", "feather"]},
         "subject_border_px": {"type": "integer", "minimum": 0, "maximum": 20},
@@ -393,7 +394,7 @@ def _run_staged_call(args: dict, intake_completed: bool) -> dict:
     generated = _get_generated_background_base64(args)
     if generated:
         if not _is_generated_background_text_free_confirmed(args):
-            return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "confirm_text_free_image_first"}, "next_action": "inspect_image_and_confirm_no_text_logo_watermark"}
+            return {"ok": True, "rendered": False, "status": {"code": "needs_input", "message": "confirm_text_free_image_first"}, "next_action": "inspect_image_and_confirm_no_poster_copy_or_watermark"}
         try:
             if not generated.startswith(("data:image/jpeg;base64,", "data:image/png;base64,")):
                 raise ValueError("expected JPEG/PNG base64 data URL")

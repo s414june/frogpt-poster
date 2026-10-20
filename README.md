@@ -383,4 +383,21 @@ Windows manifest 路徑會轉為跨平台路徑，以 repo 根目錄解析。
 `list_design_references=true` 取得最新目錄與縮圖，
 `design_reference_ids` 指定實際參考的設計稿；不會把設計稿直接當背景。
 必要署名與照片作者合併、去重為一排，不標示來源用途。
-灰底完全不透明，底框貼齊文字，不加額外 padding。
+灰底半透明（alpha=150/255），貼齊右上邊緣，底框貼齊文字，不加 padding 或外距。
+
+## GPT 幾何圖層與主體文字
+
+`geometry_layers` 可放頂層或 `poster_request.style`，適用所有背景。
+支援 `circle`、`rectangle`、`line`，位置尺寸為最終畫布像素，
+設定 fill、stroke、opacity、stroke_width；圓形寬高必須相同。
+圖層依順序疊加於照片之上、商品之下，最後渲染文字及署名。
+`geometry_enabled=false` 停用；有精確圖層時不再額外隨機加裝飾。
+
+```json
+{"geometry_layers":[{"shape":"circle","x":80,"y":260,"width":180,"height":180,"fill":null,"stroke":"#38483B","opacity":0.35,"stroke_width":3}]}
+```
+
+主標預設字級提高約 20%，副標略增；明確 text_layers 字級維持不變。
+商品包裝品牌／標籤等非標語文字可用 AI 生成，允許自繪、曲面與透視字樣。
+海報主標、副標及 CTA 仍使用工具字型。現有 text-free 確認欄位
+指的是沒有額外海報文案，不排除主體原生文字。

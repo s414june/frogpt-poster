@@ -141,6 +141,7 @@ def build_tool_definition() -> dict:
                     "type": "string",
                     "enum": ["auto", "subject", "background", "both"],
                 },
+                "geometry_layers": {"type": "array", "maxItems": 24, "items": {"type": "object"}, "description": "Explicit geometry in canvas pixels: shape circle|rectangle|line, x/y/width/height, fill/stroke #RRGGBB, opacity 0–1, stroke_width. Behind subject, on any background."},
                 "geometry_enabled": {"type": "boolean"},
                 "subject_mask_mode": {
                     "type": "string",
@@ -276,6 +277,8 @@ def _build_request(arguments: dict) -> PosterRequest:
     request.style.protected_regions = validate_regions(arguments.get("protected_regions", (payload.get("style") or {}).get("protected_regions", [])), request.layout.width, request.layout.height)
     from .text_layers import validate_text_layers
     request.style.text_layers = validate_text_layers(arguments.get("text_layers", (payload.get("style") or {}).get("text_layers", [])), request.layout.width, request.layout.height)
+    from .geometry import validate_geometry_layers
+    request.style.geometry_layers = validate_geometry_layers(arguments.get("geometry_layers", (payload.get("style") or {}).get("geometry_layers", [])), request.layout.width, request.layout.height)
     return request
 
 
@@ -696,6 +699,7 @@ def _has_user_design_customization(arguments: dict, request: PosterRequest) -> b
         "background_mode",
         "background_color_hint",
         "geometry_enabled",
+        "geometry_layers",
         "subject_mask_mode",
         "subject_border_px",
         "primary_color",
@@ -836,7 +840,8 @@ def _apply_image_role_mode(request: PosterRequest, role_mode: str) -> None:
         if not request.assets.user_image_paths and request.assets.subject_image_paths:
             request.assets.user_image_paths = [request.assets.subject_image_paths[0]]
         request.assets.subject_image_paths = []
-        request.style.geometry_enabled = False
+        if not request.style.geometry_layers:
+            request.style.geometry_enabled = False
 
 
 def _has_explicit_palette(arguments: dict, request: PosterRequest) -> bool:
@@ -1044,7 +1049,7 @@ def _build_background_generation_prompt(request: PosterRequest) -> str:
         f"Palette: primary {request.style.primary_color}, secondary {request.style.secondary_color}, accent {request.style.accent_color}. "
         "Use mostly solid color or soft gradient background; avoid complex textures. "
         "Geometric elements should be minimal and only if composition needs balance. "
-        "No letters, no numbers, no logo, no watermark, no typography. "
+        "No poster headlines, slogans, floating text or watermarks. Intrinsic product labels and brand lettering may be AI-generated as part of the physical subject. "
         "Keep clean negative space in top area for headline and bottom area for CTA text."
     )
 
@@ -1148,7 +1153,7 @@ def handle_tool_call(arguments: dict) -> dict:
                         + variant_instruction +
                         "Preserve the reference visual rhythm, texture and hierarchy. "
                         "Adapt composition to the new subject; reserve negative space for the planned text layers. "
-                        "Do not reproduce original copy, logos or watermarks. No text, letters or numbers."
+                        "Do not reproduce reference slogans or watermarks. No poster typography; intrinsic product packaging labels may be AI-generated."
                     ),
                     "text_layer_contract": "text_layers: [{text, font_family: sans|serif|kai|rounded, font_weight: 400|700, font_size: pixels (per-layer reference hierarchy), color: #RRGGBB, x, y, width, height: pixels, align: left|center|right, line_spacing: pixels (visually inferred from reference, else 4)}]. No equal-size constraint. Use reference weight/spacing before defaults. Explicit newlines are preserved; overflow is rejected.",
                     "reference_is_inspiration_only": True,
@@ -1161,7 +1166,8 @@ def handle_tool_call(arguments: dict) -> dict:
             request.assets.subject_image_paths = []
             request.style.background_mode = "reference"
             request.style.image_role_mode = "both"
-            request.style.geometry_enabled = False
+            if not request.style.geometry_layers:
+                request.style.geometry_enabled = False
             if not request.style.text_layers:
                 raise ValidationError("design_reference requires text_layers for final typography")
         design_autopilot = _apply_gpt_design_autopilot(arguments, request)
@@ -1207,7 +1213,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "background_generation_prompt": _build_background_generation_prompt(request),
                 "background_generation_requirements": {
                     "must_be_text_free": True,
-                    "forbidden_elements": ["letters", "numbers", "logo", "watermark", "existing slogan"],
+                    "forbidden_elements": ["poster headlines", "slogans", "floating text", "watermark"],
                     "required_flag_on_retry": "generated_background_text_free_confirmed=true",
                 },
                 "retry_arguments_hint": {
@@ -1241,7 +1247,7 @@ def handle_tool_call(arguments: dict) -> dict:
                 "background_generation_prompt": _build_background_generation_prompt(request),
                 "background_generation_requirements": {
                     "must_be_text_free": True,
-                    "forbidden_elements": ["letters", "numbers", "logo", "watermark", "existing slogan"],
+                    "forbidden_elements": ["poster headlines", "slogans", "floating text", "watermark"],
                     "required_flag_on_retry": "generated_background_text_free_confirmed=true",
                 },
                 "retry_arguments_hint": {

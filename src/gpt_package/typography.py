@@ -67,13 +67,13 @@ class TypographyEngine:
         )
         title_font = self._load_font(
             [heading_font_path] if heading_font_path else font_paths,
-            size=max(48, int(round(width * 0.07))),
+            size=max(48, int(round(width * 0.085))),
             sample_text=sample_text,
             role="heading",
         )
         minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(round(width * 0.04))),
+            size=max(24, int(round(width * 0.045))),
             sample_text=sample_text,
             role="body",
         )
@@ -100,6 +100,17 @@ class TypographyEngine:
         style_focus_box = self._style_focus_box(style, image)
         focus_box = style_focus_box or self._estimate_focus_box(image)
         has_explicit_focus_box = style_focus_box is not None
+        # Larger defaults must still fit above the subject, without clipping copy.
+        if has_explicit_focus_box:
+            while title_font.size > 16:
+                clearance = self._snap8(max(8, int(title_font.size * .25)))
+                needed = self._line_step(title_font.size) * max(1, len(title_lines))
+                if len(title_lines) <= title_max_lines and margin + needed + clearance <= focus_box[1]:
+                    break
+                title_font = self._load_font([heading_font_path] if heading_font_path else font_paths,
+                    size=title_font.size-1, sample_text=sample_text, role="heading")
+                title_lines = self._wrap_text(draw, title.strip(), title_font, text_width)
+                body_lines_major = self._wrap_text(draw, body.strip(), title_font, text_width)
 
         title_y_candidates = [0.10, 0.12, 0.14, 0.16]
         body_y_candidates = [0.70, 0.72, 0.74, 0.76]
@@ -127,6 +138,7 @@ class TypographyEngine:
                 image_h=height,
                 prefer="up",
             )
+        y = (int(y) // 8) * 8
         title_start_y = y
         for line in title_lines[:title_max_lines]:
             box = draw.textbbox((0, 0), line, font=title_font)
@@ -228,13 +240,13 @@ class TypographyEngine:
 
         hero_font = self._load_font(
             [heading_font_path] if heading_font_path else font_paths,
-            size=max(48, int(round(width * 0.065))),
+            size=max(48, int(round(width * 0.08))),
             sample_text=sample_text,
             role="heading",
         )
         minor_font = self._load_font(
             [body_font_path] if body_font_path else font_paths,
-            size=max(24, int(round(width * 0.05))),
+            size=max(24, int(round(width * 0.055))),
             sample_text=sample_text,
             role="body",
         )
@@ -330,7 +342,7 @@ class TypographyEngine:
             return
         width, _height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
-        margin = max(6, int(width * 0.01))
+        margin = 0
         size = max(14, int(width * 0.018))
         # Keep the complete attribution on one line without truncation.
         while True:
@@ -344,8 +356,8 @@ class TypographyEngine:
             from .errors import ValidationError
             raise ValidationError("Attribution is too long for a single row")
         x, y = width - margin - text_w, margin
-        # Exact glyph bounds: opaque gray, no extra padding or rounded corners.
-        draw.rectangle((x, y, x + text_w - 1, y + text_h - 1), fill=(96, 96, 96, 255))
+        # Exact glyph bounds, translucent gray, flush to top/right edges.
+        draw.rectangle((x, y, x + text_w - 1, y + text_h - 1), fill=(96, 96, 96, 150))
         draw.text((x - box[0], y - box[1]), text, fill=(255, 255, 255, 255), font=font)
 
     def _load_font(

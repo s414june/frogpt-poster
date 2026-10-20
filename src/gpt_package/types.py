@@ -30,6 +30,7 @@ class PosterStyle:
     text_layers: list[dict] = field(default_factory=list)
     background_mode: str = "auto"
     image_role_mode: str = "auto"
+    geometry_layers: list[dict] = field(default_factory=list)
     geometry_enabled: bool = True
     subject_mask_mode: str = "rounded"
     subject_border_px: int = 0

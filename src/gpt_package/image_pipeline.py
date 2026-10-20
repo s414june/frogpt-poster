@@ -141,6 +141,7 @@ class ImagePipeline:
                 ),
             )
         if request.style.text_layers and decision.image_source == ImageSource.USER_IMAGE and not request.assets.subject_image_paths:
+            self._render_explicit_geometry(background, request)
             return background
         background = self._apply_background_hint_variation(background, request, decision)
         background = self._apply_flat_warm_background_guard(background, request, decision)
@@ -150,7 +151,7 @@ class ImagePipeline:
             planned_box = self._planned_subject_box(background.size, request.assets.subject_image_paths[0])
         request.style.subject_focus_box = list(planned_box) if planned_box else []
 
-        if self._should_add_geometry(request, decision):
+        if not request.style.geometry_layers and self._should_add_geometry(request, decision):
             geo_result = self._add_decorative_geometry(
                 background=background,
                 subject_box=planned_box,
@@ -163,12 +164,21 @@ class ImagePipeline:
                 self._last_effects["decorative_geometry_strategy"] = strategy
                 self._last_effects["decorative_geometry_shapes"] = shape_count
 
+        self._render_explicit_geometry(background, request)
         if request.assets.subject_image_paths:
             mask_style = self._overlay_subject_with_single_mask(background, request.assets.subject_image_paths[0], request)
             self._last_effects["subject_mask_applied"] = mask_style is not None
             self._last_effects["subject_mask_style"] = mask_style
 
         return background
+
+    def _render_explicit_geometry(self, background, request):
+        if request.style.geometry_enabled and request.style.geometry_layers:
+            from .geometry import render_geometry
+            render_geometry(background, request.style.geometry_layers)
+            self._last_effects.update(decorative_geometry_applied=True,
+                decorative_geometry_strategy="explicit_gpt_layers",
+                decorative_geometry_shapes=len(request.style.geometry_layers))
 
     def _apply_background_hint_variation(
         self,

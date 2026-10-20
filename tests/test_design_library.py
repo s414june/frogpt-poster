@@ -59,15 +59,15 @@ class DesignLibraryTests(unittest.TestCase):
             self.assertEqual(result['source_credit_overlay_text'], 'Lum3n/Pexels · Designer/Studio')
             self.assertEqual(join_credit_labels([' A\nB ', 'A B', 'C']), 'A B · C')
 
-    def test_credit_box_is_opaque_and_matches_ink_bounds(self):
-        image = Image.new('RGBA', (400,200), (0,0,255,255))
+    def test_credit_box_is_translucent_flush_and_matches_ink_bounds(self):
+        image = Image.new('RGB', (400,200), (0,0,255))
         engine = TypographyEngine()
         fonts = ['assets/fonts/Noto_Sans_TC/static/NotoSansTC-Regular.ttf']
         engine.apply_source_credit_overlay(image,'Author/Pexels',fonts)
         font = engine._load_font(fonts,14,'Author/Pexels','body')
         box = ImageDraw.Draw(image).textbbox((0,0),'Author/Pexels',font=font)
         w,h=box[2]-box[0],box[3]-box[1]
-        region=image.crop((400-6-w,6,400-6,6+h))
-        self.assertTrue(all(a==255 for *_,a in region.getdata()))
-        self.assertEqual(image.getpixel((400-6-w,6)),(96,96,96,255))
-        self.assertEqual(image.getpixel((400-6-w-1,6)),(0,0,255,255))
+        region=image.crop((400-w,0,400,h))
+        self.assertEqual(region.size,(w,h))
+        self.assertEqual(image.getpixel((400-w,0)),(56,56,161))
+        self.assertEqual(image.getpixel((400-w-1,0)),(0,0,255))
