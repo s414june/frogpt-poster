@@ -5,6 +5,7 @@ import unittest
 import base64
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -13,6 +14,45 @@ from PIL import Image
 
 
 class MCPOutputOrderTests(unittest.TestCase):
+    def test_tools_call_store_asset_is_registered_and_dispatched(self) -> None:
+        list_message = {
+            "jsonrpc": "2.0",
+            "id": 90,
+            "method": "tools/list",
+            "params": {},
+        }
+        list_response = dispatch(list_message)
+        self.assertIsNotNone(list_response)
+        names = {tool.get("name") for tool in list_response.get("result", {}).get("tools", [])}
+        self.assertIn("store_poster_asset", names)
+        self.assertIn("prepare_poster", names)
+
+        fake = {
+            "ok": True,
+            "stored": True,
+            "asset_ref": "frogpt/v1/temp/assets/2026/10/20/fake-subject.png",
+            "url": "https://example.invalid/fake-subject.png",
+        }
+        call_message = {
+            "jsonrpc": "2.0",
+            "id": 91,
+            "method": "tools/call",
+            "params": {
+                "name": "store_poster_asset",
+                "arguments": {
+                    "image_data_url": "data:image/png;base64,AAAA",
+                    "role": "subject",
+                    "source": "user",
+                },
+            },
+        }
+        with patch("gpt_package.mcp_http.store_asset", return_value=fake) as mocked:
+            call_response = dispatch(call_message)
+        mocked.assert_called_once()
+        structured = call_response.get("result", {}).get("structuredContent", {})
+        self.assertTrue(structured.get("ok"))
+        self.assertEqual(structured.get("asset_ref"), fake["asset_ref"])
+
     def test_tools_call_requires_intake_first_without_confirmation(self) -> None:
         message = {
             "jsonrpc": "2.0",

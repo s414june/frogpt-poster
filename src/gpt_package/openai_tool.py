@@ -182,6 +182,15 @@ def build_tool_definition() -> dict:
         },
     }
 
+def build_upload_tool_definition() -> dict:
+    from .blob_workflow import STORE_TOOL
+    schema = STORE_TOOL["inputSchema"]
+    return {
+        "type": "function",
+        "name": STORE_TOOL["name"],
+        "description": STORE_TOOL["description"],
+        "parameters": schema,
+    }
 
 def _build_request(arguments: dict) -> PosterRequest:
     if arguments.get("poster_request"):
