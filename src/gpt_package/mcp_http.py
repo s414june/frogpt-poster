@@ -5,6 +5,8 @@ import io
 import hashlib
 import re
 import os
+from urllib.parse import urlparse
+from urllib.request import urlopen
 
 from PIL import Image, UnidentifiedImageError
 import sys
@@ -15,6 +17,7 @@ from http.server import BaseHTTPRequestHandler
 
 
 from gpt_package.openai_tool import handle_tool_call, _get_generated_background_base64, _is_generated_background_text_free_confirmed
+from gpt_package.errors import ValidationError
 from gpt_package.workflow import ASSISTANT_INSTRUCTIONS, assistant_execution_contract
 from gpt_package.blob_workflow import STORE_TOOL, ASSET_REFS_SCHEMA, store_asset, run_with_storage
 
@@ -27,6 +30,8 @@ _MAX_EMBED_FULLSIZE_BASE64 = 5_500_000
 _MAX_STRUCTURED_PREVIEW_BASE64 = 2_000_000
 _MAX_STRUCTURED_FULLSIZE_BASE64 = 5_500_000
 _DATA_URL_IMAGE_PREFIX = re.compile(r"^data:image/(jpeg|png|webp);base64,", re.IGNORECASE)
+_ATTACHMENT_MAX_BYTES = 8 * 1024 * 1024
+_ATTACHMENT_ALLOWED_MIME = {"image/png", "image/jpeg", "image/webp"}
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -90,6 +95,9 @@ SCHEMA = {
         "regenerate_variant": {"type": "boolean"},
         "variation_token": {"type": "string"},
         "show_design_guide": {"type": "boolean"},
+        "subject_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
+        "background_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
+        "reference_image": {"type": "object", "description": "ChatGPT attachment file reference (download_url/file_id/mime_type/file_name)."},
     },
     "required": [],
     "additionalProperties": False,
@@ -109,6 +117,14 @@ def _local_path_inputs_allowed() -> bool:
     return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _as_list(value):
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def _image_input_contract() -> dict:
     allow_local_paths = _local_path_inputs_allowed()
     accepted_fields = [
@@ -121,6 +137,7 @@ def _image_input_contract() -> dict:
     ]
     if allow_local_paths:
         accepted_fields.extend(["user_image_paths", "subject_image_paths", "reference_image_paths"])
+    accepted_fields.extend(["subject_image", "background_image", "reference_image"])
     not_accepted = [
         "user_image_urls",
         "subject_image_urls",
@@ -334,13 +351,6 @@ def _has_non_base64_image_inputs(args: dict) -> bool:
 
 
 def _has_invalid_image_data_url_inputs(args: dict) -> bool:
-    def _as_list(value):
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return value
-        return [value]
-
     def _invalid_data_url(value) -> bool:
         return not isinstance(value, str) or not _DATA_URL_IMAGE_PREFIX.match(value.strip())
 
@@ -358,6 +368,101 @@ def _has_invalid_image_data_url_inputs(args: dict) -> bool:
             if item and _invalid_data_url(item):
                 return True
     return False
+
+
+def _download_attachment_as_data_url(item: dict) -> str:
+    if not isinstance(item, dict):
+        raise ValidationError("attachment object must be a JSON object")
+    url = str(item.get("download_url", "")).strip()
+    if not url:
+        raise ValidationError("attachment download_url is required")
+    parsed = urlparse(url)
+    if parsed.scheme != "https":
+        raise ValidationError("attachment download_url must be https")
+    mime_hint = str(item.get("mime_type", "")).strip().lower()
+    if mime_hint and mime_hint not in _ATTACHMENT_ALLOWED_MIME:
+        raise ValidationError("attachment mime_type must be PNG/JPEG/WebP")
+    with urlopen(url, timeout=20) as response:
+        content = response.read(_ATTACHMENT_MAX_BYTES + 1)
+    if not content:
+        raise ValidationError("attachment bytes are empty")
+    if len(content) > _ATTACHMENT_MAX_BYTES:
+        raise ValidationError("attachment image exceeds size limit")
+    try:
+        with Image.open(io.BytesIO(content)) as img:
+            fmt = str(img.format or "").upper()
+            img.verify()
+    except Exception as exc:
+        raise ValidationError("attachment is not a valid image payload") from exc
+    mime = {"PNG": "image/png", "JPEG": "image/jpeg", "WEBP": "image/webp"}.get(fmt)
+    if not mime:
+        raise ValidationError("attachment image format must be PNG/JPEG/WebP")
+    return f"data:{mime};base64,{base64.b64encode(content).decode('ascii')}"
+
+
+def _materialize_attachment_file_inputs(args: dict) -> dict:
+    prepared = dict(args)
+    payload = prepared.get("poster_request")
+    payload = payload if isinstance(payload, dict) else {}
+    assets = payload.get("assets")
+    assets = assets if isinstance(assets, dict) else {}
+    refs = prepared.get("asset_refs")
+    refs = refs if isinstance(refs, dict) else {}
+    mapping = (
+        ("subject_image", "subject_image_base64", "subjects"),
+        ("background_image", "user_image_base64", "background"),
+        ("reference_image", "reference_image_base64", "references"),
+    )
+    for attachment_key, target_key, ref_key in mapping:
+        direct = prepared.get(attachment_key)
+        nested = payload.get(attachment_key)
+        if direct and nested:
+            raise ValidationError(f"{attachment_key} provided twice")
+        raw_value = direct or nested
+        if not raw_value:
+            continue
+        if prepared.get(target_key) or payload.get(target_key) or assets.get(target_key):
+            raise ValidationError(f"{attachment_key} conflicts with {target_key}")
+        if refs.get(ref_key):
+            raise ValidationError(f"{attachment_key} conflicts with asset_refs.{ref_key}")
+        items = _as_list(raw_value)
+        data_urls = [_download_attachment_as_data_url(item) for item in items]
+        if attachment_key == "background_image" and len(data_urls) != 1:
+            raise ValidationError("background_image accepts exactly one file")
+        prepared[target_key] = data_urls
+        if attachment_key == "background_image":
+            prepared[target_key] = [data_urls[0]]
+    return prepared
+
+
+def _build_attachment_input_rejection(token: str, intake_completed: bool, message: str) -> dict:
+    contract = _image_input_contract()
+    return {
+        "ok": True,
+        "tool_name": NAME,
+        "pipeline_stage": "attachment_preflight",
+        "status": {
+            "code": "needs_input",
+            "message": "attachment_download_failed_or_invalid",
+        },
+        "next_action": "reattach_or_use_base64_or_store_tool",
+        "rendered": False,
+        "intake_session_token": token,
+        "intake_session_state": {
+            "intake_completed": bool(intake_completed),
+            "ttl_seconds": _INTAKE_SESSION_TTL_SECONDS,
+        },
+        "user_friendly_hint": {
+            "what_happened": message,
+            "please_do": [
+                "請重新附上同一張圖片，或改用 store_poster_asset 後傳 asset_refs",
+                "也可改用 data URL base64 欄位",
+            ],
+            "accepted_fields": contract["accepted_fields"],
+            "not_accepted_fields": contract["not_accepted_fields"],
+        },
+        "image_input_contract": contract,
+    }
 
 
 def _build_non_base64_input_rejection(token: str, intake_completed: bool) -> dict:
@@ -547,6 +652,24 @@ def dispatch(message):
             now_ts = time.time()
             _prune_intake_sessions(now_ts)
             intake_session_token, intake_state, token_from_request = _ensure_intake_session_token(args, now_ts)
+            try:
+                args = _materialize_attachment_file_inputs(args)
+            except ValidationError as exc:
+                output = _build_attachment_input_rejection(
+                    token=intake_session_token,
+                    intake_completed=bool(intake_state.get("intake_completed", False)),
+                    message=str(exc),
+                )
+                output["assistant_execution_contract"] = _assistant_execution_contract()
+                content = [
+                    {"type": "text", "text": json.dumps(_compact_output(output), ensure_ascii=False)},
+                ]
+                result["result"] = {
+                    "content": content,
+                    "structuredContent": _compact_output(output),
+                    "isError": False,
+                }
+                return result
             if _has_non_base64_image_inputs(args):
                 output = _build_non_base64_input_rejection(
                     token=intake_session_token,

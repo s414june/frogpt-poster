@@ -58,6 +58,7 @@ Key arguments:
 - `regenerate_variant`: `true` 時每次呼叫自動產生新的 `variation_token`，可在同文案下得到不同幾何圖案/對應色分布
 - `intake_confirmed`（MCP 流程：第一次問卷完成後請設為 `true`）
 - `intake_session_token`（MCP 會話記憶鍵；第一次回傳，後續重用可免手動維護 intake flag）
+- `subject_image` / `background_image` / `reference_image`（ChatGPT 附件參照物件，需含 `download_url`；伺服器會下載並轉成既有圖片流程）
 
 MCP 本機路徑模式（僅本機開發建議）：
 - 預設已接受 `user_image_paths`、`subject_image_paths`、`reference_image_paths`（仍建議優先使用 base64 / asset_refs）。

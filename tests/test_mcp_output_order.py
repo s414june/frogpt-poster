@@ -292,6 +292,58 @@ class MCPOutputOrderTests(unittest.TestCase):
         accepted = structured.get("image_input_contract", {}).get("accepted_fields", [])
         self.assertIn("user_image_paths", accepted)
 
+    def test_tools_call_accepts_attachment_reference_object(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            img_path = Path(tmp_dir) / "attachment-subject.png"
+            Image.new("RGBA", (320, 320), (20, 100, 160, 255)).save(img_path, format="PNG")
+            img_bytes = img_path.read_bytes()
+
+        class _MockResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self, *_args, **_kwargs):
+                return img_bytes
+
+        message = {
+            "jsonrpc": "2.0",
+            "id": 43,
+            "method": "tools/call",
+            "params": {
+                "name": "prepare_poster",
+                "arguments": {
+                    "intake_confirmed": True,
+                    "title": "attachment mode",
+                    "body": "subject from file params",
+                    "subject_image": {
+                        "file_id": "file_123",
+                        "download_url": "https://example.invalid/file.png",
+                        "mime_type": "image/png",
+                        "file_name": "file.png",
+                    },
+                },
+            },
+        }
+        mocked_output = {
+            "ok": True,
+            "rendered": False,
+            "status": {"code": "needs_background_generation", "message": "needs_background_generation"},
+            "next_action": "generate_background",
+        }
+        with patch("gpt_package.mcp_http.urlopen", return_value=_MockResponse()), patch(
+            "gpt_package.mcp_http._run_staged_call", return_value=mocked_output
+        ) as mocked_call:
+            response = dispatch(message)
+        self.assertIsNotNone(response)
+        structured = response["result"].get("structuredContent", {})
+        self.assertEqual(structured.get("status", {}).get("code"), "needs_background_generation")
+        called_args = mocked_call.call_args[0][0]
+        self.assertIn("subject_image_base64", called_args)
+        self.assertTrue(called_args["subject_image_base64"][0].startswith("data:image/png;base64,"))
+
     def test_tools_call_rewrites_failed_output_to_recoverable_needs_input(self) -> None:
         message = {
             "jsonrpc": "2.0",
