@@ -1,11 +1,20 @@
-"""Explicit migration; preserves original binary bytes and never deletes old objects.
-Run from repo root: PYTHONPATH=src python scripts/migrate_blob_static.py [--plan]
-Requires a linked Store and usable OIDC or existing read-write credential.
+"""One-time static Blob migration tool for fonts/references.
+
+Run from repo root:
+  PYTHONPATH=src python scripts/migrate_blob_static.py --check-access
+  PYTHONPATH=src python scripts/migrate_blob_static.py --apply
+
+- This script is NOT for per-build execution.
+- --apply uploads only missing static objects, then verifies byte-for-byte SHA-256.
+- It writes verified URLs back to assets/blob-manifest.json atomically.
 """
 import argparse
 import hashlib
+import io
 import json
+import traceback
 from pathlib import Path
+from PIL import Image
 from gpt_package.blob_storage import SDKBackend, StorageError
 from gpt_package.font_registry import FONT_FAMILIES
 
@@ -29,31 +38,65 @@ def inventory():
             item.update(pathname=f"frogpt/v1/static/{category}/{name}",sha256=sha,size_bytes=len(data),verified=False,url=None)
     return dict(version=1,fonts=fonts,references=references)
 
-def migrate(plan=False,backend=None):
+
+def check_access(backend=None):
+    backend=backend or SDKBackend()
+    probe_pathname=f"frogpt/v1/temp/assets/probe-{hashlib.sha256(str(ROOT).encode()).hexdigest()[:12]}.png"
+    out=io.BytesIO()
+    Image.new("RGBA",(4,4),(0,0,0,0)).save(out,format="PNG")
+    data=out.getvalue()
+    backend.put(probe_pathname,data,"image/png",60)
+    try:
+        meta=backend.head(probe_pathname)
+        read=backend.read(probe_pathname,len(data)+1)
+        if read != data:
+            raise RuntimeError("Blob probe read mismatch")
+        return {"ok":True,"pathname":meta.pathname}
+    finally:
+        try:
+            backend.delete([probe_pathname])
+        except Exception:
+            pass
+
+
+def migrate(backend=None):
     result=inventory()
     backend=backend or SDKBackend()
     for category in ("fonts","references"):
         for entry in result[category]:
-            if not plan:
-                try:
-                    backend.head(entry["pathname"])
-                except StorageError as exc:
-                    if exc.code != "ASSET_NOT_FOUND": raise
-                    backend.put(entry["pathname"],(ROOT/entry["source"]).read_bytes(),
-                                "font/ttf" if category=="fonts" else "image/jpeg",31536000)
-                data=backend.read(entry["pathname"],entry["size_bytes"]+1)
-                if hashlib.sha256(data).hexdigest()!=entry["sha256"] or len(data)!=entry["size_bytes"]:
-                    raise RuntimeError("Static verification failed")
-                meta=backend.head(entry["pathname"])
-                entry.update(verified=True,url=meta.url)
+            try:
+                backend.head(entry["pathname"])
+            except StorageError as exc:
+                if exc.code != "ASSET_NOT_FOUND":
+                    raise
+                backend.put(entry["pathname"],(ROOT/entry["source"]).read_bytes(),
+                            "font/ttf" if category=="fonts" else "image/jpeg",31536000)
+            data=backend.read(entry["pathname"],entry["size_bytes"]+1)
+            if hashlib.sha256(data).hexdigest()!=entry["sha256"] or len(data)!=entry["size_bytes"]:
+                raise RuntimeError(f"Static verification failed: {entry['pathname']}")
+            meta=backend.head(entry["pathname"])
+            entry.update(verified=True,url=meta.url)
     target=ROOT/"assets/blob-manifest.json"
     temp=target.with_suffix(".part")
     temp.write_text(json.dumps(result,ensure_ascii=False,indent=2)+"\n")
     temp.replace(target)
-    print(json.dumps({"verified":not plan,"fonts":len(result["fonts"]),"references":len(result["references"]),
+    print(json.dumps({"verified":True,"fonts":len(result["fonts"]),"references":len(result["references"]),
                       "source_bytes":sum(i["size_bytes"] for c in ("fonts","references") for i in result[c])}))
     return result
 
+
 if __name__=="__main__":
-    p=argparse.ArgumentParser();p.add_argument("--plan",action="store_true")
-    migrate(p.parse_args().plan)
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--check-access",action="store_true",help="Verify Blob write/read/delete access with a tiny probe.")
+    parser.add_argument("--apply",action="store_true",help="Upload missing static objects and write verified manifest.")
+    args=parser.parse_args()
+    try:
+        if args.check_access:
+            print(json.dumps(check_access(),ensure_ascii=False))
+        if args.apply:
+            migrate()
+        if not args.check_access and not args.apply:
+            parser.print_help()
+    except Exception:
+        traceback.print_exc()
+        raise

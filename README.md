@@ -186,6 +186,14 @@ To click-and-run this as a real ChatGPT Tool in ChatGPT, you still need:
 
 This repo now provides the tool schema + handler, local UAT scripts, and an HTTP wrapper for deployment.
 
+## Blob static migration and build verification
+
+- One-time migration tool (manual, not per-build):
+  - `PYTHONPATH=src python scripts/migrate_blob_static.py --check-access`
+  - `PYTHONPATH=src python scripts/migrate_blob_static.py --apply`
+- Normal build verification:
+  - `PYTHONPATH=src python scripts/verify_blob_manifest.py`
+
 ## HTTP API (Vercel-ready)
 
 Files:

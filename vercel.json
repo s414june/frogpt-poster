@@ -41,7 +41,7 @@
       "schedule": "0 3 * * *"
     }
   ],
-  "buildCommand": "PYTHONPATH=src python scripts/prepare_blob_build.py",
+  "buildCommand": "PYTHONPATH=src python scripts/verify_blob_manifest.py",
   "env": {
     "FROGPT_BLOB_ENABLED": "true",
     "FROGPT_FONT_SOURCE": "blob"
