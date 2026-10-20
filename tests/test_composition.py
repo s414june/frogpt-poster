@@ -52,6 +52,18 @@ class CompositionTests(unittest.TestCase):
     def test_background_never_replaces_subject(self):
         result=self.render(user_image_base64=[data('blue')],image_role_mode='background')
         self.assertFalse(result['rendered']); self.assertEqual(result['status']['code'],'needs_subject_generation')
+    def test_background_hex_hint_wins_over_primary_color(self):
+        result=self.render(subject_image_base64=[data()], background_mode='solid',
+                           background_color_hint='#F5EEDC', primary_color='#143B78', geometry_enabled=False)
+        self.assertTrue(result['rendered'],result)
+        image=Image.open(io.BytesIO(base64.b64decode(result['output_image_base64'])))
+        self.assertEqual(image.getpixel((0,0)),(245,238,220))
+    def test_gradient_starts_with_explicit_background_hint(self):
+        result=self.render(subject_image_base64=[data()], background_mode='gradient',
+                           background_color_hint='#F5EEDC', primary_color='#143B78', secondary_color='#FFFFFF')
+        self.assertTrue(result['rendered'],result)
+        image=Image.open(io.BytesIO(base64.b64decode(result['output_image_base64'])))
+        self.assertEqual(image.getpixel((0,0)),(245,238,220))
     def test_no_assets_returns_generation_not_confirmation(self):
         result=self.render()
         self.assertEqual(result['next_action'],'generate_subject_then_retry')
