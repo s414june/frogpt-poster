@@ -36,7 +36,10 @@ class TypographyEngine:
     ) -> dict:
         if getattr(style, "text_layers", None):
             from .text_layers import render_text_layers
-            return render_text_layers(image, style.text_layers, style=style)
+            result = render_text_layers(image, style.text_layers, style=style)
+            if style.source_credit_text:
+                self.apply_source_credit_overlay(image, style.source_credit_text, font_paths)
+            return result
         role_mode = (
             str(getattr(style, "image_role_mode", "auto")).strip().lower()
             if style
@@ -322,28 +325,28 @@ class TypographyEngine:
     def apply_source_credit_overlay(
         self, image: Image.Image, credit_text: str, font_paths: list[str]
     ) -> None:
-        text = credit_text.strip()
+        text = " ".join(credit_text.split())
         if not text:
             return
         width, _height = image.size
         draw = ImageDraw.Draw(image, "RGBA")
-        font = self._load_font(
-            font_paths, size=max(14, int(width * 0.018)), sample_text=text, role="body"
-        )
-        margin = max(12, int(width * 0.018))
-        box = draw.textbbox((0, 0), text, font=font)
-        text_w = box[2] - box[0]
-        text_h = box[3] - box[1]
-        x = width - margin - text_w
-        y = margin
-        pad_x = max(8, int(width * 0.008))
-        pad_y = max(5, int(width * 0.005))
-        draw.rounded_rectangle(
-            [(x - pad_x, y - pad_y), (x + text_w + pad_x, y + text_h + pad_y)],
-            radius=max(6, int(width * 0.01)),
-            fill=(0, 0, 0, 125),
-        )
-        draw.text((x, y), text, fill=(245, 245, 245, 235), font=font)
+        margin = max(6, int(width * 0.01))
+        size = max(14, int(width * 0.018))
+        # Keep the complete attribution on one line without truncation.
+        while True:
+            font = self._load_font(font_paths, size=size, sample_text=text, role="body")
+            box = draw.textbbox((0, 0), text, font=font)
+            text_w, text_h = box[2] - box[0], box[3] - box[1]
+            if text_w <= width - 2 * margin or size <= 1:
+                break
+            size -= 1
+        if text_w > width - 2 * margin:
+            from .errors import ValidationError
+            raise ValidationError("Attribution is too long for a single row")
+        x, y = width - margin - text_w, margin
+        # Exact glyph bounds: opaque gray, no extra padding or rounded corners.
+        draw.rectangle((x, y, x + text_w - 1, y + text_h - 1), fill=(96, 96, 96, 255))
+        draw.text((x - box[0], y - box[1]), text, fill=(255, 255, 255, 255), font=font)
 
     def _load_font(
         self,

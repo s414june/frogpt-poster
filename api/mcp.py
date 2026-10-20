@@ -65,6 +65,8 @@ SCHEMA = {
         "reference_image_base64": {"type": "array", "items": {"type": "string"}},
         "generated_background_base64": {"type": "string"},
         "generated_background_text_free_confirmed": {"type": "boolean"},
+        "list_design_references": {"type": "boolean", "description": "List local design inspiration previews and attribution metadata, separate from background photos."},
+        "design_reference_ids": {"type": "array", "items": {"type": "string"}, "description": "Selected inspiration catalog IDs. Required credits merge into a single row with Pexels photo credits."},
         "use_local_reference_library": {"type": "boolean", "description": "Use saved Pexels library without API; omit ID to list available author-credited photos."},
         "reference_library_id": {"type": "string", "description": "Select a saved manifest photo ID, independent of Pexels API. Foreground product goes in subject_image_base64."},
         "pexels_query": {"type": "string", "description": "Online API search only, not saved photos."},

@@ -374,3 +374,13 @@ Pexels photographer attribution is retained.
 Windows manifest 路徑會轉為跨平台路徑，以 repo 根目錄解析。
 目前 manifest 中作者為 Unknown 的圖片暫不提供，待補齊真實作者後即可使用。
 線上 API 搜尋則單獨使用 `pexels_query` 與伺服器環境設定。
+
+## 設計稿參考庫與署名
+
+設計稿放在 `assets/design-references/attributed/`（需署名）或
+`assets/design-references/original/`（自己畫的免署名），並維護各自的
+`manifest.json`。空資料夾已用 `.gitkeep` 保留。詳見該目錄 README。
+`list_design_references=true` 取得最新目錄與縮圖，
+`design_reference_ids` 指定實際參考的設計稿；不會把設計稿直接當背景。
+必要署名與照片作者合併、去重為一排，不標示來源用途。
+灰底完全不透明，底框貼齊文字，不加額外 padding。

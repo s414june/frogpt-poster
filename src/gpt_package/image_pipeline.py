@@ -140,7 +140,7 @@ class ImagePipeline:
                     f"{request.style.variation_token}"
                 ),
             )
-        if request.style.text_layers and decision.image_source == ImageSource.USER_IMAGE:
+        if request.style.text_layers and decision.image_source == ImageSource.USER_IMAGE and not request.assets.subject_image_paths:
             return background
         background = self._apply_background_hint_variation(background, request, decision)
         background = self._apply_flat_warm_background_guard(background, request, decision)

@@ -14,6 +14,7 @@ from urllib.request import urlopen
 
 from PIL import Image
 
+from .design_library import load_design_references, design_catalog, join_credit_labels
 from .client import PosterGenerator
 from .errors import PosterError
 from .errors import ValidationError
@@ -112,6 +113,8 @@ def build_tool_definition() -> dict:
                     "type": "boolean",
                     "description": "Set true only when the generated background is confirmed text-free (no letters/numbers/logo/watermark).",
                 },
+                "list_design_references": {"type": "boolean", "description": "List saved inspiration designs with previews and credit metadata; never backgrounds."},
+                "design_reference_ids": {"type": "array", "items": {"type": "string"}, "description": "Catalog IDs actually used as inspiration; merges required author credits with photo credits."},
                 "use_local_reference_library": {"type": "boolean", "description": "Use saved Pexels photos without API/network. Omit reference_library_id to list available photos."},
                 "reference_library_id": {"type": "string", "description": "Saved photo ID from the local library manifest; independent of Pexels API."},
                 "pexels_query": {"type": "string", "description": "Online Pexels API search only; not the saved library."},
@@ -1051,9 +1054,21 @@ def handle_tool_call(arguments: dict) -> dict:
     try:
         arguments = dict(arguments)
         payload = arguments.get("poster_request") or {}
-        for key in ("use_local_reference_library", "reference_library_id"):
+        for key in ("use_local_reference_library", "reference_library_id", "list_design_references", "design_reference_ids"):
             if key not in arguments and key in payload:
                 arguments[key] = payload[key]
+        if arguments.get("list_design_references"):
+            return {"ok": True, "rendered": False, "pipeline_stage": "design_selection",
+                "status": {"code": "needs_input", "message": "select_design_reference"},
+                "next_action": "inspect_design_previews_then_pass_selected_ids",
+                "design_references": design_catalog(), "inspiration_only": True}
+        design_ids = arguments.get("design_reference_ids", [])
+        if not isinstance(design_ids, list) or any(not isinstance(item, str) for item in design_ids):
+            raise ValidationError("design_reference_ids must be an array of strings")
+        designs = {item["id"]: item for item in load_design_references()} if design_ids else {}
+        if any(item not in designs for item in design_ids):
+            raise ValidationError("Unknown design_reference_ids; list the catalog first")
+        selected_designs = [designs[item] for item in dict.fromkeys(design_ids)]
         library_requested = bool(arguments.get("use_local_reference_library")) or bool(arguments.get("reference_library_id"))
         if library_requested:
             # Saved files never need an API key, and cannot trigger a remote search.
@@ -1241,7 +1256,12 @@ def handle_tool_call(arguments: dict) -> dict:
                 "image_role_resolution_reason": image_role_resolution_reason,
                 "design_autopilot": design_autopilot,
             }
-        request.style.source_credit_text = str(reference_context.get("attribution_label", "")).strip()
+        design_credits = [{k: v for k, v in item.items() if k != "path"} for item in selected_designs if item["credit_required"]]
+        reference_context["source_credits"].extend(design_credits)
+        request.style.source_credit_text = join_credit_labels([
+            reference_context.get("attribution_label", ""),
+            *(item["credit_label"] for item in selected_designs if item["credit_required"]),
+        ])
         generator = PosterGenerator()
         result = generator.generate(request)
         output_image_base64 = _encode_output_image(result.output_path)
