@@ -44,6 +44,7 @@
   "buildCommand": "PYTHONPATH=src python scripts/verify_blob_manifest.py",
   "env": {
     "FROGPT_BLOB_ENABLED": "true",
+    "FROGPT_ALLOW_LOCAL_IMAGE_PATHS": "false",
     "FROGPT_FONT_SOURCE": "blob"
   }
 }

@@ -12,7 +12,29 @@ OpenAI Tools plugin for an anti-`AI-look` poster workflow:
 pip install -e .
 ```
 
-## MCP AI 生圖兩階段流程（v0.3.0）
+## ChatGPT 附件傳輸（MCP v0.3.2）
+
+對話與工作共用 `prepare_poster` 的正式附件欄位，無須 GPT 自行執行 Python 或
+把圖片轉成長 Base64。工具描述以 `_meta["openai/fileParams"]` 宣告：
+`subject_image`（商品）、`background_image`（背景）、`reference_image`（靈感）、
+`draft_image`（完整無字草稿）、`geometry_image`（透明幾何）。
+ChatGPT 將選定附件轉成含 `download_url`、`file_id` 及可選
+`mime_type`、`file_name` 的物件；伺服器下載、驗證，再交既有 Blob／渲染流程。
+不得把 GPT 的 `/mnt/data` 或 `/workspace` 路徑送到 Vercel。
+`store_poster_asset` 可選；插件只載入 `prepare_poster` 時仍可直接使用附件。
+正式附件 URL 只接受平台檔案主機、HTTPS，拒絕重新導向與任意網頁 URL。
+
+部署後需重新掃描／Refresh MCP 工具定義，再開新對話。驗收時以 `tools/list`
+確認上述 fileParams 及完整 file schema，不能只看版本名稱。
+舊插件缺少欄位時需更新連線；Git 部署不能自行更新 ChatGPT 的快取。
+
+素材會傳到 FroGPT Poster 並存為 Public Blob（素材 24 小時、成品 72 小時）。
+宿主自動審核若拒絕外傳，這是呼叫前授權問題，不是 Vercel 渲染錯誤。
+不能透過改 annotation、換 curl 或其他端點繞過；應依宿主要求取得明確授權。
+本機合成成功也不能證明遠端 MCP 圖片渲染已通過。
+Production 需明確設定 `FROGPT_UPLOAD_ENABLED=true`；保留原有預設關閉保護。
+
+## MCP AI 生圖兩階段流程（Base64 相容流程）
 
 1. 完成需求確認後，AI 先生成一張**背景與主體整合、完全無文字**的海報設計圖。主體包圍框置中於 `(50%, 50%)`，寬、高各不得超過畫布寬、高的 50%；上下留白。
 2. 測試預設 480×640。助理將圖片等比例縮小，以 JPEG quality 60–70 壓縮，base64 本體以 100,000 字元內為目標；不得截斷。實際圖片位元組編碼成 `data:image/jpeg;base64,...`，傳入 `generated_background_base64`，並確認 `generated_background_text_free_confirmed=true`。
@@ -58,10 +80,10 @@ Key arguments:
 - `regenerate_variant`: `true` 時每次呼叫自動產生新的 `variation_token`，可在同文案下得到不同幾何圖案/對應色分布
 - `intake_confirmed`（MCP 流程：第一次問卷完成後請設為 `true`）
 - `intake_session_token`（MCP 會話記憶鍵；第一次回傳，後續重用可免手動維護 intake flag）
-- `subject_image` / `background_image` / `reference_image`（ChatGPT 附件參照物件，需含 `download_url`；伺服器會下載並轉成既有圖片流程）
+- `subject_image` / `background_image` / `reference_image` / `draft_image` / `geometry_image`（正式 ChatGPT 附件欄位，需含 `download_url`、`file_id`；伺服器下載後轉入既有流程）
 
 MCP 本機路徑模式（僅本機開發建議）：
-- 預設已接受 `user_image_paths`、`subject_image_paths`、`reference_image_paths`（仍建議優先使用 base64 / asset_refs）。
+- 本機開發可接受 `user_image_paths`、`subject_image_paths`、`reference_image_paths`；Vercel 預設停用，且部署設定明確設為 false。
 - 若你要關閉本機路徑輸入，可設定：
   - `FROGPT_ALLOW_LOCAL_IMAGE_PATHS=false`
 - 圖片 URL（`*_image_urls`）仍會被拒絕。

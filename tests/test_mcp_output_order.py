@@ -320,7 +320,7 @@ class MCPOutputOrderTests(unittest.TestCase):
                     "body": "subject from file params",
                     "subject_image": {
                         "file_id": "file_123",
-                        "download_url": "https://example.invalid/file.png",
+                        "download_url": "https://files.oaiusercontent.com/file.png",
                         "mime_type": "image/png",
                         "file_name": "file.png",
                     },

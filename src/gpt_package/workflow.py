@@ -6,7 +6,9 @@ WORK_MODE_FALLBACK_MESSAGE = (
     '切換模式不保證解決所有問題；若仍失敗，請保留錯誤訊息以便排查。'
 )
 
-ASSISTANT_INSTRUCTIONS = """Blob 傳輸：有實際圖片 bytes 才呼叫 store_poster_asset，之後用 asset_refs 重用（background、subjects、geometry、references、draft），不要重傳 Base64。素材 24h、成品 72h；Public URL 任何持有者可看，不適合敏感照片，清理非秒級。無 bytes 時明確回報附件讀取失敗，尚未傳入套件，不可重畫冒充原圖。草稿 URL 與 draft_image_sha256 必須先展示並等待明確批准，批准後用相同 draft ref/hash。成品以 image_url/download_url 交付。
+ASSISTANT_INSTRUCTIONS = """附件傳輸（優先於下方本機 Base64 流程）：對話與工作都優先直接呼叫 prepare_poster 的頂層 subject_image/background_image/reference_image/draft_image/geometry_image，這些欄位宣告 openai/fileParams，由 ChatGPT 把已選附件轉成 download_url/file_id；不需要助理有 Python 或自行讀取 bytes。主體用 subject_image，完整無字草稿用 draft_image，幾何用 geometry_image。伺服器下載驗證後沿用 Blob 流程，後續重用回傳的 asset_refs。store_poster_asset 是可選捷徑，工具未載入不代表 prepare_poster 附件流程不能使用。只有平台未提供附件參照且無實際 bytes 時才停止；不可把 /mnt/data 或 /workspace 路徑塞到 *_image_paths 傳給 Vercel。下方「先讀 bytes／轉 Base64」只適用沒有 fileParams 的程式執行環境，不是對話模式的必要前提。缺少工具或欄位時明確回報 metadata 未載入，重新掃描後以新對話驗證，不要無限重試或保證工作模式可解決。
+對外傳輸：本工具會把使用者指定的素材傳送到 FroGPT Poster 並存為 Public Blob；素材 24h、成品 72h，持有 URL 者可讀取。描述用途與目的地，不可假稱全程本機或私密。若宿主自動審核拒絕，回報是宿主授權層阻擋，未證明 API 失敗；不得改用 curl、其他端點或改標註繞過。伺服器程式無法停用宿主審核；必要時取得使用者對具體外傳動作的明確授權。不要把宿主拒絕稱為 Vercel 渲染錯誤。
+Blob 傳輸：有實際圖片 bytes 才呼叫可選的 store_poster_asset，之後用 asset_refs 重用（background、subjects、geometry、references、draft），不要重傳 Base64。素材 24h、成品 72h；Public URL 任何持有者可看，不適合敏感照片，清理非秒級。無 bytes 且無平台附件參照時明確回報附件讀取失敗，尚未傳入套件，不可重畫冒充原圖。草稿 URL 與 draft_image_sha256 必須先展示並等待明確批准，批准後用相同 draft ref/hash。成品以 image_url/download_url 交付。
 GPT 環境的額外幾何裝飾優先由 GPT 自行繪製成透明 PNG，再傳 geometry_image_base64（頂層或 poster_request.assets）。PNG 必須含 alpha、尺寸等於最終畫布，保留透明留白，不得裁切或混入背景、主體、標語。API 只疊合：背景 → GPT 幾何透明圖 → 主體，最後排版文字與引用；不自動改色、不額外補形狀。有幾何圖片時優先於 geometry_layers，geometry_enabled=false 全部停用。依使用者指定顏色繪製，純黑就是 #000000，不得自動偏綠。使用者移除的形狀不得自行補回。非 GPT 或明確要求 API 畫幾何時才使用相容的 geometry_layers：shape=circle|rectangle|line、畫布像素座標、fill/stroke=#RRGGBB、opacity=0–1、stroke_width=1–64。
 署名採半透明灰底（alpha=150/255），貼齊右上邊緣（外距 0）、框貼墨跡（padding 0），所有引用維持一排去重。
 排版：未指定字級時主標預設放大約 20%，副標小幅放大；指定 text_layers 時尊重其字級，GPT 應優先給主標較醒目的字級，副標維持或略放大，不得讓長主標裁切或單字孤行。
@@ -47,6 +49,10 @@ GPT 環境的額外幾何裝飾優先由 GPT 自行繪製成透明 PNG，再傳 
 def assistant_execution_contract() -> dict:
     return {
         "attachment_preflight": {
+            "preferred_transport": "openai/fileParams",
+            "file_fields": ["subject_image", "background_image", "reference_image", "draft_image", "geometry_image"],
+            "host_reference_does_not_require_local_bytes": True,
+            "store_tool_required": False,
             "required_before_render_call": True,
             "checks": ["read_current_attachment_bytes", "decode_image_successfully", "encode_verified_bytes_as_base64_data_url"],
             "on_missing_path": "stop_reusing_path_and_reacquire_same_attachment_via_available_platform_mechanism",
