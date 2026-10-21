@@ -61,7 +61,7 @@ def build_tool_definition() -> dict:
         "type": "function",
         "name": TOOL_NAME,
         "description": (
-            "Generate a poster request result with real-image-first policy. "
+            "Mandatory questionnaire, then explicit subject/background pairing approval, then poster generation. "
             "Use user-provided photos if available; AI image is fallback only."
         ),
         "parameters": {
@@ -69,6 +69,9 @@ def build_tool_definition() -> dict:
             "properties": {
                 "design_rules_v1": {"type":"boolean", "description":"Opt in to measured design safety rules v1."},
                 "design_intent": {"type":"object", "description":"Normalized design intent, preset, soft rule overrides and asset rights provenance."},
+                "composition_proposal": {"type": "object", "description": "Concrete subject/background pairing shown to user before generation; required string fields subject and background.", "properties": {"subject": {"type": "string"}, "background": {"type": "string"}}, "required": ["subject", "background"]},
+                "composition_confirmed": {"type": "boolean", "description": "True only after user explicitly approves the previously shown pairing in a subsequent reply."},
+                "approved_composition_sha256": {"type": "string", "description": "Digest from the proposal the user explicitly approved; changed questionnaire/proposal requires new approval."},
                 "preview_only": {"type":"boolean"},
                 "subject_source": {"type":"string", "enum":["user_upload","ai_generated"]},
                 "subject_position": {"type":"object"},
@@ -86,7 +89,7 @@ def build_tool_definition() -> dict:
                 },
                 "intake_confirmed": {
                     "type": "boolean",
-                    "description": "Compatibility field for MCP intake flow.",
+                    "description": "True only after receiving the user questionnaire answers; also requires intake_answers.",
                 },
                 "intake_session_token": {
                     "type": "string",
@@ -1034,7 +1037,10 @@ def _build_background_generation_prompt(request: PosterRequest) -> str:
 
 
 def handle_tool_call(arguments: dict) -> dict:
-    output = _handle_tool_call(arguments)
+    from .workflow import workflow_gate
+    output = workflow_gate(arguments)
+    if output is None:
+        output = _handle_tool_call(arguments)
     code = output.get("status", {}).get("code", "failed")
     output.setdefault("poster_status", {"needs_input":"needs_user_input", "needs_background_generation":"needs_user_input", "awaiting_typography_confirmation":"needs_user_input"}.get(code, code if code in ("completed", "failed", "needs_subject_generation", "ready_to_render") else "needs_user_input"))
     return output

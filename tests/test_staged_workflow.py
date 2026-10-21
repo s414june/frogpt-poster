@@ -7,6 +7,8 @@ from unittest.mock import patch
 from PIL import Image, ImageDraw
 from gpt_package.mcp_http import dispatch
 from gpt_package.typography import TypographyEngine
+from tests.workflow_fixtures import approved_dispatch
+dispatch = approved_dispatch(dispatch)
 
 
 def call(**args):

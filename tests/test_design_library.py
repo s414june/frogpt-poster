@@ -11,6 +11,9 @@ from gpt_package.openai_tool import handle_tool_call
 from gpt_package.errors import ValidationError
 
 
+from tests.workflow_fixtures import approved_call
+handle_tool_call = approved_call(handle_tool_call)
+
 class DesignLibraryTests(unittest.TestCase):
     def setup_library(self, root):
         for category in ('attributed', 'original'):

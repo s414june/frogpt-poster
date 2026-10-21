@@ -20,12 +20,16 @@ Geometry is optional and defaults to absent.
    geometry → subject → typography, using existing Pillow/font code.
 5. Deliver only when `rendered=true` and `poster_status=completed`.
 
-Default is automatic completion. `intake_confirmed` is retained for compatibility,
-not required and never an upload authorization. `request_intake_only=true` explicitly
-requests the optional questionnaire. Only set `preview_only=true` when the user
-asks to review the visual first. A preview returns a digest; approval requires
-`typography_confirmed=true` and the same `approved_draft_sha256`. Reuse the full
-original request/refs, with no changed visual inputs. Approval state is stateless.
+The mandatory flow is questionnaire → subject/background approval → generation.
+First ask the user about copy, images, purpose, size and style. Submit their answers
+as `intake_answers` with `intake_confirmed=true`. “Leave it to AI” delegates the
+proposal, never the approval. Send `composition_proposal={"subject":"…","background":"…"}`,
+show the returned pairing and stop for the user's next explicit approval. Only then
+send `composition_confirmed=true` with the returned `approved_composition_sha256`.
+Changed answers or proposals invalidate approval. Preserve the original request and
+asset refs on retries. This approval digest is stateless across server restarts;
+it is a workflow consistency check, not authentication or upload authorization.
+An additional text-free draft preview is optional via `preview_only=true`.
 
 ## Inputs and compatibility
 

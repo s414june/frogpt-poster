@@ -15,6 +15,8 @@ from gpt_package.glyph_metrics import GlyphMeasurer, coverage
 from gpt_package.types import PosterRequest, PosterLayout
 from gpt_package.openai_tool import handle_tool_call
 from tests.test_composition import data
+from tests.workflow_fixtures import approved_call
+handle_tool_call = approved_call(handle_tool_call)
 
 
 def intent(**extra):
