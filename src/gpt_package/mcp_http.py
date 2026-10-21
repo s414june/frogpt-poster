@@ -55,12 +55,15 @@ SCHEMA = {
     "properties": {
         "design_rules_v1": {"type":"boolean", "description":"Optional strict measured rules. Defaults to POSTER_DESIGN_RULES_V1=false; preserves existing workflow."},
         "design_intent": {"type":"object", "description":"stylePreset, normalized typography/subjectPosition, referenceOverrides/userOverrides (soft Rule IDs only), assetProvenance. Rights confirmations must come from actual user/source evidence."},
-        "preview_only": {"type": "boolean", "description": "Only true when the user asks to preview a draft before adding copy."},
+        "composition_proposal": {"type": "object", "description": "Concrete subject/background pairing shown to user before generation; required string fields subject and background.", "properties": {"subject": {"type": "string"}, "background": {"type": "string"}}, "required": ["subject", "background"]},
+        "composition_confirmed": {"type": "boolean", "description": "True only after user explicitly approves the previously shown pairing in a subsequent reply."},
+        "approved_composition_sha256": {"type": "string", "description": "Digest from the proposal the user explicitly approved; changed questionnaire/proposal requires new approval."},
+        "preview_only": {"type": "boolean", "description": "Optional extra text-free preview after mandatory questionnaire and composition approval."},
         "request_intake_only": {"type": "boolean"},
         "subject_source": {"type": "string", "enum": ["user_upload", "ai_generated"]},
         "subject_position": {"type": "object", "description": "x/y/width/height in final canvas pixels; image fits preserving aspect ratio."},
         "asset_refs": ASSET_REFS_SCHEMA,
-        "intake_confirmed": {"type": "boolean"},
+        "intake_confirmed": {"type": "boolean", "description": "True only after the user answers the mandatory questionnaire; include intake_answers."},
         "typography_confirmed": {"type": "boolean", "description": "For preview_only: explicit approval after the same draft preview. Not an upload authorization."},
         "approved_draft_sha256": {"type": "string", "description": "Copy draft_image_sha256 from the previously displayed text-free preview; must match the same image when approving typography."},
         "intake_session_token": {"type": "string", "minLength": 8, "maxLength": 128},
@@ -606,6 +609,10 @@ def _rewrite_failed_output_for_retry(output: dict) -> dict:
 
 
 def _run_staged_call(args: dict, intake_completed: bool) -> dict:
+    from .workflow import workflow_gate
+    gate = workflow_gate(args)
+    if gate is not None:
+        return gate
     return run_with_storage(args, intake_completed, _run_staged_call_legacy)
 
 
@@ -792,7 +799,7 @@ def _dispatch(message):
                     "isError": False,
                 }
                 return result
-            intake_confirmed_effective = not args.get("request_intake_only", False)
+            intake_confirmed_effective = _resolve_intake_confirmed(args) and not args.get("request_intake_only", False)
             call_args = dict(args)
             if intake_confirmed_effective and bool(call_args.get("regenerate_variant", False)):
                 call_args.pop("variation_token", None)
@@ -847,11 +854,11 @@ def _dispatch(message):
                     {
                         "type": "text",
                         "text": (
-                            "尚未渲染海報。請依 next_action 補齊必要內容並沿用原需求；僅缺必要使用者資料或授權時提問：\n"
+                            "尚未渲染海報。請依 next_action 進行問卷或搭配確認，要求停止時必須等待使用者回覆：\n"
                             + "\n".join(question_lines)
                             + "\n\n"
                             + _image_input_contract_text()
-                            + "\n\n海報文案由 API 排版；預設繼續完成，只有 preview_only 才等草稿確認。"
+                            + "\n\n海報文案由 API 排版；必須先完成問卷並取得主體與背景搭配的明確確認。"
                         ),
                     }
                 )

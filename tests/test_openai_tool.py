@@ -13,6 +13,9 @@ from gpt_package.openai_tool import TOOL_NAME, build_tool_definition, handle_too
 from PIL import Image
 
 
+from tests.workflow_fixtures import approved_call
+handle_tool_call = approved_call(handle_tool_call)
+
 class OpenAIToolTests(unittest.TestCase):
     def test_schema_contains_tool_name(self) -> None:
         schema = build_tool_definition()
@@ -82,8 +85,8 @@ class OpenAIToolTests(unittest.TestCase):
 
     def test_handle_tool_call_returns_intake_on_missing_inputs(self):
         result=handle_tool_call({})
-        self.assertEqual(result['status']['code'],'needs_subject_generation')
-        self.assertNotIn('intake_questions',result)
+        self.assertEqual(result['status']['code'],'needs_input')
+        self.assertIn('intake_questions',result)
         self.assertFalse(result['rendered'])
 
     def test_handle_tool_call_returns_design_guide_when_requested(self) -> None:

@@ -12,6 +12,9 @@ from gpt_package.image_pipeline import ImagePipeline
 from gpt_package.types import PosterDecision, ImageSource
 
 
+from tests.workflow_fixtures import approved_call
+handle_tool_call = approved_call(handle_tool_call)
+
 class GeometryTests(unittest.TestCase):
     def test_validation_rejects_invalid_shapes_and_values(self):
         base={'shape':'circle','x':0,'y':0,'width':10,'height':10,'fill':'#000000'}

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 def build_intake_questions() -> list[dict]:
     return [
+        {"id": "purpose", "question": "這張海報的用途或主題是什麼？", "choices": ["商品宣傳", "活動宣傳", "其他用途"], "allow_freeform": True},
+        {"id": "size", "question": "需要什麼尺寸或使用平台？", "choices": ["直式社群海報", "正方形貼文", "請 AI 建議"], "allow_freeform": True},
         {
             "id": "copy_ready",
             "question": "你是否已有現成文案？",

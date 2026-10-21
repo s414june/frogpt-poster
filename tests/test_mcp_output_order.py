@@ -12,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from gpt_package.mcp_http import dispatch
 from PIL import Image
+from tests.workflow_fixtures import approved_dispatch
+dispatch = approved_dispatch(dispatch)
 
 
 class MCPOutputOrderTests(unittest.TestCase):
@@ -56,9 +58,9 @@ class MCPOutputOrderTests(unittest.TestCase):
 
     def test_tools_call_requires_intake_first_without_confirmation(self):
         response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments={})))['result']['structuredContent']
-        self.assertEqual(response['status']['code'],'needs_subject_generation')
-        self.assertEqual(response['next_action'],'generate_subject_then_retry')
-        self.assertNotIn('intake_questions',response)
+        self.assertEqual(response['status']['code'],'needs_input')
+        self.assertEqual(response['next_action'],'ask_user_intake_questions_then_stop')
+        self.assertIn('intake_questions',response)
         self.assertTrue(response['assistant_execution_contract']['must_use_tool_for_final_poster'])
 
     def test_initialize_instructions_define_delegate_phrase_workflow(self) -> None:
@@ -77,8 +79,8 @@ class MCPOutputOrderTests(unittest.TestCase):
     def test_tools_call_still_requires_intake_without_confirmation(self):
         from tests.test_staged_workflow import image_data
         response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',generated_background_base64=image_data(),generated_background_text_free_confirmed=True))))['result']['structuredContent']
-        self.assertEqual(response['status']['code'],'completed')
-        self.assertTrue(response['rendered'])
+        self.assertEqual(response['status']['code'],'needs_input')
+        self.assertFalse(response['rendered'])
 
     def test_tools_call_returns_image_first_then_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -144,15 +146,15 @@ class MCPOutputOrderTests(unittest.TestCase):
 
     def test_tools_call_needs_background_generation_without_images(self):
         response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',background_mode='solid'))))['result']['structuredContent']
-        self.assertEqual(response['poster_status'],'needs_subject_generation')
+        self.assertEqual(response['poster_status'],'needs_user_input')
         self.assertFalse(response['rendered'])
-        self.assertEqual(response['next_action'],'generate_subject_then_retry')
+        self.assertEqual(response['next_action'],'ask_user_intake_questions_then_stop')
 
     def test_tools_call_solid_mode_without_images_still_needs_background_generation(self):
         response=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=dict(title='Title',body='Body',background_mode='solid'))))['result']['structuredContent']
-        self.assertEqual(response['poster_status'],'needs_subject_generation')
+        self.assertEqual(response['poster_status'],'needs_user_input')
         self.assertFalse(response['rendered'])
-        self.assertEqual(response['next_action'],'generate_subject_then_retry')
+        self.assertEqual(response['next_action'],'ask_user_intake_questions_then_stop')
 
     def test_tools_call_rejects_path_style_image_inputs_with_friendly_hint(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -378,11 +380,11 @@ class MCPOutputOrderTests(unittest.TestCase):
 
         self.assertIsNotNone(second_response)
         second_structured = second_response["result"].get("structuredContent", {})
-        self.assertEqual(second_structured.get("status", {}).get("code"), "completed")
-        self.assertTrue(second_structured.get("rendered"))
+        self.assertEqual(second_structured.get("status", {}).get("code"), "needs_input")
+        self.assertFalse(second_structured.get("rendered"))
         self.assertEqual(second_structured.get("intake_session_token"), token)
-        self.assertTrue(second_structured.get("intake_session_state", {}).get("intake_completed"))
-        self.assertEqual(second_structured.get("request", {}).get("style", {}).get("variation_token"), "")
+        self.assertFalse(second_structured.get("intake_session_state", {}).get("intake_completed"))
+        self.assertNotIn("request", second_structured)
 
     def test_mcp_default_does_not_auto_regenerate_variation_token(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:

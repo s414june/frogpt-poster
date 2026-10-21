@@ -7,6 +7,9 @@ from gpt_package.text_layers import render_text_layers, validate_text_layers
 from gpt_package.errors import ValidationError
 
 
+from tests.workflow_fixtures import approved_call
+handle_tool_call = approved_call(handle_tool_call)
+
 class DesignReferenceTests(unittest.TestCase):
     def layer(self, **changes):
         return dict(text='測試', font_family='serif', font_size=24, color='#1255AA',

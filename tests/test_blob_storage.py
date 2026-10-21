@@ -109,6 +109,8 @@ class BlobTests(unittest.TestCase):
             self.assertEqual(err.exception.code,"FONT_UNAVAILABLE")
     def test_staged_refs_require_digest_approval_and_deliver_url(self):
         from gpt_package.mcp_http import _run_staged_call
+        from tests.workflow_fixtures import approved_call
+        _run_staged_call = approved_call(_run_staged_call)
         env={"FROGPT_BLOB_ENABLED":"true","FROGPT_UPLOAD_ENABLED":"true","FROGPT_FONT_SOURCE":"local"}
         with patch.dict("os.environ",env),patch("gpt_package.blob_workflow.BlobRepository",return_value=self.repo):
             first=_run_staged_call(dict(preview_only=True,generated_background_base64="data:image/png;base64,"+base64.b64encode(png()).decode(),

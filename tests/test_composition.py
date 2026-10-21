@@ -15,6 +15,10 @@ def data(color='red', mode='RGBA', size=(80, 100)):
     return 'data:image/png;base64,'+base64.b64encode(buf.getvalue()).decode()
 
 
+from tests.workflow_fixtures import approved_call, approved_dispatch
+dispatch = approved_dispatch(dispatch, always=True)
+handle_tool_call = approved_call(handle_tool_call)
+
 class CompositionTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
@@ -82,7 +86,7 @@ class CompositionTests(unittest.TestCase):
         result=self.render(subject_image_base64=[data()],text_layers=layers)
         self.assertTrue(result['rendered'],result)
         self.assertEqual([x['color'] for x in result['request']['style']['text_layers']],['#112233','#663311'])
-    def test_formal_attachment_dispatch_auto_completes(self):
+    def test_formal_attachment_dispatch_completes_after_pairing_approval(self):
         args=dict(title='Hello',body='Daily',subject_source='ai_generated',subject_image=dict(file_id='file-x',download_url='https://files.oaiusercontent.com/x'))
         with patch('gpt_package.mcp_http._download_attachment_as_data_url',return_value=data()):
             result=dispatch(dict(jsonrpc='2.0',id=1,method='tools/call',params=dict(name='prepare_poster',arguments=args)))['result']['structuredContent']
